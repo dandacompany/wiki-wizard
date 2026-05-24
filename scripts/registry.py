@@ -128,3 +128,110 @@ def forget_vault(db_path: Path, name: str) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def upsert_note(
+    db_path: Path,
+    *,
+    vault_id: int,
+    relpath: str,
+    layer: str,
+    title: str | None,
+    summary: str | None,
+    mtime: float,
+    size_bytes: int,
+    tags: list[str],
+    parse_error: bool = False,
+) -> int:
+    conn = connect(db_path)
+    try:
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO notes(vault_id, relpath, layer, title, summary,
+                                  mtime, size_bytes, parse_error)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(vault_id, relpath) DO UPDATE SET
+                    layer       = excluded.layer,
+                    title       = excluded.title,
+                    summary     = excluded.summary,
+                    mtime       = excluded.mtime,
+                    size_bytes  = excluded.size_bytes,
+                    parse_error = excluded.parse_error
+                """,
+                (vault_id, relpath, layer, title, summary,
+                 mtime, size_bytes, 1 if parse_error else 0),
+            )
+            note_id = conn.execute(
+                "SELECT id FROM notes WHERE vault_id = ? AND relpath = ?",
+                (vault_id, relpath),
+            ).fetchone()["id"]
+            _replace_note_tags(conn, note_id, tags)
+        return note_id
+    finally:
+        conn.close()
+
+
+def _replace_note_tags(conn: sqlite3.Connection, note_id: int, tags: list[str]) -> None:
+    conn.execute("DELETE FROM note_tags WHERE note_id = ?", (note_id,))
+    for tag in tags:
+        conn.execute("INSERT OR IGNORE INTO tags(name) VALUES (?)", (tag,))
+        tag_id = conn.execute(
+            "SELECT id FROM tags WHERE name = ?", (tag,)
+        ).fetchone()["id"]
+        conn.execute(
+            "INSERT INTO note_tags(note_id, tag_id) VALUES (?, ?)",
+            (note_id, tag_id),
+        )
+
+
+def list_notes(
+    db_path: Path,
+    *,
+    vault_id: int,
+    layer: str | None = None,
+) -> list[sqlite3.Row]:
+    conn = connect(db_path)
+    try:
+        if layer:
+            return list(conn.execute(
+                "SELECT * FROM notes WHERE vault_id = ? AND layer = ? ORDER BY relpath",
+                (vault_id, layer),
+            ))
+        return list(conn.execute(
+            "SELECT * FROM notes WHERE vault_id = ? ORDER BY relpath",
+            (vault_id,),
+        ))
+    finally:
+        conn.close()
+
+
+def delete_note(db_path: Path, *, vault_id: int, relpath: str) -> None:
+    conn = connect(db_path)
+    try:
+        conn.execute(
+            "DELETE FROM notes WHERE vault_id = ? AND relpath = ?",
+            (vault_id, relpath),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_tags_for_note(db_path: Path, note_id: int) -> list[str]:
+    conn = connect(db_path)
+    try:
+        return [
+            row["name"]
+            for row in conn.execute(
+                """
+                SELECT t.name FROM tags t
+                JOIN note_tags nt ON nt.tag_id = t.id
+                WHERE nt.note_id = ?
+                ORDER BY t.name
+                """,
+                (note_id,),
+            )
+        ]
+    finally:
+        conn.close()

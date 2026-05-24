@@ -107,3 +107,85 @@ def test_forget_unknown_vault_raises(tmp_db):
     registry.init_db(tmp_db)
     with pytest.raises(registry.VaultError, match="not found"):
         registry.forget_vault(tmp_db, "nope")
+
+
+import sqlite3
+
+
+def _seed_vault(tmp_db, tmp_path) -> int:
+    registry.init_db(tmp_db)
+    p = tmp_path / "v"; p.mkdir()
+    row = registry.add_vault(tmp_db, name="v", path=p, type_="markdown", mode="memo")
+    return row["id"]
+
+
+def test_upsert_note_inserts_new_row(tmp_db, tmp_path):
+    vid = _seed_vault(tmp_db, tmp_path)
+    registry.upsert_note(
+        tmp_db,
+        vault_id=vid,
+        relpath="ai/foo.md",
+        layer="memo",
+        title="Foo",
+        summary="foo summary",
+        mtime=1.0,
+        size_bytes=42,
+        tags=["ai", "experiment"],
+    )
+    notes = registry.list_notes(tmp_db, vault_id=vid)
+    assert len(notes) == 1
+    assert notes[0]["title"] == "Foo"
+
+
+def test_upsert_note_updates_on_relpath_conflict(tmp_db, tmp_path):
+    vid = _seed_vault(tmp_db, tmp_path)
+    registry.upsert_note(
+        tmp_db, vault_id=vid, relpath="ai/foo.md", layer="memo",
+        title="Old", summary="", mtime=1.0, size_bytes=10, tags=[],
+    )
+    registry.upsert_note(
+        tmp_db, vault_id=vid, relpath="ai/foo.md", layer="memo",
+        title="New", summary="updated", mtime=2.0, size_bytes=20, tags=["x"],
+    )
+    notes = registry.list_notes(tmp_db, vault_id=vid)
+    assert len(notes) == 1
+    assert notes[0]["title"] == "New"
+    assert notes[0]["mtime"] == 2.0
+
+
+def test_list_notes_can_filter_by_layer(tmp_db, tmp_path):
+    vid = _seed_vault(tmp_db, tmp_path)
+    registry.upsert_note(tmp_db, vault_id=vid, relpath="a.md", layer="raw",
+                         title="a", summary="", mtime=1.0, size_bytes=1, tags=[])
+    registry.upsert_note(tmp_db, vault_id=vid, relpath="b.md", layer="wiki",
+                         title="b", summary="", mtime=1.0, size_bytes=1, tags=[])
+    raw = registry.list_notes(tmp_db, vault_id=vid, layer="raw")
+    assert {n["title"] for n in raw} == {"a"}
+
+
+def test_delete_note_removes_row(tmp_db, tmp_path):
+    vid = _seed_vault(tmp_db, tmp_path)
+    registry.upsert_note(tmp_db, vault_id=vid, relpath="a.md", layer="memo",
+                         title="a", summary="", mtime=1.0, size_bytes=1, tags=[])
+    registry.delete_note(tmp_db, vault_id=vid, relpath="a.md")
+    assert registry.list_notes(tmp_db, vault_id=vid) == []
+
+
+def test_get_tags_for_note(tmp_db, tmp_path):
+    vid = _seed_vault(tmp_db, tmp_path)
+    registry.upsert_note(tmp_db, vault_id=vid, relpath="a.md", layer="memo",
+                         title="a", summary="", mtime=1.0, size_bytes=1,
+                         tags=["alpha", "beta"])
+    notes = registry.list_notes(tmp_db, vault_id=vid)
+    tags = registry.get_tags_for_note(tmp_db, notes[0]["id"])
+    assert set(tags) == {"alpha", "beta"}
+
+
+def test_cascade_delete_vault_removes_notes(tmp_db, tmp_path):
+    vid = _seed_vault(tmp_db, tmp_path)
+    registry.upsert_note(tmp_db, vault_id=vid, relpath="a.md", layer="memo",
+                         title="a", summary="", mtime=1.0, size_bytes=1, tags=["t"])
+    registry.forget_vault(tmp_db, "v")
+    conn = sqlite3.connect(tmp_db)
+    n = conn.execute("SELECT COUNT(*) FROM notes").fetchone()[0]
+    assert n == 0
