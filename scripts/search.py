@@ -1,0 +1,93 @@
+"""Weighted natural-language search over the sqlite notes index."""
+from __future__ import annotations
+
+import re
+import sqlite3
+from pathlib import Path
+
+WEIGHTS = {
+    "title": 5.0,
+    "tag": 3.0,
+    "summary": 1.5,
+    "relpath": 1.0,
+}
+
+_TOKEN_RE = re.compile(r"[\w가-힣]+", re.UNICODE)
+
+
+def _tokens(text: str) -> list[str]:
+    return [t.lower() for t in _TOKEN_RE.findall(text or "")]
+
+
+def query(
+    db_path: Path,
+    *,
+    vault_id: int,
+    query: str,
+    limit: int = 5,
+) -> list[dict]:
+    """Return top-N hits as dicts {relpath, title, summary, tags, score}."""
+    q_tokens = _tokens(query)
+    if not q_tokens:
+        return []
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        notes = list(conn.execute(
+            """
+            SELECT id, relpath, title, summary
+            FROM notes
+            WHERE vault_id = ? AND parse_error = 0
+            """,
+            (vault_id,),
+        ))
+        tags_by_id: dict[int, list[str]] = {}
+        for row in conn.execute(
+            """
+            SELECT n.id, t.name FROM notes n
+            JOIN note_tags nt ON nt.note_id = n.id
+            JOIN tags t ON t.id = nt.tag_id
+            WHERE n.vault_id = ?
+            """,
+            (vault_id,),
+        ):
+            tags_by_id.setdefault(row["id"], []).append(row["name"])
+    finally:
+        conn.close()
+
+    scored: list[tuple[float, dict]] = []
+    for note in notes:
+        tags = tags_by_id.get(note["id"], [])
+        score = _score(q_tokens, note, tags)
+        if score > 0:
+            scored.append((score, {
+                "relpath": note["relpath"],
+                "title": note["title"],
+                "summary": note["summary"],
+                "tags": tags,
+                "score": round(score, 3),
+            }))
+    scored.sort(key=lambda x: -x[0])
+    return [hit for _, hit in scored[:limit]]
+
+
+def _score(q_tokens: list[str], note: sqlite3.Row, tags: list[str]) -> float:
+    title_t = set(_tokens(note["title"] or ""))
+    summary_t = set(_tokens(note["summary"] or ""))
+    relpath_t = set(_tokens(note["relpath"] or ""))
+    tag_t: set[str] = set()
+    for t in tags:
+        tag_t.update(_tokens(t))
+
+    score = 0.0
+    for q in q_tokens:
+        if q in title_t:
+            score += WEIGHTS["title"]
+        if q in tag_t:
+            score += WEIGHTS["tag"]
+        if q in summary_t:
+            score += WEIGHTS["summary"]
+        if q in relpath_t:
+            score += WEIGHTS["relpath"]
+    return score
