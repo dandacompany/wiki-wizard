@@ -1,7 +1,8 @@
-import sqlite3
 from pathlib import Path
 
 import pytest
+
+from scripts import registry
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -22,14 +23,6 @@ def obsidian_vault_path():
     return FIXTURES / "obsidian-vault"
 
 
-def _connect(db_path):
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
-
-
 @pytest.fixture
 def db_connect():
-    """Helper that opens a sqlite connection with FK on and row_factory set."""
-    return _connect
+    return registry.connect

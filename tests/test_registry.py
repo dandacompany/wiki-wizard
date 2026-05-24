@@ -1,7 +1,3 @@
-import sqlite3
-
-import pytest
-
 from scripts import registry
 
 
