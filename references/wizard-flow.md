@@ -36,8 +36,8 @@ scripts/wizard.py status
 
 ## "needs" semantics
 
-| `needs` | Trigger condition |
-|---------|-------------------|
-| `setup` | `vault_count == 0` OR registry.db missing |
-| `select` | `vault_count ≥ 1` and `active is None` |
-| `op` | `vault_count ≥ 1` and `active` set |
+| `needs`  | Trigger condition                         |
+| -------- | ----------------------------------------- |
+| `setup`  | `vault_count == 0` OR registry.db missing |
+| `select` | `vault_count ≥ 1` and `active is None`    |
+| `op`     | `vault_count ≥ 1` and `active` set        |

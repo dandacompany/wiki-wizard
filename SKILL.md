@@ -28,11 +28,11 @@ Parse the JSON output. Fields:
 
 ## Step 2 — Route by `needs`
 
-| `needs` | Action |
-|---------|--------|
-| `"setup"` | Load `commands/vault-setup.md`. (Plan B) |
-| `"select"` | Load `commands/vault-use.md`. (Plan B) |
-| `"op"` | Inspect the user's input. If it names an op explicitly, load that op's `commands/<op>.md`. Otherwise run the Op Wizard (below). |
+| `needs`    | Action                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `"setup"`  | Load `commands/vault-setup.md`. (Plan B)                                                                                        |
+| `"select"` | Load `commands/vault-use.md`. (Plan B)                                                                                          |
+| `"op"`     | Inspect the user's input. If it names an op explicitly, load that op's `commands/<op>.md`. Otherwise run the Op Wizard (below). |
 
 ## Step 3 — Op Wizard (when no op specified)
 
@@ -67,21 +67,21 @@ These hold across all commands. Each `commands/<op>.md` repeats the relevant one
 
 If the user input matches an op keyword, prefer that op over the wizard:
 
-| Keyword (EN / KO) | Op |
-|---|---|
-| "ingest", "정리", "흡수" | `ingest` |
-| "query", "물어봐", "찾아봐" | `query` |
-| "find", "검색", "찾아줘" | `find` |
-| "open", "열어줘" | `open` |
-| "edit", "수정", "편집" | `edit` |
-| "move", "이동", "옮겨" | `move` |
-| "delete", "삭제", "지워" | `delete` |
-| "lint", "점검", "정리하기" | `lint` |
-| "setup", "새 vault", "vault 만들기" | `vault-setup` |
-| "use", "vault 전환", "vault 바꿔" | `vault-use` |
-| "list", "vault 목록" | `vault-list` |
-| "forget", "vault 제거" | `vault-forget` |
-| "import memo", "memo 가져오기" | `vault-import-memo` |
+| Keyword (EN / KO)                   | Op                  |
+| ----------------------------------- | ------------------- |
+| "ingest", "정리", "흡수"            | `ingest`            |
+| "query", "물어봐", "찾아봐"         | `query`             |
+| "find", "검색", "찾아줘"            | `find`              |
+| "open", "열어줘"                    | `open`              |
+| "edit", "수정", "편집"              | `edit`              |
+| "move", "이동", "옮겨"              | `move`              |
+| "delete", "삭제", "지워"            | `delete`            |
+| "lint", "점검", "정리하기"          | `lint`              |
+| "setup", "새 vault", "vault 만들기" | `vault-setup`       |
+| "use", "vault 전환", "vault 바꿔"   | `vault-use`         |
+| "list", "vault 목록"                | `vault-list`        |
+| "forget", "vault 제거"              | `vault-forget`      |
+| "import memo", "memo 가져오기"      | `vault-import-memo` |
 
 ## Pasted content heuristic
 

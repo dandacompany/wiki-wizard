@@ -4,15 +4,15 @@ Every note in a wiki-wizard vault starts with YAML frontmatter. Missing or malfo
 
 ## Common fields (all layers)
 
-| Field | Type | Required | Notes |
-|-------|------|----------|-------|
-| `title` | string | yes | Used as primary search signal. |
-| `date` | string (YYYY-MM-DD) | yes | Creation date. |
-| `type` | enum | yes | `article` \| `link` \| `note` \| `paper` \| `video` \| `book` \| `doc` |
-| `tags` | YAML list | yes | Must be `[a, b, c]`, never a string. |
-| `summary` | string | recommended | One-sentence summary. |
-| `status` | enum | optional | `inbox` \| `processed` \| `archived` (memo) / `raw` \| `meta` (wiki layers) |
-| `source` | string (URL) | optional | Used at ingest time. |
+| Field     | Type                | Required    | Notes                                                                       |
+| --------- | ------------------- | ----------- | --------------------------------------------------------------------------- |
+| `title`   | string              | yes         | Used as primary search signal.                                              |
+| `date`    | string (YYYY-MM-DD) | yes         | Creation date.                                                              |
+| `type`    | enum                | yes         | `article` \| `link` \| `note` \| `paper` \| `video` \| `book` \| `doc`      |
+| `tags`    | YAML list           | yes         | Must be `[a, b, c]`, never a string.                                        |
+| `summary` | string              | recommended | One-sentence summary.                                                       |
+| `status`  | enum                | optional    | `inbox` \| `processed` \| `archived` (memo) / `raw` \| `meta` (wiki layers) |
+| `source`  | string (URL)        | optional    | Used at ingest time.                                                        |
 
 ## wiki-mode layer-specific fields
 

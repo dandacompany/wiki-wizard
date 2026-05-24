@@ -8,7 +8,9 @@ status: meta
 ---
 
 ## Concepts
+
 - [[compounding-knowledge]] — knowledge as a compounding artifact
 
 ## Entities
+
 - [[karpathy]] — Andrej Karpathy

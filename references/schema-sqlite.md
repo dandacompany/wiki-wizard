@@ -4,12 +4,12 @@ File: `data/registry.db`. gitignored. Created on first `wizard.py status` call.
 
 ## Tables
 
-| Table | Purpose |
-|-------|---------|
-| `vaults` | One row per registered vault. `is_active` is database-constrained to a single row via partial unique index. |
-| `notes` | Lightweight per-file index. `UNIQUE(vault_id, relpath)` enables upsert. |
-| `tags` + `note_tags` | Many-to-many. Tag rows are interned (insert-or-ignore). |
-| `schema_migrations` | Records applied migration versions. |
+| Table                | Purpose                                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `vaults`             | One row per registered vault. `is_active` is database-constrained to a single row via partial unique index. |
+| `notes`              | Lightweight per-file index. `UNIQUE(vault_id, relpath)` enables upsert.                                     |
+| `tags` + `note_tags` | Many-to-many. Tag rows are interned (insert-or-ignore).                                                     |
+| `schema_migrations`  | Records applied migration versions.                                                                         |
 
 ## Field constraints
 
