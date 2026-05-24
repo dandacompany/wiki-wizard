@@ -83,14 +83,52 @@ class MarkdownAdapter:
         return Path(root).is_dir()
 
 
-def get_adapter(type_: str) -> VaultAdapter:
+def get_adapter(type_: str, *, vault_name: str | None = None) -> VaultAdapter:
     if type_ == "markdown":
         return MarkdownAdapter()
     if type_ == "obsidian":
-        return ObsidianAdapter()
+        return ObsidianAdapter(vault_name=vault_name)
     raise AdapterError(f"unknown adapter type: {type_!r}")
 
 
-# Placeholder so Task 10 can extend it.
 class ObsidianAdapter(MarkdownAdapter):
-    pass
+    """Obsidian-aware adapter. Uses obsidian:// URI scheme to open notes."""
+
+    def __init__(self, vault_name: str | None = None) -> None:
+        self.vault_name = vault_name
+
+    def link_syntax(self, target_relpath: str) -> str:
+        rel = target_relpath
+        if rel.endswith(".md"):
+            rel = rel[:-3]
+        return f"[[{rel}]]"
+
+    def is_valid(self, root: Path) -> bool:
+        root = Path(root)
+        return root.is_dir() and (root / ".obsidian").is_dir()
+
+    def init_vault(self, root: Path, mode: str) -> None:
+        super().init_vault(root, mode)
+        (Path(root) / ".obsidian").mkdir(exist_ok=True)
+
+    def open(self, abs_path: Path, vault_root: Path | None = None) -> None:
+        if self.vault_name and vault_root is not None:
+            try:
+                rel = Path(abs_path).resolve().relative_to(Path(vault_root).resolve())
+            except ValueError:
+                rel = Path(abs_path).name
+            from urllib.parse import quote
+            uri = f"obsidian://open?vault={quote(self.vault_name)}&file={quote(str(rel))}"
+            _os_open_uri(uri)
+            return
+        _os_open(abs_path)
+
+
+def _os_open_uri(uri: str) -> None:
+    system = platform.system()
+    if system == "Darwin":
+        subprocess.run(["open", uri], check=False)
+    elif system == "Windows":
+        subprocess.run(["cmd", "/c", "start", "", uri], check=False, shell=False)
+    else:
+        subprocess.run(["xdg-open", uri], check=False)

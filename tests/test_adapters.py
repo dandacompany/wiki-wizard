@@ -61,3 +61,36 @@ def test_markdown_init_vault_unknown_mode_raises(tmp_path):
     a = adapters.MarkdownAdapter()
     with pytest.raises(adapters.AdapterError, match="unknown mode"):
         a.init_vault(tmp_path / "x", mode="invalid")
+
+
+def test_obsidian_link_syntax_uses_wikilink():
+    a = adapters.ObsidianAdapter()
+    assert a.link_syntax("concepts/karpathy") == "[[concepts/karpathy]]"
+    assert a.link_syntax("karpathy.md") == "[[karpathy]]"
+
+
+def test_obsidian_is_valid_requires_dot_obsidian(obsidian_vault_path, tmp_path):
+    a = adapters.ObsidianAdapter()
+    assert a.is_valid(obsidian_vault_path) is True
+    plain = tmp_path / "plain"; plain.mkdir()
+    assert a.is_valid(plain) is False
+
+
+def test_obsidian_init_vault_creates_dot_obsidian(tmp_path):
+    a = adapters.ObsidianAdapter()
+    root = tmp_path / "ob-vault"
+    a.init_vault(root, mode="wiki")
+    assert (root / ".obsidian").is_dir()
+    assert (root / "wiki" / "index.md").exists()
+
+
+def test_obsidian_open_uses_uri_scheme(tmp_path):
+    a = adapters.ObsidianAdapter(vault_name="research")
+    target = tmp_path / "research" / "concepts" / "x.md"
+    target.parent.mkdir(parents=True)
+    target.write_text("hi")
+    with patch("scripts.adapters.subprocess.run") as run:
+        a.open(target, vault_root=tmp_path / "research")
+        args = run.call_args.args[0]
+        assert any("obsidian://open" in arg for arg in args)
+        assert any("vault=research" in arg for arg in args)
