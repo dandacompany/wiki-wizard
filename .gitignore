@@ -24,3 +24,6 @@ data/*.db-shm
 
 # OS
 .DS_Store
+
+# uv (not used here)
+uv.lock
