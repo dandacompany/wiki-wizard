@@ -13,13 +13,12 @@ dev = [
     "ruff>=0.6",
 ]
 
-[tool.setuptools]
-packages = ["scripts", "scripts.db"]
+[tool.setuptools.packages.find]
+include = ["scripts*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -q --strict-markers"
-pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
