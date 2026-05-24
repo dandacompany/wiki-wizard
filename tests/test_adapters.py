@@ -94,3 +94,16 @@ def test_obsidian_open_uses_uri_scheme(tmp_path):
         args = run.call_args.args[0]
         assert any("obsidian://open" in arg for arg in args)
         assert any("vault=research" in arg for arg in args)
+
+
+def test_obsidian_open_preserves_slash_in_nested_path(tmp_path):
+    a = adapters.ObsidianAdapter(vault_name="research")
+    nested = tmp_path / "research" / "concepts" / "deep" / "x.md"
+    nested.parent.mkdir(parents=True)
+    nested.write_text("hi")
+    with patch("scripts.adapters.subprocess.run") as run:
+        a.open(nested, vault_root=tmp_path / "research")
+        args = run.call_args.args[0]
+        # The file= portion must preserve forward slashes for Obsidian to resolve nested paths
+        assert any("file=concepts/deep/x.md" in arg for arg in args)
+        assert not any("%2F" in arg for arg in args)

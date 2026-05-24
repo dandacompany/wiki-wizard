@@ -118,7 +118,7 @@ class ObsidianAdapter(MarkdownAdapter):
             except ValueError:
                 rel = Path(abs_path).name
             from urllib.parse import quote
-            uri = f"obsidian://open?vault={quote(self.vault_name)}&file={quote(str(rel))}"
+            uri = f"obsidian://open?vault={quote(self.vault_name)}&file={quote(str(rel), safe='/')}"
             _os_open_uri(uri)
             return
         _os_open(abs_path)
