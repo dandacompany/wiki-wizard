@@ -55,3 +55,9 @@ def test_markdown_open_invokes_os_open(tmp_path):
     with patch("scripts.adapters.subprocess.run") as run:
         a.open(target)
         assert run.called
+
+
+def test_markdown_init_vault_unknown_mode_raises(tmp_path):
+    a = adapters.MarkdownAdapter()
+    with pytest.raises(adapters.AdapterError, match="unknown mode"):
+        a.init_vault(tmp_path / "x", mode="invalid")

@@ -73,9 +73,9 @@ class MarkdownAdapter:
             index_path = wiki / "index.md"
             log_path = wiki / "log.md"
             if not index_path.exists():
-                index_path.write_text(_INDEX_TEMPLATE)
+                index_path.write_text(_INDEX_TEMPLATE, encoding="utf-8")
             if not log_path.exists():
-                log_path.write_text(_LOG_TEMPLATE)
+                log_path.write_text(_LOG_TEMPLATE, encoding="utf-8")
         else:
             raise AdapterError(f"unknown mode: {mode!r}")
 
