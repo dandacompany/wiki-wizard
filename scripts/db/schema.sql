@@ -1,0 +1,49 @@
+-- wiki-wizard registry schema v1
+-- Idempotent: safe to run multiple times via IF NOT EXISTS.
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version    INTEGER PRIMARY KEY,
+  applied_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS vaults (
+  id          INTEGER PRIMARY KEY,
+  name        TEXT NOT NULL UNIQUE,
+  path        TEXT NOT NULL UNIQUE,
+  type        TEXT NOT NULL CHECK (type IN ('markdown', 'obsidian')),
+  mode        TEXT NOT NULL CHECK (mode IN ('memo', 'wiki')),
+  is_active   INTEGER NOT NULL DEFAULT 0 CHECK (is_active IN (0, 1)),
+  created_at  TEXT NOT NULL,
+  last_used   TEXT NOT NULL,
+  config_json TEXT
+);
+
+-- Partial unique index: at most one row with is_active=1.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_active_vault
+  ON vaults(is_active) WHERE is_active = 1;
+
+CREATE TABLE IF NOT EXISTS notes (
+  id           INTEGER PRIMARY KEY,
+  vault_id     INTEGER NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  relpath      TEXT NOT NULL,
+  layer        TEXT NOT NULL CHECK (layer IN ('raw', 'wiki', 'memo', 'meta')),
+  title        TEXT,
+  summary      TEXT,
+  mtime        REAL NOT NULL,
+  size_bytes   INTEGER NOT NULL,
+  parse_error  INTEGER NOT NULL DEFAULT 0 CHECK (parse_error IN (0, 1)),
+  UNIQUE(vault_id, relpath)
+);
+CREATE INDEX IF NOT EXISTS idx_notes_vault ON notes(vault_id);
+CREATE INDEX IF NOT EXISTS idx_notes_layer ON notes(vault_id, layer);
+
+CREATE TABLE IF NOT EXISTS tags (
+  id    INTEGER PRIMARY KEY,
+  name  TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS note_tags (
+  note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  tag_id  INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (note_id, tag_id)
+);
