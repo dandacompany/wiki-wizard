@@ -1,0 +1,20 @@
+# Meta/planning artifacts excluded from distribution
+docs/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Runtime state (per-user sqlite)
+wiki-wizard/data/*.db
+wiki-wizard/data/*.db-journal
+wiki-wizard/data/*.db-wal
+wiki-wizard/data/*.db-shm
+!wiki-wizard/data/.gitkeep
+
+# OS
+.DS_Store
