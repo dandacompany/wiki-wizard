@@ -1,7 +1,6 @@
 """Filesystem → sqlite indexer using mtime to skip unchanged files."""
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 
 from scripts import frontmatter, registry
@@ -20,7 +19,7 @@ def incremental(db_path: Path, *, vault_id: int) -> int:
 
 
 def _vault_path(db_path: Path, vault_id: int) -> Path:
-    conn = sqlite3.connect(db_path)
+    conn = registry.connect(db_path)
     try:
         row = conn.execute(
             "SELECT path FROM vaults WHERE id = ?", (vault_id,)
@@ -33,7 +32,7 @@ def _vault_path(db_path: Path, vault_id: int) -> Path:
 
 
 def _existing_mtimes(db_path: Path, vault_id: int) -> dict[str, float]:
-    conn = sqlite3.connect(db_path)
+    conn = registry.connect(db_path)
     try:
         return {
             row[0]: row[1]

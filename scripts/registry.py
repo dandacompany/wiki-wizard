@@ -59,14 +59,18 @@ def add_vault(
     try:
         now = _now()
         try:
-            cur = conn.execute(
-                """
-                INSERT INTO vaults(name, path, type, mode, is_active,
-                                   created_at, last_used, config_json)
-                VALUES (?, ?, ?, ?, 0, ?, ?, ?)
-                """,
-                (name, str(Path(path).resolve()), type_, mode, now, now, config_json),
-            )
+            with conn:
+                cur = conn.execute(
+                    """
+                    INSERT INTO vaults(name, path, type, mode, is_active,
+                                       created_at, last_used, config_json)
+                    VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+                    """,
+                    (name, str(Path(path).resolve()), type_, mode, now, now, config_json),
+                )
+                return conn.execute(
+                    "SELECT * FROM vaults WHERE id = ?", (cur.lastrowid,)
+                ).fetchone()
         except sqlite3.IntegrityError as exc:
             msg = str(exc).lower()
             if "vaults.name" in msg:
@@ -74,10 +78,6 @@ def add_vault(
             if "vaults.path" in msg:
                 raise VaultError(f"vault path {path!r} is already registered") from exc
             raise VaultError(str(exc)) from exc
-        conn.commit()
-        return conn.execute(
-            "SELECT * FROM vaults WHERE id = ?", (cur.lastrowid,)
-        ).fetchone()
     finally:
         conn.close()
 
@@ -122,10 +122,10 @@ def set_active(db_path: Path, name: str) -> sqlite3.Row:
 def forget_vault(db_path: Path, name: str) -> None:
     conn = connect(db_path)
     try:
-        cur = conn.execute("DELETE FROM vaults WHERE name = ?", (name,))
-        if cur.rowcount == 0:
-            raise VaultError(f"vault {name!r} not found")
-        conn.commit()
+        with conn:
+            cur = conn.execute("DELETE FROM vaults WHERE name = ?", (name,))
+            if cur.rowcount == 0:
+                raise VaultError(f"vault {name!r} not found")
     finally:
         conn.close()
 
@@ -209,11 +209,11 @@ def list_notes(
 def delete_note(db_path: Path, *, vault_id: int, relpath: str) -> None:
     conn = connect(db_path)
     try:
-        conn.execute(
-            "DELETE FROM notes WHERE vault_id = ? AND relpath = ?",
-            (vault_id, relpath),
-        )
-        conn.commit()
+        with conn:
+            conn.execute(
+                "DELETE FROM notes WHERE vault_id = ? AND relpath = ?",
+                (vault_id, relpath),
+            )
     finally:
         conn.close()
 
