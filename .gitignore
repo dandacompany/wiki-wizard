@@ -10,11 +10,11 @@ __pycache__/
 htmlcov/
 
 # Runtime state (per-user sqlite)
-wiki-wizard/data/*.db
-wiki-wizard/data/*.db-journal
-wiki-wizard/data/*.db-wal
-wiki-wizard/data/*.db-shm
-!wiki-wizard/data/.gitkeep
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+!data/.gitkeep
 
 # OS
 .DS_Store
