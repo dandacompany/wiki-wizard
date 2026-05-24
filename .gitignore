@@ -16,5 +16,11 @@ data/*.db-wal
 data/*.db-shm
 !data/.gitkeep
 
+# Virtualenv
+.venv/
+
+# Editable install metadata
+*.egg-info/
+
 # OS
 .DS_Store

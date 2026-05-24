@@ -1,0 +1,26 @@
+[project]
+name = "wiki-wizard"
+version = "0.1.0"
+description = "Karpathy-style LLM Wiki skill with multi-vault sqlite registry and Socratic wizard"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[tool.setuptools]
+packages = ["scripts", "scripts.db"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q --strict-markers"
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
