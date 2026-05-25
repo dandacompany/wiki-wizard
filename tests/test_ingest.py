@@ -68,3 +68,45 @@ def test_save_raw_pdf_returns_relpath_and_extracted_text(wiki_vault):
     assert (root / rel).read_bytes() == pdf_bytes
     # text extracted
     assert "PDF FIXTURE" in text
+
+
+def test_write_wiki_page_summary(wiki_vault):
+    db, vault, root = wiki_vault
+    rel = ingest.write_wiki_page(
+        db, vault_id=vault["id"],
+        layer="summaries",
+        title="Karpathy LLM Wiki",
+        body="One-paragraph summary.",
+        tags=["karpathy", "llm"],
+        date_str="2026-05-25",
+    )
+    assert rel == "wiki/summaries/karpathy-llm-wiki.md"
+    text = (root / rel).read_text(encoding="utf-8")
+    assert "title: Karpathy LLM Wiki" in text
+    assert "type: summary" in text
+    assert "One-paragraph summary." in text
+
+
+def test_write_wiki_page_entity(wiki_vault):
+    db, vault, root = wiki_vault
+    rel = ingest.write_wiki_page(
+        db, vault_id=vault["id"],
+        layer="entities",
+        title="Andrej Karpathy",
+        body="AI researcher.",
+        tags=["person"],
+        date_str="2026-05-25",
+    )
+    assert rel == "wiki/entities/andrej-karpathy.md"
+    text = (root / rel).read_text(encoding="utf-8")
+    assert "type: entity" in text
+
+
+def test_write_wiki_page_rejects_bad_layer(wiki_vault):
+    db, vault, root = wiki_vault
+    with pytest.raises(ValueError, match="layer"):
+        ingest.write_wiki_page(
+            db, vault_id=vault["id"],
+            layer="not-a-layer",
+            title="x", body="", tags=[], date_str="2026-05-25",
+        )

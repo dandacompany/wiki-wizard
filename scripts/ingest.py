@@ -73,3 +73,46 @@ def save_raw_pdf(
         parts.append(page.extract_text() or "")
     extracted = "\n\n".join(parts).strip()
     return relpath, extracted
+
+
+WIKI_LAYERS = {
+    "summaries":   "summary",
+    "entities":    "entity",
+    "concepts":    "concept",
+    "comparisons": "comparison",
+    "syntheses":   "synthesis",
+}
+
+
+def write_wiki_page(
+    db_path: Path,
+    *,
+    vault_id: int,
+    layer: str,
+    title: str,
+    body: str,
+    tags: list[str],
+    date_str: str,
+    summary: str | None = None,
+    status: str = "processed",
+) -> str:
+    """Write wiki/<layer>/<slug>.md with required frontmatter. Returns relpath."""
+    if layer not in WIKI_LAYERS:
+        raise ValueError(f"unknown wiki layer: {layer!r} (valid: {sorted(WIKI_LAYERS)})")
+    root = _vault_root(db_path, vault_id)
+    base = slugify.slugify(title)
+    relpath = _resolve_path(root, f"wiki/{layer}", base, "md")
+    type_ = WIKI_LAYERS[layer]
+    meta: dict = {
+        "title": title,
+        "date": date_str,
+        "type": type_,
+        "tags": list(tags),
+        "status": status,
+    }
+    if summary:
+        meta["summary"] = summary
+    abs_path = root / relpath
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    abs_path.write_text(frontmatter.dump(meta, body), encoding="utf-8")
+    return relpath
