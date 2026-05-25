@@ -137,3 +137,51 @@ def delete(
     shutil.move(str(src), str(root / trash_relpath))
     registry.delete_note(db_path, vault_id=vault_id, relpath=relpath)
     return trash_relpath
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    import sys
+
+    p = argparse.ArgumentParser(prog="scripts.memo_ops")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    pw = sub.add_parser("write", help="Create a memo (body from stdin)")
+    pw.add_argument("--db", default="data/registry.db")
+    pw.add_argument("--vault-id", type=int)
+    pw.add_argument("--title", required=True)
+    pw.add_argument("--folder", default="inbox")
+    pw.add_argument("--tags", default="")
+    pw.add_argument("--type", dest="type_", default="note")
+    pw.add_argument("--date", dest="date_str", required=True)
+
+    args = p.parse_args(argv)
+
+    db_path = Path(args.db)
+    if args.vault_id is None:
+        active = registry.get_active(db_path)
+        if active is None:
+            print("no active vault — run vault-use first", file=sys.stderr)
+            return 2
+        vault_id = active["id"]
+    else:
+        vault_id = args.vault_id
+
+    tags = [t.strip() for t in args.tags.split(",") if t.strip()]
+    body = sys.stdin.read()
+    relpath = write(
+        db_path,
+        vault_id=vault_id,
+        title=args.title,
+        body=body,
+        folder=args.folder,
+        tags=tags,
+        type_=args.type_,
+        date_str=args.date_str,
+    )
+    print(relpath)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
