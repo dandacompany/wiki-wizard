@@ -110,3 +110,44 @@ def test_write_wiki_page_rejects_bad_layer(wiki_vault):
             layer="not-a-layer",
             title="x", body="", tags=[], date_str="2026-05-25",
         )
+
+
+def test_update_index_adds_under_correct_section(wiki_vault):
+    db, vault, root = wiki_vault
+    ingest.update_index(
+        db, vault_id=vault["id"],
+        entries=[("entities", "andrej-karpathy", "Andrej Karpathy — AI researcher")],
+    )
+    text = (root / "wiki/index.md").read_text(encoding="utf-8")
+    assert "## Entities" in text
+    assert "- [[andrej-karpathy]] — Andrej Karpathy — AI researcher" in text
+
+
+def test_update_index_is_idempotent(wiki_vault):
+    db, vault, root = wiki_vault
+    entry = ("concepts", "compounding", "Compounding knowledge")
+    ingest.update_index(db, vault_id=vault["id"], entries=[entry])
+    ingest.update_index(db, vault_id=vault["id"], entries=[entry])
+    text = (root / "wiki/index.md").read_text(encoding="utf-8")
+    assert text.count("- [[compounding]]") == 1
+
+
+def test_update_index_creates_missing_section(wiki_vault):
+    db, vault, root = wiki_vault
+    ingest.update_index(
+        db, vault_id=vault["id"],
+        entries=[("comparisons", "tdd-vs-bdd", "TDD vs BDD")],
+    )
+    text = (root / "wiki/index.md").read_text(encoding="utf-8")
+    assert "## Comparisons" in text
+    assert "- [[tdd-vs-bdd]] — TDD vs BDD" in text
+
+
+def test_append_log_writes_line(wiki_vault):
+    db, vault, root = wiki_vault
+    ingest.append_log(
+        db, vault_id=vault["id"],
+        op="ingest", title="My Source", date_str="2026-05-25",
+    )
+    text = (root / "wiki/log.md").read_text(encoding="utf-8")
+    assert "## [2026-05-25] ingest | My Source" in text

@@ -116,3 +116,82 @@ def write_wiki_page(
     abs_path.parent.mkdir(parents=True, exist_ok=True)
     abs_path.write_text(frontmatter.dump(meta, body), encoding="utf-8")
     return relpath
+
+
+SECTION_BY_LAYER = {
+    "summaries":   "Summaries",
+    "entities":    "Entities",
+    "concepts":    "Concepts",
+    "comparisons": "Comparisons",
+    "syntheses":   "Syntheses",
+}
+
+
+def _ensure_section(text: str, section: str) -> str:
+    """Return text with `## {section}` present (appended at end if missing)."""
+    header = f"## {section}"
+    if header in text:
+        return text
+    suffix = "" if text.endswith("\n") else "\n"
+    return text + suffix + "\n" + header + "\n"
+
+
+def _insert_under_section(text: str, section: str, line: str) -> str:
+    """Insert `line` under `## {section}`. Idempotent (no duplicate)."""
+    header = f"## {section}"
+    if line in text:
+        return text  # already present
+    lines = text.split("\n")
+    out: list[str] = []
+    inserted = False
+    i = 0
+    while i < len(lines):
+        out.append(lines[i])
+        if not inserted and lines[i].strip() == header:
+            # Skip past existing blank line; then place our line.
+            j = i + 1
+            while j < len(lines) and lines[j] == "":
+                out.append(lines[j])
+                j += 1
+            out.append(line)
+            i = j - 1
+            inserted = True
+        i += 1
+    return "\n".join(out)
+
+
+def update_index(
+    db_path: Path,
+    *,
+    vault_id: int,
+    entries: list[tuple[str, str, str]],
+) -> None:
+    """Add lines under section per entry. Entries: [(layer, slug, oneliner), ...]."""
+    root = _vault_root(db_path, vault_id)
+    index_path = root / "wiki" / "index.md"
+    text = index_path.read_text(encoding="utf-8")
+    for layer, slug, oneliner in entries:
+        section = SECTION_BY_LAYER.get(layer)
+        if section is None:
+            raise ValueError(f"no index section for layer {layer!r}")
+        text = _ensure_section(text, section)
+        line = f"- [[{slug}]] — {oneliner}"
+        text = _insert_under_section(text, section, line)
+    index_path.write_text(text, encoding="utf-8")
+
+
+def append_log(
+    db_path: Path,
+    *,
+    vault_id: int,
+    op: str,
+    title: str,
+    date_str: str,
+) -> None:
+    """Append `## [YYYY-MM-DD] <op> | <title>` to wiki/log.md."""
+    root = _vault_root(db_path, vault_id)
+    log_path = root / "wiki" / "log.md"
+    text = log_path.read_text(encoding="utf-8")
+    line = f"## [{date_str}] {op} | {title}\n"
+    suffix = "" if text.endswith("\n") else "\n"
+    log_path.write_text(text + suffix + line, encoding="utf-8")
