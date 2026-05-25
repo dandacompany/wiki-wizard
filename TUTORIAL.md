@@ -55,7 +55,7 @@ This is the simplest workflow — use it to capture day-to-day notes quickly.
 < Claude: Running vault-setup with:
 
   - name: daily
-  - path: /Users/dante/notes/daily
+  - path: /Users/you/notes/daily
   - mode: memo
   - type: markdown (no Obsidian)
 
@@ -64,7 +64,7 @@ Proceed? [Yes / No]
 > You: yes
 
 < Claude:
-$ adapters.get_adapter('markdown').init_vault(/Users/dante/notes/daily, 'memo')
+$ adapters.get_adapter('markdown').init_vault(/Users/you/notes/daily, 'memo')
 $ registry.add_vault(name='daily', ...)
 $ registry.set_active('daily')
 $ reindex.full(vault_id=1) → 0 notes
@@ -424,11 +424,11 @@ This is exactly what Karpathy means when he says "the loop closes": the question
 Use this when you already have notes piled up in Obsidian or plain markdown.
 
 ```
-> You: run vault-import-memo on /Volumes/DanteStorage/Obsidian/memo
+> You: run vault-import-memo on ~/Documents/old-notes
 
 < Claude:
 [Step 1] Path check
-✅ /Volumes/DanteStorage/Obsidian/memo exists.
+✅ ~/Documents/old-notes exists.
 
 [Step 2] Register as memo-mode vault
 $ registry.add_vault(name='legacy', path='/Volumes/...', type_='markdown', mode='memo')
@@ -556,9 +556,9 @@ Use this flow when you run more than one vault side by side.
 < Claude:
 $ registry.list_vaults() + per-vault note counts
 
-* daily          memo  markdown      12 notes  /Users/dante/notes/daily
-  research       wiki  obsidian      47 notes  /Users/dante/notes/research
-  legacy         memo  markdown     247 notes  /Volumes/DanteStorage/Obsidian/memo
+* daily          memo  markdown      12 notes  /Users/you/notes/daily
+  research       wiki  obsidian      47 notes  /Users/you/notes/research
+  legacy         memo  markdown     247 notes  ~/Documents/old-notes
 
 (* = active)
 
@@ -566,12 +566,12 @@ $ registry.list_vaults() + per-vault note counts
 
 < Claude:
 $ registry.set_active('research')
-✅ Active vault: research (wiki, obsidian) at /Users/dante/notes/research
+✅ Active vault: research (wiki, obsidian) at /Users/you/notes/research
 
 > You: forget the legacy vault but keep the files
 
 < Claude: Removing 'legacy' from the registry.
-The 247 files at /Volumes/DanteStorage/Obsidian/memo will be preserved.
+The 247 files at ~/Documents/old-notes will be preserved.
 
 Type the vault name to confirm:
 

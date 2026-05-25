@@ -58,7 +58,7 @@ $ python3 -m scripts.wizard status
 < Claude: vault-setup 명령어 실행하겠습니다.
 
   - 이름: daily
-  - 경로: /Users/dante/notes/daily
+  - 경로: /Users/you/notes/daily
   - 모드: memo
   - 타입: markdown (Obsidian 사용 안 함)
 
@@ -67,7 +67,7 @@ $ python3 -m scripts.wizard status
 > 사용자: yes
 
 < Claude:
-$ adapters.get_adapter('markdown').init_vault(/Users/dante/notes/daily, 'memo')
+$ adapters.get_adapter('markdown').init_vault(/Users/you/notes/daily, 'memo')
 $ registry.add_vault(name='daily', ...)
 $ registry.set_active('daily')
 $ reindex.full(vault_id=1) → 0 notes
@@ -434,11 +434,11 @@ $ reindex.incremental
 이미 Obsidian 이나 일반 markdown 으로 메모를 쌓아둔 경우에 사용합니다.
 
 ```
-> 사용자: vault-import-memo 실행해줘. 경로는 /Volumes/DanteStorage/Obsidian/memo
+> 사용자: vault-import-memo 실행해줘. 경로는 ~/Documents/old-notes
 
 < Claude:
 [1단계] 경로 확인
-✅ /Volumes/DanteStorage/Obsidian/memo 존재 확인.
+✅ ~/Documents/old-notes 존재 확인.
 
 [2단계] memo-mode vault로 등록
 $ registry.add_vault(name='legacy', path='/Volumes/...', type_='markdown', mode='memo')
@@ -567,9 +567,9 @@ $ wiki_lint.check(vault_id=2)
 < Claude:
 $ registry.list_vaults() + per-vault note counts
 
-* daily          memo  markdown      12 notes  /Users/dante/notes/daily
-  research       wiki  obsidian      47 notes  /Users/dante/notes/research
-  legacy         memo  markdown     247 notes  /Volumes/DanteStorage/Obsidian/memo
+* daily          memo  markdown      12 notes  /Users/you/notes/daily
+  research       wiki  obsidian      47 notes  /Users/you/notes/research
+  legacy         memo  markdown     247 notes  ~/Documents/old-notes
 
 (* = active)
 
@@ -577,12 +577,12 @@ $ registry.list_vaults() + per-vault note counts
 
 < Claude:
 $ registry.set_active('research')
-✅ Active vault: research (wiki, obsidian) at /Users/dante/notes/research
+✅ Active vault: research (wiki, obsidian) at /Users/you/notes/research
 
 > 사용자: legacy vault 등록 제거해줘. 파일은 그대로 두고.
 
 < Claude: 'legacy'를 registry에서 제거합니다.
-파일 (247개)은 /Volumes/DanteStorage/Obsidian/memo에 그대로 보존됩니다.
+파일 (247개)은 ~/Documents/old-notes에 그대로 보존됩니다.
 
 확인하려면 vault 이름을 정확히 입력하세요:
 

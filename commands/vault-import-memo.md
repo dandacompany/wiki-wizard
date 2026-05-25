@@ -6,7 +6,7 @@
 
 ### Step 1 — Detect or accept path
 
-1. Default candidate: `/Volumes/DanteStorage/Obsidian/memo`. If it exists, propose it. Else ask the user for the path.
+1. Probe common candidates in order: `~/Documents/Obsidian/memo`, `~/Documents/memo`, `~/notes/memo`, `~/memo`. If any exists, propose the first match. Otherwise ask the user for the path explicitly.
 2. Refuse if the path is already registered (registry raises `VaultError` on path collision).
 
 ### Step 2 — Register as memo-mode vault

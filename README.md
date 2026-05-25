@@ -63,7 +63,7 @@ In Claude Code, link the skill into your active skill set, either at the project
 ## Migrating an existing /memo folder
 
 ```text
-"vault-import-memo path=/Volumes/DanteStorage/Obsidian/memo name=legacy"
+"vault-import-memo path=~/Documents/old-notes name=legacy"
 ```
 
 This registers the folder as a vault and then offers a **dry-run** of frontmatter normalization. Pre-images are backed up to `.trash/` before any file is written.
