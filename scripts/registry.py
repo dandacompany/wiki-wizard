@@ -1,4 +1,4 @@
-"""sqlite-backed registry for wiki-wizard vaults and notes."""
+"""sqlite-backed registry for oh-my-wiki vaults and notes."""
 from __future__ import annotations
 
 import sqlite3

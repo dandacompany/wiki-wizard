@@ -28,7 +28,7 @@ def _scan_files(root: Path) -> list[Path]:
 
 
 def _plan_changes(meta: dict, today: str) -> list[dict]:
-    """Return ordered list of changes to bring meta in line with wiki-wizard rules."""
+    """Return ordered list of changes to bring meta in line with oh-my-wiki rules."""
     changes: list[dict] = []
     if "title" not in meta:
         changes.append({"field": "title", "op": "add", "value": "Untitled"})

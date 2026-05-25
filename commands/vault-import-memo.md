@@ -29,7 +29,7 @@ Report to the user: registered as `<name>`, N notes indexed.
 
 ### Step 3 — Optional dry-run migration
 
-Ask: "Run frontmatter normalization (wiki-wizard rules)? [Yes / Skip]"
+Ask: "Run frontmatter normalization (oh-my-wiki rules)? [Yes / Skip]"
 
 If Yes:
 
@@ -70,7 +70,7 @@ Report: applied N files; skipped M files with malformed YAML (these need manual 
 
 ## Post-conditions
 
-- Vault registered. If migration applied: changed files have wiki-wizard-compliant frontmatter; `.trash/` contains pre-image backups.
+- Vault registered. If migration applied: changed files have oh-my-wiki-compliant frontmatter; `.trash/` contains pre-image backups.
 
 ## Error handling
 

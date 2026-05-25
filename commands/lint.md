@@ -45,7 +45,7 @@ Active vault must exist.
    **Common (always):**
    - **Frontmatter issues** — grouped by `issue` (malformed_yaml, missing_field:X, tags_not_list, invalid_type)
    - **Drift — missing files** — registry rows for deleted files
-   - **Drift — mtime mismatch** — files edited outside wiki-wizard
+   - **Drift — mtime mismatch** — files edited outside oh-my-wiki
 
    **Wiki structural (wiki-mode only):**
    - **Orphan pages** — wiki pages older than 7 days with no inbound links

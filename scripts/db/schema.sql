@@ -1,4 +1,4 @@
--- wiki-wizard registry schema v1
+-- oh-my-wiki registry schema v1
 -- Idempotent: safe to run multiple times via IF NOT EXISTS.
 
 CREATE TABLE IF NOT EXISTS schema_migrations (

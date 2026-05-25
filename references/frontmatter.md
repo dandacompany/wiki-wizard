@@ -1,6 +1,6 @@
 # Frontmatter schema
 
-Every note in a wiki-wizard vault starts with YAML frontmatter. Missing or malformed frontmatter causes the file to be indexed with `parse_error = 1` and excluded from search.
+Every note in a oh-my-wiki vault starts with YAML frontmatter. Missing or malformed frontmatter causes the file to be indexed with `parse_error = 1` and excluded from search.
 
 ## Common fields (all layers)
 

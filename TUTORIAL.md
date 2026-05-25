@@ -1,13 +1,13 @@
-# wiki-wizard Usage Tutorial
+# oh-my-wiki Usage Tutorial
 
-This is a hands-on tutorial for using wiki-wizard inside Claude Code or Codex CLI. Every dialog below reflects actual runtime behavior, and both English and Korean trigger phrases work.
+This is a hands-on tutorial for using oh-my-wiki inside Claude Code or Codex CLI. Every dialog below reflects actual runtime behavior, and both English and Korean trigger phrases work.
 
 > **Korean version**: [TUTORIAL.ko.md](./TUTORIAL.ko.md)
 
 > **Notation**
 >
 > - `> You:` is what you type into the chat.
-> - `< Claude:` is what wiki-wizard responds with.
+> - `< Claude:` is what oh-my-wiki responds with.
 > - `$` lines are Python calls executed internally. They are for reference; you never need to type them yourself.
 
 ---
@@ -19,7 +19,7 @@ See the [README](./README.md) for install instructions. Once the skill is linked
 ```
 > You: check the wiki status
 
-< Claude: [wiki-wizard dispatcher invoked]
+< Claude: [oh-my-wiki dispatcher invoked]
 $ python3 -m scripts.wizard status
 
 {
@@ -78,7 +78,7 @@ $ reindex.full(vault_id=1) → 0 notes
 
 ### 1.2 Capture a memo by pasting (long-form)
 
-This is the most common pattern. Paste any content and wiki-wizard proposes a title, tags, and folder for you.
+This is the most common pattern. Paste any content and oh-my-wiki proposes a title, tags, and folder for you.
 
 ```
 > You: save this for me
@@ -229,7 +229,7 @@ $ memo_ops.delete(relpath='...', hard=False)
 
 ## Scenario 2: Wiki vault, ingest, and query (the Karpathy workflow)
 
-This is wiki-wizard's core use case. Each source flows through five steps: save the raw original, write a summary page, split out the entity and concept pages it mentions, and finally update the index.
+This is oh-my-wiki's core use case. Each source flows through five steps: save the raw original, write a summary page, split out the entity and concept pages it mentions, and finally update the index.
 
 ### 2.1 Create the wiki vault
 
@@ -464,7 +464,7 @@ $ import_memo.apply(vault_id=2, plan=...)
   Skipped: 0 (no malformed YAML)
   Backup timestamp: 20260525-150823-456789
 
-✅ Migration complete. All files now match wiki-wizard frontmatter rules
+✅ Migration complete. All files now match oh-my-wiki frontmatter rules
    (title/date/type/tags required). Recover from
    .trash/20260525-150823-456789-pre-import-*.md if needed.
 ```
@@ -586,12 +586,12 @@ $ registry.forget_vault('legacy')
 
 ## Common situations & how to handle them
 
-### Q. wiki-wizard didn't auto-trigger
+### Q. oh-my-wiki didn't auto-trigger
 
 Invoke it explicitly:
 
 ```
-> You: use the wiki-wizard skill
+> You: use the oh-my-wiki skill
 ```
 
 Or use one of the trigger phrases defined in SKILL.md frontmatter:
@@ -647,20 +647,20 @@ The `obsidian://open?vault=...&file=...` URI is rejected by macOS when the app i
 
 ---
 
-## Using wiki-wizard from Codex CLI
+## Using oh-my-wiki from Codex CLI
 
-The experience is identical to Claude Code. Once Codex discovers the wiki-wizard skill, the same triggers invoke it. The SKILL.md frontmatter is not tied to any specific LLM, which is why both runtimes behave the same way.
+The experience is identical to Claude Code. Once Codex discovers the oh-my-wiki skill, the same triggers invoke it. The SKILL.md frontmatter is not tied to any specific LLM, which is why both runtimes behave the same way.
 
 ```
 $ codex
 > check the wiki status
-[Codex invokes wiki-wizard, same flow as before]
+[Codex invokes oh-my-wiki, same flow as before]
 ```
 
 That said, Codex is more conservative than Claude Code about auto-triggering. When in doubt, invoke it explicitly:
 
 ```
-> Use the wiki-wizard skill to ingest this article: ...
+> Use the oh-my-wiki skill to ingest this article: ...
 ```
 
 ---
@@ -672,4 +672,4 @@ That said, Codex is more conservative than Claude Code about auto-triggering. Wh
 - **Design docs**: `docs/superpowers/specs/` is kept local-only and not published. It is intended for contributors.
 - **Tests**: `pytest -v` runs all 91 tests, which cover every documented behavior.
 
-Issue tracker: https://github.com/dandacompany/wiki-wizard/issues
+Issue tracker: https://github.com/dandacompany/oh-my-wiki/issues

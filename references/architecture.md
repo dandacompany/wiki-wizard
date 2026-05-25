@@ -1,12 +1,12 @@
 # Architecture
 
-wiki-wizard adapts Andrej Karpathy's "LLM Wiki" proposal (2026-04-04 gist) into a distributable Agent Skill.
+oh-my-wiki adapts Andrej Karpathy's "LLM Wiki" proposal (2026-04-04 gist) into a distributable Agent Skill.
 
 ## Three layers per vault (Karpathy-faithful)
 
 - **Raw** — immutable source material. LLM reads only.
 - **Wiki** — LLM-compiled markdown. Summaries, entity pages, concept pages, comparisons, syntheses. The LLM owns this layer.
-- **Schema** — the rules governing how Raw becomes Wiki. In wiki-wizard this is `SKILL.md` + `commands/*.md`.
+- **Schema** — the rules governing how Raw becomes Wiki. In oh-my-wiki this is `SKILL.md` + `commands/*.md`.
 
 memo-only vaults skip Raw and treat topic folders as the only layer (keeps the existing `memo` skill UX).
 
