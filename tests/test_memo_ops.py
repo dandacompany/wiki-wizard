@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 from datetime import date
 
@@ -65,3 +66,53 @@ def test_edit_meta_replaces_single_field(memo_vault):
     assert "title: Renamed" in text
     # body untouched
     assert text.rstrip().endswith("b")
+
+
+def test_move_relocates_file_and_updates_registry(memo_vault):
+    db_path, vault, root = memo_vault
+    (root / "archive").mkdir()
+    relpath = memo_ops.write(
+        db_path, vault_id=vault["id"], title="m", body="b",
+        folder="inbox", tags=["a"], type_="note", date_str="2026-05-24",
+    )
+    new_relpath = memo_ops.move(
+        db_path, vault_id=vault["id"], relpath=relpath, dest_folder="archive"
+    )
+    assert new_relpath == "archive/m.md"
+    assert (root / new_relpath).exists()
+    assert not (root / relpath).exists()
+    rows = registry.list_notes(db_path, vault_id=vault["id"])
+    paths = [r["relpath"] for r in rows]
+    assert "archive/m.md" in paths
+    assert "inbox/m.md" not in paths
+
+
+def test_delete_soft_moves_to_trash(memo_vault):
+    db_path, vault, root = memo_vault
+    relpath = memo_ops.write(
+        db_path, vault_id=vault["id"], title="bye", body="b",
+        folder="inbox", tags=["a"], type_="note", date_str="2026-05-24",
+    )
+    trash_relpath = memo_ops.delete(
+        db_path, vault_id=vault["id"], relpath=relpath, hard=False
+    )
+    assert trash_relpath.startswith(".trash/")
+    assert (root / trash_relpath).exists()
+    assert not (root / relpath).exists()
+    rows = registry.list_notes(db_path, vault_id=vault["id"])
+    assert all(r["relpath"] != relpath for r in rows)
+
+
+def test_delete_hard_removes_file_entirely(memo_vault):
+    db_path, vault, root = memo_vault
+    relpath = memo_ops.write(
+        db_path, vault_id=vault["id"], title="gone", body="b",
+        folder="inbox", tags=["a"], type_="note", date_str="2026-05-24",
+    )
+    result = memo_ops.delete(
+        db_path, vault_id=vault["id"], relpath=relpath, hard=True
+    )
+    assert result is None
+    assert not (root / relpath).exists()
+    rows = registry.list_notes(db_path, vault_id=vault["id"])
+    assert all(r["relpath"] != relpath for r in rows)

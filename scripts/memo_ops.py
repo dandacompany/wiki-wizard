@@ -1,6 +1,8 @@
 """CRUD operations for individual memo files."""
 from __future__ import annotations
 
+import shutil
+from datetime import datetime
 from pathlib import Path
 
 from scripts import frontmatter, registry, reindex, slugify
@@ -84,3 +86,54 @@ def edit_meta(
     new_text = frontmatter.edit_field(text, key, value)
     abs_path.write_text(new_text, encoding="utf-8")
     reindex.incremental(db_path, vault_id=vault_id)
+
+
+def move(
+    db_path: Path,
+    *,
+    vault_id: int,
+    relpath: str,
+    dest_folder: str,
+) -> str:
+    """Move file to dest_folder, preserve filename. Returns new relpath."""
+    root = _vault_root(db_path, vault_id)
+    src = root / relpath
+    if not src.exists():
+        raise FileNotFoundError(relpath)
+    stem = src.stem
+    dest_dir = root / dest_folder
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    new_stem = _resolve_slug(root, dest_folder, stem)
+    new_relpath = f"{dest_folder}/{new_stem}.md"
+    shutil.move(str(src), str(root / new_relpath))
+    registry.delete_note(db_path, vault_id=vault_id, relpath=relpath)
+    reindex.incremental(db_path, vault_id=vault_id)
+    return new_relpath
+
+
+def delete(
+    db_path: Path,
+    *,
+    vault_id: int,
+    relpath: str,
+    hard: bool = False,
+) -> str | None:
+    """Soft (default) moves to .trash/<ts>-<stem>.md; hard removes file.
+
+    Returns the trash relpath for soft delete, None for hard delete.
+    """
+    root = _vault_root(db_path, vault_id)
+    src = root / relpath
+    if not src.exists():
+        raise FileNotFoundError(relpath)
+    if hard:
+        src.unlink()
+        registry.delete_note(db_path, vault_id=vault_id, relpath=relpath)
+        return None
+    trash_dir = root / ".trash"
+    trash_dir.mkdir(exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    trash_relpath = f".trash/{ts}-{src.stem}.md"
+    shutil.move(str(src), str(root / trash_relpath))
+    registry.delete_note(db_path, vault_id=vault_id, relpath=relpath)
+    return trash_relpath
