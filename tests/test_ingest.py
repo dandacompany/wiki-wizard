@@ -4,6 +4,8 @@ import pytest
 
 from scripts import registry, adapters, reindex, ingest
 
+FIXTURES = Path(__file__).parent / "fixtures"
+
 
 @pytest.fixture
 def wiki_vault(tmp_path, tmp_db):
@@ -51,3 +53,18 @@ def test_save_raw_collision(wiki_vault):
         ext="md", title="dup", date_str="2026-05-25",
     )
     assert second == "raw/2026-05-25-dup-2.md"
+
+
+def test_save_raw_pdf_returns_relpath_and_extracted_text(wiki_vault):
+    db, vault, root = wiki_vault
+    pdf_bytes = (FIXTURES / "tiny.pdf").read_bytes()
+    rel, text = ingest.save_raw_pdf(
+        db, vault_id=vault["id"],
+        pdf_bytes=pdf_bytes,
+        title="Tiny", date_str="2026-05-25",
+    )
+    assert rel == "raw/2026-05-25-tiny.pdf"
+    # bytes preserved verbatim
+    assert (root / rel).read_bytes() == pdf_bytes
+    # text extracted
+    assert "PDF FIXTURE" in text

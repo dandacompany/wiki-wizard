@@ -46,3 +46,30 @@ def save_raw(
     abs_path.parent.mkdir(parents=True, exist_ok=True)
     abs_path.write_text(content, encoding="utf-8")
     return relpath
+
+
+def save_raw_pdf(
+    db_path: Path,
+    *,
+    vault_id: int,
+    pdf_bytes: bytes,
+    title: str,
+    date_str: str,
+) -> tuple[str, str]:
+    """Save the original PDF bytes AND extract text. Returns (relpath, extracted_text)."""
+    from pypdf import PdfReader
+    from io import BytesIO
+
+    root = _vault_root(db_path, vault_id)
+    base = f"{date_str}-{slugify.slugify(title)}"
+    relpath = _resolve_path(root, "raw", base, "pdf")
+    abs_path = root / relpath
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    abs_path.write_bytes(pdf_bytes)
+
+    reader = PdfReader(BytesIO(pdf_bytes))
+    parts = []
+    for page in reader.pages:
+        parts.append(page.extract_text() or "")
+    extracted = "\n\n".join(parts).strip()
+    return relpath, extracted
