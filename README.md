@@ -1,81 +1,99 @@
 # wiki-wizard
 
-> Karpathy-style LLM Wiki as a multi-vault Agent Skill, with a Socratic setup wizard.
+A Karpathy-style LLM Wiki skill: capture sources, build a structured wiki, query it with cited answers.
 
-**Status:** Plan A + B complete (vault management + memo-mode ops live). Plan C adds wiki-mode `ingest` / `query`.
+**Status:** Plan A + B + C complete. Production-ready for single-user workflows.
 
-## Concept
+<!-- TODO: record ingest demo GIF and add: ![ingest demo](docs/demos/ingest.gif) -->
 
-An LLM agent that maintains a persistent, interlinked Markdown wiki for you. Instead of re-deriving answers from raw sources every time, it compiles them into a knowledge base that compounds. Inspired by [Andrej Karpathy's LLM Wiki gist (2026-04)](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+## Why
 
-Two modes per vault:
+Memos rot; wikis compound. wiki-wizard implements the workflow Karpathy described in his "LLM Wiki" Gist: every source becomes a `raw/` snapshot, a `wiki/summaries/` page, and 10-15 entity/concept page touches. Queries pull from the structured wiki, not a flat file dump, so answers can cite specific pages — and the act of querying tends to produce new syntheses that file back into the wiki, completing the loop.
 
-- **memo-mode** — lightweight note-taking (Obsidian-friendly).
-- **wiki-mode** — Karpathy's `raw/` + `wiki/` + `index.md` + `log.md` structure with `ingest`, `query`, and `lint`.
+## Architecture
+
+```
+SKILL.md dispatcher → commands/<op>.md (LLM procedure) → scripts/<op>.py (deterministic I/O)
+                                                       └─ registry.py → data/registry.db (sqlite)
+                                                       └─ adapters.py → filesystem (markdown / obsidian)
+```
+
+11 user-facing ops:
+
+| Mode   | Ops                                                                               |
+| ------ | --------------------------------------------------------------------------------- |
+| Vault  | `vault-setup` · `vault-use` · `vault-list` · `vault-forget` · `vault-import-memo` |
+| memo   | `create` · `find` · `open` · `edit` · `move` · `delete`                           |
+| wiki   | `ingest` · `query`                                                                |
+| Common | `lint`                                                                            |
 
 ## Install
 
 ```bash
-skills add dandacompany/dante-skills@wiki-wizard -g -y --copy -a claude-code
+git clone <repo-url> wiki-wizard
+cd wiki-wizard
+pip install -e ".[dev]"
+pytest -v   # 91 tests
 ```
 
-## Quick start
+In Claude Code, link the skill into your active skill set (project-level or `~/.claude/skills/`).
 
-See the **Plan B — Vault management + memo-mode ops** section below for a working Quick Start.
+## Quick start — memo vault
 
-## Architecture
-
-See `references/architecture.md` for the three-layer design and adapter contract.
-
-## Development
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python3 -m pip install -e ".[dev]"
-pytest
-```
-
-## Plan B — Vault management + memo-mode ops
-
-After Plan A's foundation, Plan B adds:
-
-- **Vault management** — `vault-setup`, `vault-use`, `vault-list`, `vault-forget`, `vault-import-memo`
-- **memo-mode ops** — `create`, `find`, `open`, `edit`, `move`, `delete`
-- **Common health** — `lint` (frontmatter validity + sqlite↔disk drift)
-
-### Quick start
-
-```
-# 1. Set up a fresh memo vault
-# (in Claude Code with this skill loaded)
+```text
 "vault-setup name=daily path=~/notes/daily mode=memo type=markdown"
-
-# 2. Capture a memo by pasting content
-"<paste long content>"
-# → wizard proposes title/folder/tags, you confirm.
-
-# 3. Find it later
+"<paste long content>"                  # → create proposes title/folder/tags
 "find karpathy"
-
-# 4. Open in your editor
 "open inbox/karpathy-llm-wiki.md"
-
-# 5. Check vault health
 "lint"
 ```
 
-### Migrating an existing /memo folder
+## Quick start — wiki vault
 
+```text
+"vault-setup name=research path=~/notes/research mode=wiki type=markdown"
+"ingest <paste of the article body>"    # → 7-step ingest flow
+"ingest ~/Downloads/paper.pdf"          # → pypdf extraction + same flow
+"query how does X relate to Y?"         # → cited answer, optional file-back
+"lint"                                  # → common + 4 wiki structural checks
 ```
+
+## Migrating an existing /memo folder
+
+```text
 "vault-import-memo path=/Volumes/DanteStorage/Obsidian/memo name=legacy"
 ```
 
-The skill registers the folder, then offers a **dry-run** of frontmatter normalization (adds missing `type`/`date`/`tags`, converts string tags to lists). Pre-images are backed up to `.trash/` before any change.
+Registers the folder, then offers a **dry-run** of frontmatter normalization. Pre-images backed up to `.trash/` before any write.
 
-### What's not in Plan B
+## What `lint` checks
 
-`ingest`, `query`, and wiki-mode-specific lint checks land in Plan C.
+**Common (both modes):**
+
+- Frontmatter validity (YAML parses; required `title`/`date`/`type`/`tags`; type is valid; tags is a list)
+- sqlite↔disk drift (orphan rows, missing files, mtime mismatch)
+
+**Wiki-only:**
+
+- Orphan pages (no inbound links, past 7-day grace period)
+- Missing concepts (`[[slug]]` referenced by ≥2 pages, no page exists)
+- Empty data (body <50 chars or >50% placeholder lines)
+- Dangling markdown links
+
+## Storage
+
+- Vault registry at `data/registry.db` (sqlite, gitignored, single-user).
+- Note index regenerated by `scripts/reindex.py` after every mutation.
+- Files live in your chosen vault path — wiki-wizard never touches them outside the op you invoked.
+
+## Development
+
+- `pytest -v` — run all tests
+- `ruff check scripts/ tests/` — lint
+- `python3 -m scripts.wizard status` — dispatcher state inspection
+- `python3 -m scripts.lint --vault-id N` — health check on a specific vault
+
+CI: GitHub Actions matrix on Python 3.10/3.11/3.12 × ubuntu/macos.
 
 ## License
 
