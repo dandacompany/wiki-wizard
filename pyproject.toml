@@ -5,6 +5,7 @@ description = "Karpathy-style LLM Wiki skill with multi-vault sqlite registry an
 requires-python = ">=3.10"
 dependencies = [
     "pyyaml>=6.0",
+    "pypdf>=4.0",
 ]
 
 [project.optional-dependencies]
