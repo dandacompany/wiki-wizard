@@ -1,23 +1,25 @@
-# wiki-wizard 사용 튜토리얼
+# wiki-wizard Usage Tutorial
 
-Claude Code 또는 Codex CLI에서 wiki-wizard를 실제로 어떻게 사용하는지 보여주는 실전 예제 모음입니다. 모든 대화는 실제 동작을 그대로 옮긴 것이며, 한국어/영어 트리거 둘 다 지원합니다.
+Real-world examples of using wiki-wizard inside Claude Code or Codex CLI. Every dialog below mirrors actual behavior, and both English and Korean trigger phrases are supported.
 
-> **표기 규약**
+> **한국어 버전**: [TUTORIAL.ko.md](./TUTORIAL.ko.md)
+
+> **Notation**
 >
-> - `> 사용자:` — 당신이 채팅창에 입력하는 텍스트
-> - `< Claude:` — wiki-wizard가 실행되어 나오는 응답
-> - `$` — 내부적으로 실행되는 Python 호출 (참고용, 직접 칠 필요 없음)
+> - `> You:` — what you type into the chat
+> - `< Claude:` — what wiki-wizard responds with
+> - `$` — Python calls executed internally (for reference; you never type these)
 
 ---
 
-## 0. 설치 확인
+## 0. Verify the install
 
-설치는 [README](./README.md) 참고. 설치되면 새 Claude Code 세션 어디서든 트리거 가능합니다. 빠른 헬스 체크:
+Install per [README](./README.md). Once linked, the trigger works in any new Claude Code session. Quick health check:
 
 ```
-> 사용자: 위키 상태 확인해줘
+> You: check the wiki status
 
-< Claude: [wiki-wizard 디스패처 실행]
+< Claude: [wiki-wizard dispatcher invoked]
 $ python3 -m scripts.wizard status
 
 {
@@ -27,39 +29,39 @@ $ python3 -m scripts.wizard status
   "vaults": []
 }
 
-등록된 vault가 없습니다. 새 vault를 만들까요?
-1. memo 모드 (가볍게 메모 캡처)
-2. wiki 모드 (Karpathy 스타일 지식 위키)
-3. 기존 /memo 폴더 가져오기
-4. 취소
+No vaults registered. Want to create one?
+1. memo mode (lightweight note capture)
+2. wiki mode (Karpathy-style knowledge wiki)
+3. import an existing /memo folder
+4. cancel
 ```
 
-처음이면 `needs: setup`이 나옵니다. 트리거 phrase 예시:
+A fresh install returns `needs: setup`. Trigger phrases:
 
-- 영어: "open my wiki", "set up a new vault", "ingest this", "what does my wiki say about X"
-- 한국어: "위키 열어줘", "새 vault 만들어줘", "이거 정리해줘", "위키에 물어봐"
+- English: "open my wiki", "set up a new vault", "ingest this", "what does my wiki say about X"
+- Korean: "위키 열어줘", "새 vault 만들어줘", "이거 정리해줘", "위키에 물어봐"
 
 ---
 
-## 시나리오 1: memo vault 첫 설정 + 첫 메모
+## Scenario 1: First memo vault + first memo
 
-가장 간단한 워크플로. 일상 메모를 빠르게 캡처하는 용도.
+Simplest workflow. Capture day-to-day notes quickly.
 
-### 1.1 vault 생성
+### 1.1 Create the vault
 
 ```
-> 사용자: 새 memo vault 만들어줘. 이름은 daily, 경로는 ~/notes/daily
+> You: create a new memo vault named "daily" at ~/notes/daily
 
-< Claude: vault-setup 명령어 실행하겠습니다.
+< Claude: Running vault-setup with:
 
-  - 이름: daily
-  - 경로: /Users/dante/notes/daily
-  - 모드: memo
-  - 타입: markdown (Obsidian 사용 안 함)
+  - name: daily
+  - path: /Users/dante/notes/daily
+  - mode: memo
+  - type: markdown (no Obsidian)
 
-진행할까요? [Yes / No]
+Proceed? [Yes / No]
 
-> 사용자: yes
+> You: yes
 
 < Claude:
 $ adapters.get_adapter('markdown').init_vault(/Users/dante/notes/daily, 'memo')
@@ -67,125 +69,124 @@ $ registry.add_vault(name='daily', ...)
 $ registry.set_active('daily')
 $ reindex.full(vault_id=1) → 0 notes
 
-✅ vault 'daily' 등록 완료. 활성 vault로 설정됨.
-   생성된 폴더 구조:
+✅ vault 'daily' registered and set active.
+   Scaffolded:
    ~/notes/daily/
    ├── inbox/
    └── .trash/
 ```
 
-### 1.2 paste로 첫 메모 캡처 (긴 텍스트)
+### 1.2 Capture a memo by pasting (long-form)
 
-가장 자주 쓰는 패턴. 어떤 글이든 통째로 paste하면 wiki-wizard가 제목/태그/폴더를 제안합니다.
+The most common pattern. Paste any content and wiki-wizard proposes title/tags/folder.
 
 ```
-> 사용자: 다음 내용 저장해줘
+> You: save this for me
 
-Karpathy는 LLM Wiki를 "compounding knowledge artifact"라고 부른다.
-모든 출처는 raw/에 원본 그대로 저장하고, wiki/summaries/에 요약을
-쓴 다음, 등장한 인물·개념을 별도 페이지로 분리한다. 한 번 ingest할
-때마다 10-15개 페이지가 함께 갱신되는 게 정상이다. 메모는 썩지만
-구조화된 위키는 시간이 갈수록 가치가 누적된다.
+Karpathy calls the LLM Wiki a "compounding knowledge artifact". Every source
+gets saved verbatim to raw/, a summary lands at wiki/summaries/, and the
+entities and concepts that appeared get their own pages. 10-15 page touches
+per ingest is normal. Memos rot; structured wikis accumulate value over time.
 
-< Claude: 긴 텍스트 paste 감지 (368자) — memo-mode hybrid create로 진행.
-LLM이 본문에서 메타데이터 제안:
+< Claude: Long paste detected (368 chars) — proceeding with memo-mode hybrid create.
+LLM proposes metadata from the body:
 
   - title: "Karpathy LLM Wiki — compounding knowledge"
-  - slug: karpathy-llm-wiki-compounding-knowledge (자동 생성)
+  - slug: karpathy-llm-wiki-compounding-knowledge (auto-generated)
   - folder: inbox/
   - tags: [karpathy, llm, wiki, knowledge-management]
   - type: note
   - date: 2026-05-25
 
-이대로 저장할까요?
-1. Accept (그대로 저장)
-2. Edit (필드 수정)
+Save as-is?
+1. Accept
+2. Edit field
 3. Cancel
 
-> 사용자: 1
+> You: 1
 
 < Claude:
 $ memo_ops.write(vault_id=1, title='Karpathy LLM Wiki — compounding knowledge',
-                 body='Karpathy는 LLM Wiki를...', folder='inbox',
+                 body='Karpathy calls the LLM Wiki...', folder='inbox',
                  tags=['karpathy','llm','wiki','knowledge-management'],
                  type_='note', date_str='2026-05-25')
 
-✅ 저장 완료:
+✅ Saved:
    inbox/karpathy-llm-wiki-compounding-knowledge.md
 ```
 
-### 1.3 prompt 방식 (짧은 메모)
+### 1.3 Prompt-driven (short memo)
 
-paste 본문이 200자 미만이면 자동으로 prompt 모드로 갑니다.
+When the paste body is under 200 chars, the wizard switches to prompt mode automatically.
 
 ```
-> 사용자: 메모 하나 만들어줘
+> You: I want to write a quick memo
 
-< Claude: 짧은 입력 — prompt 모드.
+< Claude: Short input — using prompt mode.
 
-제목을 알려주세요:
+What's the title?
 
-> 사용자: 슬랙 정리 시간 30분 줄이기
+> You: cut slack triage time by 30 minutes
 
-< Claude: 폴더는? (기본: inbox/)
+< Claude: Folder? (default: inbox/)
 1. inbox/
-2. 다른 폴더 입력
+2. enter another folder
 
-> 사용자: 1
+> You: 1
 
-< Claude: 본문을 입력하세요 (멀티라인 가능, 빈 줄로 종료):
+< Claude: Enter the body (multi-line OK, end with a blank line):
 
-> 사용자: 메일/슬랙 통합 트리지 시간 30분 단축이 목표. 알림 끄기, 시간 블록 지정, 답장 batch.
+> You: Goal: shave 30 min off the daily mail+slack triage. Mute notifications, block focus time, batch replies.
 
-< Claude: 제안 태그: [productivity, slack, workflow]
-저장할까요?
+< Claude: Suggested tags: [productivity, slack, workflow]
+Save?
 
-> 사용자: ok
+> You: ok
 
-✅ inbox/slack-jeongri-sigan-30bun-jul-igi.md
+✅ inbox/cut-slack-triage-time-by-30-minutes.md
 ```
 
-> **참고**: 한글 제목은 slugify에서 한글 음절 그대로 보존됩니다 (`가-힣` 허용). 다만 readable한 영문 슬러그가 좋다면 제목을 영문으로 주거나, edit으로 slug만 수정하세요.
+> **Note**: The slugifier preserves Hangul syllables (`가-힣` allowed). If you want a readable English slug for a Korean title, write the title in English or `edit` the slug afterward.
 
-### 1.4 메모 검색
+### 1.4 Find a memo
 
 ```
-> 사용자: karpathy 관련 메모 찾아줘
+> You: find a memo about karpathy
 
 < Claude:
 $ search.query(vault_id=1, query='karpathy', limit=5)
 
-검색 결과 (상위 1개):
+Top 1 hit:
 
 # | score | relpath                                                 | title
 1 | 8.5   | inbox/karpathy-llm-wiki-compounding-knowledge.md        | Karpathy LLM Wiki — compounding knowledge
 
-어떻게 할까요?
-1. 1번 열기 (open)
-2. 다른 키워드로 다시 검색
-3. 종료
+Next?
+1. open #1
+2. search again with different terms
+3. stop
 
-> 사용자: 1
+> You: 1
 
 < Claude:
 $ adapters.get_adapter('markdown').open(~/notes/daily/inbox/karpathy-llm-wiki-compounding-knowledge.md)
-→ macOS의 기본 .md 핸들러로 열림 (VS Code, Obsidian 등 설정에 따라)
+→ opens via the macOS default .md handler (VS Code, Obsidian, etc.)
 
-✅ 열었습니다.
+✅ Opened.
 ```
 
-### 1.5 메모 수정 (frontmatter 1필드)
+### 1.5 Edit a memo (single frontmatter field)
 
 ```
-> 사용자: 방금 그 메모에 "deep-work" 태그 추가해줘
+> You: add a "deep-work" tag to that memo
 
-< Claude: 검색으로 메모 위치 확인했습니다:
+< Claude: Located the memo via search:
    inbox/karpathy-llm-wiki-compounding-knowledge.md
 
-현재 tags: [karpathy, llm, wiki, knowledge-management]
-새 tags: [karpathy, llm, wiki, knowledge-management, deep-work]
+Current tags: [karpathy, llm, wiki, knowledge-management]
+New tags:     [karpathy, llm, wiki, knowledge-management, deep-work]
 
-> 사용자: yes
+> You: yes
 
 < Claude:
 $ memo_ops.edit_meta(vault_id=1,
@@ -193,158 +194,158 @@ $ memo_ops.edit_meta(vault_id=1,
                      key='tags',
                      value=['karpathy','llm','wiki','knowledge-management','deep-work'])
 
-✅ tags 필드 갱신 완료.
+✅ tags field updated.
 ```
 
-### 1.6 메모 정리 (move + delete)
+### 1.6 Organize (move + delete)
 
 ```
-> 사용자: 슬랙 메모를 archive 폴더로 옮겨
+> You: move the slack memo to an archive folder
 
 < Claude:
-$ search.query(query='슬랙') → 1 hit
-$ memo_ops.move(relpath='inbox/slack-...md', dest_folder='archive')
+$ search.query(query='slack') → 1 hit
+$ memo_ops.move(relpath='inbox/cut-slack-...md', dest_folder='archive')
 
-archive/ 폴더가 없어서 자동 생성했습니다.
-✅ 이동: inbox/slack-...md → archive/slack-...md
+archive/ didn't exist — created it.
+✅ Moved: inbox/cut-slack-...md → archive/cut-slack-...md
 
-> 사용자: karpathy 메모는 삭제해줘
+> You: delete the karpathy memo
 
-< Claude: 메모 위치 확인:
+< Claude: Located:
    inbox/karpathy-llm-wiki-compounding-knowledge.md
 
-soft delete (.trash/로 이동, 복구 가능) 또는 hard delete (영구 삭제)?
+Soft delete (move to .trash/, recoverable) or hard delete (permanent)?
 
-> 사용자: soft
+> You: soft
 
 < Claude:
 $ memo_ops.delete(relpath='...', hard=False)
 
-✅ 이동: .trash/20260525-145012-345678-karpathy-llm-wiki-compounding-knowledge.md
-   복구하려면 파일을 inbox/로 다시 옮기세요.
+✅ Moved: .trash/20260525-145012-345678-karpathy-llm-wiki-compounding-knowledge.md
+   To restore, move the file back to inbox/.
 ```
 
 ---
 
-## 시나리오 2: wiki vault + ingest + query (Karpathy 워크플로)
+## Scenario 2: Wiki vault + ingest + query (the Karpathy workflow)
 
-핵심 사용 사례. 출처 한 건 → raw 저장 → 요약 → 엔티티/개념 페이지 → 인덱스 갱신.
+The core use case. One source → raw save → summary → entity/concept pages → index update.
 
-### 2.1 wiki vault 생성
+### 2.1 Create the wiki vault
 
 ```
-> 사용자: research라는 wiki vault 만들어줘. ~/notes/research, obsidian 사용
+> You: make a wiki vault called "research" at ~/notes/research using obsidian
 
 < Claude:
 $ adapters.get_adapter('obsidian', vault_name='research').init_vault(...)
 $ registry.add_vault(name='research', type_='obsidian', mode='wiki')
 $ registry.set_active('research')
-$ reindex.full → 2 notes (index.md + log.md 자동 생성)
+$ reindex.full → 2 notes (index.md + log.md auto-created)
 
-✅ wiki vault 'research' 등록.
+✅ wiki vault 'research' registered.
    ~/notes/research/
-   ├── raw/                  (원본 출처)
+   ├── raw/                  (verbatim source bytes)
    ├── wiki/
-   │   ├── summaries/        (요약)
-   │   ├── entities/         (인물·조직·논문)
-   │   ├── concepts/         (아이디어·기법)
-   │   ├── comparisons/      (비교)
-   │   ├── syntheses/        (질의 후 자동 생성)
-   │   ├── index.md          (자동 목차)
-   │   └── log.md            (운영 로그)
+   │   ├── summaries/        (summary pages)
+   │   ├── entities/         (people, orgs, papers)
+   │   ├── concepts/         (ideas, techniques)
+   │   ├── comparisons/      (comparison pages)
+   │   ├── syntheses/        (auto-filled by query file-back)
+   │   ├── index.md          (auto-maintained TOC)
+   │   └── log.md            (operation log)
    └── .trash/
 ```
 
-### 2.2 paste로 ingest (텍스트 출처)
+### 2.2 Ingest by paste (text source)
 
 ```
-> 사용자: 이거 정리해줘
+> You: ingest this
 
-Andrej Karpathy의 LLM Wiki Gist 핵심: 메모는 단방향 흐름이지만
-위키는 양방향 그래프다. raw/는 원본 보존, wiki/는 가공된 페이지.
-각 ingest는 평균 10-15개 페이지를 갱신해야 정상이다. 두 가지 메타
-파일 — index.md(목차)와 log.md(운영 로그) — 가 위키의 메타데이터다.
+The core of Andrej Karpathy's LLM Wiki Gist: notes are one-way flows, but
+wikis are bidirectional graphs. raw/ preserves originals; wiki/ holds the
+processed pages. A typical ingest touches 10-15 pages. Two meta files —
+index.md (TOC) and log.md (operation log) — carry the wiki's metadata.
 
-< Claude: ingest 시작. wiki-mode 확인됨 (active: research).
+< Claude: Starting ingest. wiki-mode confirmed (active: research).
 
-[1/7] raw 저장
-$ ingest.save_raw(content='...', ext='md', title='Karpathy LLM Wiki Gist 핵심',
+[1/7] Save the raw
+$ ingest.save_raw(content='...', ext='md', title='Karpathy LLM Wiki Gist core',
                   date_str='2026-05-25')
-→ raw/2026-05-25-karpathy-llm-wiki-gist-haegsim.md
+→ raw/2026-05-25-karpathy-llm-wiki-gist-core.md
 
-[2/7] 본문 분석 — 다음 페이지들을 제안합니다:
+[2/7] Body analysis — proposed pages:
 
   Summary:
-    - karpathy-llm-wiki-gist (one-paragraph 요약)
+    - karpathy-llm-wiki-gist (one-paragraph summary)
 
   Entities:
-    - andrej-karpathy (이미 존재하면 patch, 없으면 신규)
+    - andrej-karpathy (patch if exists, create if not)
 
   Concepts:
-    - compounding-knowledge (지식 누적)
-    - raw-wiki-separation (raw/wiki 분리 원칙)
-    - bidirectional-graph (양방향 그래프)
+    - compounding-knowledge
+    - raw-wiki-separation
+    - bidirectional-graph
     - meta-files (index/log)
 
-확인하면 진행 (yes/edit/cancel):
+Confirm to proceed (yes/edit/cancel):
 
-> 사용자: yes
+> You: yes
 
 < Claude:
-[3/7] 요약 페이지 작성
+[3/7] Write summary page
 $ ingest.write_wiki_page(layer='summaries', title='Karpathy LLM Wiki Gist', ...)
 → wiki/summaries/karpathy-llm-wiki-gist.md
 
-[4/7] 엔티티/개념 페이지 작성
+[4/7] Write entity/concept pages
 $ ingest.write_wiki_page(layer='entities', title='Andrej Karpathy', ...)
 $ ingest.write_wiki_page(layer='concepts', title='Compounding Knowledge', ...)
 $ ingest.write_wiki_page(layer='concepts', title='Raw Wiki Separation', ...)
 $ ingest.write_wiki_page(layer='concepts', title='Bidirectional Graph', ...)
 $ ingest.write_wiki_page(layer='concepts', title='Meta Files', ...)
 
-[5/7] 인덱스 갱신
+[5/7] Update index
 $ ingest.update_index(entries=[
-    ('summaries', 'karpathy-llm-wiki-gist', 'Karpathy LLM Wiki Gist 핵심'),
+    ('summaries', 'karpathy-llm-wiki-gist', 'Karpathy LLM Wiki Gist core'),
     ('entities', 'andrej-karpathy', 'AI researcher and educator'),
-    ('concepts', 'compounding-knowledge', '지식 누적 모델'),
+    ('concepts', 'compounding-knowledge', 'Knowledge as compounding artifact'),
     ...
   ])
 
-[6/7] 로그 추가
-$ ingest.append_log(op='ingest', title='Karpathy LLM Wiki Gist 핵심')
-→ wiki/log.md에 "## [2026-05-25] ingest | Karpathy LLM Wiki Gist 핵심" 추가
+[6/7] Append log
+$ ingest.append_log(op='ingest', title='Karpathy LLM Wiki Gist core')
+→ "## [2026-05-25] ingest | Karpathy LLM Wiki Gist core" added to wiki/log.md
 
-[7/7] reindex
+[7/7] Reindex
 $ reindex.incremental(vault_id=1) → 6 new notes indexed
 
-✅ Ingest 완료. 6개 페이지 갱신.
-   raw: raw/2026-05-25-karpathy-llm-wiki-gist-haegsim.md
+✅ Ingest complete. 6 pages touched.
+   raw: raw/2026-05-25-karpathy-llm-wiki-gist-core.md
    summary: wiki/summaries/karpathy-llm-wiki-gist.md
    entities: 1 (andrej-karpathy)
    concepts: 4 (compounding-knowledge, raw-wiki-separation, bidirectional-graph, meta-files)
 ```
 
-### 2.3 PDF ingest
+### 2.3 Ingest a PDF
 
 ```
-> 사용자: ~/Downloads/attention-is-all-you-need.pdf 정리해줘
+> You: ingest ~/Downloads/attention-is-all-you-need.pdf
 
-< Claude: PDF 파일 감지. pypdf로 텍스트 추출 + 원본 보존.
+< Claude: PDF detected. Extracting text via pypdf and preserving original bytes.
 
 $ pdf_bytes = open('~/Downloads/attention-is-all-you-need.pdf', 'rb').read()
 $ ingest.save_raw_pdf(pdf_bytes=..., title='Attention Is All You Need',
                       date_str='2026-05-25')
-→ raw/2026-05-25-attention-is-all-you-need.pdf  (원본 바이트 그대로)
-→ 추출된 텍스트: 8721자
+→ raw/2026-05-25-attention-is-all-you-need.pdf  (bytes preserved verbatim)
+→ extracted text: 8721 chars
 
-[2/7] 본문 분석 — 제안:
+[2/7] Body analysis — proposed:
 
   Summary:
-    - attention-is-all-you-need (transformer 핵심)
+    - attention-is-all-you-need (transformer overview)
 
   Entities:
-    - vaswani-et-al (저자)
-    - google-brain (소속)
+    - vaswani-et-al (authors)
+    - google-brain (affiliation)
 
   Concepts:
     - self-attention
@@ -352,180 +353,181 @@ $ ingest.save_raw_pdf(pdf_bytes=..., title='Attention Is All You Need',
     - positional-encoding
     - transformer-architecture
 
-확인 (yes/edit/cancel):
+Confirm (yes/edit/cancel):
 
-> 사용자: yes
+> You: yes
 
-[3/7~7/7] ... (동일 흐름)
+[3/7~7/7] ... (same flow as above)
 
-✅ Ingest 완료. 8개 페이지 갱신.
+✅ Ingest complete. 8 pages touched.
 ```
 
-> **PDF 주의**: 스캔된 (이미지) PDF는 텍스트 추출이 비어있을 수 있습니다. 이 경우 본문을 직접 paste해서 ingest하세요. OCR은 Plan C 범위 밖.
+> **PDF caveat**: Scanned (image-only) PDFs may extract empty text. In that case, paste the body manually and ingest as text. OCR is out of scope for Plan C.
 
-### 2.4 query — 위키에 묻기
+### 2.4 Query — ask the wiki
 
 ```
-> 사용자: attention 매커니즘이 왜 RNN보다 빠른지 위키에 물어봐
+> You: ask the wiki why attention is faster than RNN
 
 < Claude:
 $ search.query(vault_id=1, query='attention RNN', limit=5)
 
-검색 결과 (상위 3개):
+Top 3 hits:
 1. wiki/summaries/attention-is-all-you-need.md      (score 7.5)
 2. wiki/concepts/self-attention.md                  (score 5.0)
 3. wiki/concepts/transformer-architecture.md        (score 3.5)
 
-[페이지들을 읽고 답변 합성 중...]
+[Reading pages and synthesizing answer...]
 
-답변:
+Answer:
 ─────────────────────────────────────
-Attention은 RNN의 시퀀셜 의존성을 끊고 병렬화가 가능하기 때문에 빠릅니다.
-RNN은 hidden state h_t가 h_{t-1}에 의존하므로 시퀀스를 한 토큰씩 순차
-처리해야 하지만, self-attention은 모든 토큰 쌍 간의 관계를 동시에
-계산합니다 [summaries/attention-is-all-you-need](wiki/summaries/attention-is-all-you-need.md).
+Attention is faster than RNN because it breaks the sequential dependency
+and enables parallelization. RNNs require hidden state h_t to depend on
+h_{t-1}, forcing token-by-token processing, while self-attention computes
+all token-pair relationships simultaneously
+[summaries/attention-is-all-you-need](wiki/summaries/attention-is-all-you-need.md).
 
-특히 multi-head attention은 행렬곱 한 번으로 모든 토큰의
-context vector를 계산하므로 GPU에서 매우 효율적입니다
+Multi-head attention in particular computes context vectors for every
+token in a single matrix multiplication, which is highly efficient on GPUs
 [concepts/self-attention](wiki/concepts/self-attention.md).
 
-다만 시퀀스 길이 N에 대해 O(N²) 메모리가 필요한 trade-off가 있어,
-긴 문서에는 별도 기법(sparse attention 등)이 필요합니다.
+The trade-off is O(N²) memory for sequence length N — long documents
+need separate techniques (sparse attention, etc.).
 ─────────────────────────────────────
 
-이 답변을 wiki/syntheses/에 저장할까요? (새 페이지로 file-back) [Yes / No]
+File this answer to wiki/syntheses/ as a new page (file-back)? [Yes / No]
 
-> 사용자: yes
+> You: yes
 
 < Claude:
-$ query.write_synthesis(title='왜 Attention이 RNN보다 빠른가',
-                        body='Attention은 RNN의 시퀀셜 의존성을...',
+$ query.write_synthesis(title='Why Attention is faster than RNN',
+                        body='Attention is faster than RNN because...',
                         citations=['wiki/summaries/attention-is-all-you-need.md',
                                    'wiki/concepts/self-attention.md'],
                         tags=['attention','rnn','transformer'])
-→ wiki/syntheses/wae-attention-i-rnn-boda-bareungga.md
+→ wiki/syntheses/why-attention-is-faster-than-rnn.md
 
-$ ingest.update_index(entries=[('syntheses', '...', '왜 Attention이 RNN보다 빠른가')])
-$ ingest.append_log(op='synthesis', title='왜 Attention이 RNN보다 빠른가')
+$ ingest.update_index(entries=[('syntheses', '...', 'Why Attention is faster than RNN')])
+$ ingest.append_log(op='synthesis', title='Why Attention is faster than RNN')
 $ reindex.incremental
 
-✅ Synthesis 페이지 저장됨. 이제 위키에 답변이 포함되었습니다.
-   다음 검색에서 이 페이지가 출처로 나옵니다.
+✅ Synthesis page saved. The answer is now part of the wiki.
+   Future searches will cite this page.
 ```
 
-이 흐름이 Karpathy가 말하는 "loop closes" — 질문이 새 페이지가 되어 위키에 누적됨.
+This is what Karpathy means by "the loop closes" — the question becomes a new page in the wiki.
 
 ---
 
-## 시나리오 3: 기존 /memo 폴더 가져오기
+## Scenario 3: Import an existing /memo folder
 
-이미 Obsidian이나 일반 markdown으로 메모를 쌓아둔 경우.
+When you already have notes piled up in Obsidian or plain markdown.
 
 ```
-> 사용자: vault-import-memo 실행해줘. 경로는 /Volumes/DanteStorage/Obsidian/memo
+> You: run vault-import-memo on /Volumes/DanteStorage/Obsidian/memo
 
 < Claude:
-[1단계] 경로 확인
-✅ /Volumes/DanteStorage/Obsidian/memo 존재 확인.
+[Step 1] Path check
+✅ /Volumes/DanteStorage/Obsidian/memo exists.
 
-[2단계] memo-mode vault로 등록
+[Step 2] Register as memo-mode vault
 $ registry.add_vault(name='legacy', path='/Volumes/...', type_='markdown', mode='memo')
 $ reindex.full → 247 notes indexed
 
-✅ 'legacy'라는 이름으로 등록됨.
+✅ Registered as 'legacy'.
 
-[3단계] frontmatter 정규화 제안 (dry-run)
+[Step 3] Propose frontmatter normalization (dry-run)
 
 $ import_memo.dry_run(vault_id=2)
 
-  요약:
-    총 파일: 247
-    변경 필요: 89
-    이미 정상: 158
+  Summary:
+    Total files: 247
+    Need changes: 89
+    Clean: 158
 
-  변경 필요 파일 예시 (처음 10개):
+  Sample of files needing changes (first 10):
     - 2025-08-meeting-notes.md           (changes: 2)  ← missing type, missing tags
     - article-clip.md                    (changes: 1)  ← tags string→list
     - random-thought.md                  (changes: 3)  ← missing date/type/tags
     ...
 
-마이그레이션을 적용할까요?
-89개 파일이 in-place 수정되고, 원본은 .trash/<ts>-pre-import-*.md로
-백업됩니다. 진행하려면 'apply'를 정확히 입력하세요:
+Apply the migration?
+89 files will be modified in place. Pre-images backed up to
+.trash/<ts>-pre-import-*.md. Type 'apply' exactly to proceed:
 
-> 사용자: apply
+> You: apply
 
 < Claude:
 $ import_memo.apply(vault_id=2, plan=...)
 
-  적용: 89 파일
-  스킵: 0 (malformed YAML 없음)
-  백업 timestamp: 20260525-150823-456789
+  Applied: 89 files
+  Skipped: 0 (no malformed YAML)
+  Backup timestamp: 20260525-150823-456789
 
-✅ 마이그레이션 완료. 모든 파일이 wiki-wizard frontmatter 규약
-   (title/date/type/tags 필수)을 따릅니다. 문제 발생 시
-   .trash/20260525-150823-456789-pre-import-*.md에서 복구 가능.
+✅ Migration complete. All files now match wiki-wizard frontmatter rules
+   (title/date/type/tags required). Recover from
+   .trash/20260525-150823-456789-pre-import-*.md if needed.
 ```
 
 ---
 
-## 시나리오 4: 정기 헬스 체크 (lint)
+## Scenario 4: Routine health check (lint)
 
-vault 무결성 점검. memo-mode와 wiki-mode 자동 분기.
+Vault integrity check. memo-mode and wiki-mode dispatch automatically.
 
 ### 4.1 memo vault lint
 
 ```
-> 사용자: daily vault lint해줘
+> You: lint the daily vault
 
-< Claude: 'daily'는 memo-mode → 공통 체크만 수행.
+< Claude: 'daily' is memo-mode → common checks only.
 
 $ lint.check(vault_id=1)
 
-📋 공통 점검
+📋 Common checks
 ─────────────────────────────────────
 
-✅ Frontmatter 이슈: 없음 (모두 정상)
+✅ Frontmatter issues: none
 
 ⚠️  Drift — missing files (1)
-   - inbox/old-note.md (registry에는 있으나 디스크에 없음)
+   - inbox/old-note.md (in registry but not on disk)
 
-✅ Drift — mtime mismatch: 없음
+✅ Drift — mtime mismatch: none
 
-자동 수정 힌트:
-  - 누락 파일: orphan 행을 삭제하거나 파일을 복구하세요.
-    수동: registry.delete_note(vault_id=1, relpath='inbox/old-note.md')
+Auto-fix hints:
+  - missing files: delete the orphan row or restore the file.
+    Manual: registry.delete_note(vault_id=1, relpath='inbox/old-note.md')
 
-> 사용자: orphan 행 삭제해줘
+> You: delete the orphan row
 
 < Claude:
 $ registry.delete_note(vault_id=1, relpath='inbox/old-note.md')
-✅ 정리됨.
+✅ Cleaned up.
 ```
 
 ### 4.2 wiki vault lint
 
 ```
-> 사용자: research vault 점검
+> You: check the research vault
 
-< Claude: 'research'는 wiki-mode → 공통 + 구조적 체크.
+< Claude: 'research' is wiki-mode → common + structural checks.
 
 $ lint.check(vault_id=2)
 $ wiki_lint.check(vault_id=2)
 
-📋 공통 점검
+📋 Common checks
 ─────────────────────────────────────
-✅ Frontmatter 이슈: 없음
-✅ Drift: 없음
+✅ Frontmatter issues: none
+✅ Drift: none
 
-📋 wiki 구조 점검
+📋 Wiki structural checks
 ─────────────────────────────────────
 
-⚠️  Orphan pages (2) — 7일 grace 지나고 inbound 링크 없음
-   - wiki/concepts/early-stopping.md (age: 14일)
-   - wiki/entities/lecun.md (age: 23일)
+⚠️  Orphan pages (2) — past 7-day grace with no inbound links
+   - wiki/concepts/early-stopping.md (age: 14 days)
+   - wiki/entities/lecun.md (age: 23 days)
 
-⚠️  Missing concepts (3) — N≥2개 페이지에서 참조되나 페이지 없음
+⚠️  Missing concepts (3) — referenced by ≥2 pages but no page exists
    - transformer-decoder (referenced by: summaries/attention-is-all-you-need.md,
                                           summaries/gpt-paper.md)
    - layer-normalization (referenced by 4 pages)
@@ -534,22 +536,22 @@ $ wiki_lint.check(vault_id=2)
 ⚠️  Empty data (1)
    - wiki/concepts/dropout.md (reason: body<50chars — "TBD")
 
-✅ Dangling links: 없음
+✅ Dangling links: none
 
-다음 작업 추천:
-  - missing concepts 3개를 ingest하거나 페이지 작성
-  - dropout.md 본문 채우기
-  - orphan 검토 (의도적이면 다른 페이지에서 [[link]] 추가, 아니면 archive)
+Suggested next actions:
+  - ingest or write pages for the 3 missing concepts
+  - flesh out dropout.md body
+  - review orphans (add [[link]] from somewhere, or archive)
 ```
 
 ---
 
-## 시나리오 5: 다중 vault 전환
+## Scenario 5: Multiple vaults
 
-여러 vault를 운영할 때.
+When you run more than one vault.
 
 ```
-> 사용자: vault 목록 보여줘
+> You: list my vaults
 
 < Claude:
 $ registry.list_vaults() + per-vault note counts
@@ -560,102 +562,102 @@ $ registry.list_vaults() + per-vault note counts
 
 (* = active)
 
-> 사용자: research로 전환
+> You: switch to research
 
 < Claude:
 $ registry.set_active('research')
 ✅ Active vault: research (wiki, obsidian) at /Users/dante/notes/research
 
-> 사용자: legacy vault 등록 제거해줘. 파일은 그대로 두고.
+> You: forget the legacy vault but keep the files
 
-< Claude: 'legacy'를 registry에서 제거합니다.
-파일 (247개)은 /Volumes/DanteStorage/Obsidian/memo에 그대로 보존됩니다.
+< Claude: Removing 'legacy' from the registry.
+The 247 files at /Volumes/DanteStorage/Obsidian/memo will be preserved.
 
-확인하려면 vault 이름을 정확히 입력하세요:
+Type the vault name to confirm:
 
-> 사용자: legacy
+> You: legacy
 
 < Claude:
 $ registry.forget_vault('legacy')
-✅ Registry에서 'legacy' 제거. 파일은 보존됨.
+✅ 'legacy' removed from registry. Files preserved.
 ```
 
 ---
 
-## 자주 겪는 상황과 대처
+## Common situations & how to handle them
 
-### Q. wiki-wizard가 자동으로 트리거되지 않을 때
+### Q. wiki-wizard didn't auto-trigger
 
-명시적으로 호출하세요:
+Invoke explicitly:
 
 ```
-> 사용자: wiki-wizard 실행해줘
+> You: use the wiki-wizard skill
 ```
 
-또는 SKILL.md frontmatter의 트리거 phrase 중 하나를 직접 사용:
+Or use one of the trigger phrases from SKILL.md frontmatter:
 
 - "open my wiki" / "위키 열어줘"
 - "ingest this" / "이거 정리해줘"
 - "find a note about X" / "X 관련 노트 찾아줘"
 
-### Q. 활성 vault가 잘못 됐을 때
+### Q. The active vault is wrong
 
 ```
-> 사용자: 지금 활성 vault 뭐야?
+> You: what's my active vault?
 
 < Claude:
 $ wizard.status
 active: { name: 'legacy', mode: 'memo', ... }
 
-> 사용자: research로 바꿔줘
+> You: switch to research
 
 < Claude:
 $ registry.set_active('research')
 ```
 
-### Q. 마이그레이션 후 변경을 되돌리고 싶을 때
+### Q. Roll back a migration
 
-`vault-import-memo apply`는 항상 `.trash/<ts>-pre-import-*.md`에 원본을 백업합니다.
+`vault-import-memo apply` always backs up the pre-image to `.trash/<ts>-pre-import-*.md`.
 
 ```bash
-# 수동 복구 (1개 파일)
+# Manual restore (single file)
 cp ~/notes/legacy/.trash/20260525-150823-456789-pre-import-2025-08-meeting-notes.md \
    ~/notes/legacy/2025-08-meeting-notes.md
 ```
 
-전체 되돌리기는 같은 timestamp를 가진 백업 파일들을 한꺼번에 복원하면 됩니다.
+To roll back the entire batch, restore every backup with the same timestamp prefix at once.
 
-### Q. PDF가 한국어인데 추출이 깨질 때
+### Q. PDF extraction garbles Korean (or other CJK)
 
-pypdf는 일부 한글 인코딩에서 약합니다. 우회:
+pypdf is weak with some Hangul encodings. Workarounds:
 
-1. macOS Preview에서 PDF 열고 텍스트 복사 → 직접 paste ingest
-2. OCR이 필요한 스캔 PDF는 `paddleocr` 스킬을 별도 호출해서 텍스트 추출 후 paste
+1. Open the PDF in macOS Preview, copy the text, and paste-ingest manually
+2. For scanned PDFs that need OCR, invoke the separate `paddleocr` skill, then paste the text
 
-### Q. Obsidian이 안 켜져 있을 때 open 실패
+### Q. Obsidian isn't running and `open` fails
 
-`obsidian://open?vault=...&file=...` URI가 macOS에서 거부됩니다. 두 가지 방법:
+The `obsidian://open?vault=...&file=...` URI is rejected by macOS when the app is closed. Two options:
 
-1. Obsidian 앱을 먼저 실행한 후 다시 open
-2. vault를 markdown 타입으로 등록해서 OS 기본 핸들러(`open`/`xdg-open`)로 열기
+1. Launch Obsidian first, then retry `open`
+2. Register the vault as `markdown` type so OS default handlers (`open`/`xdg-open`) take over
 
 ```
-> 사용자: vault-setup name=temp path=... mode=memo type=markdown
+> You: vault-setup name=temp path=... mode=memo type=markdown
 ```
 
 ---
 
-## Codex CLI에서 사용
+## Using from Codex CLI
 
-Claude Code와 동일합니다. Codex가 wiki-wizard 스킬을 발견하면 같은 트리거로 호출됩니다. 차이점은 없습니다 — SKILL.md frontmatter의 트리거 phrase가 LLM-agnostic이라.
+Same as Claude Code. Once Codex discovers the wiki-wizard skill, the same triggers invoke it. SKILL.md frontmatter is LLM-agnostic.
 
 ```
 $ codex
-> 위키 상태 확인해줘
-[Codex가 wiki-wizard를 invoke, 동일한 흐름 진행]
+> check the wiki status
+[Codex invokes wiki-wizard, same flow as before]
 ```
 
-다만 Codex는 자동 트리거가 Claude Code보다 보수적입니다. 모호한 경우 명시적으로:
+Codex tends to be more conservative about auto-triggering. When in doubt:
 
 ```
 > Use the wiki-wizard skill to ingest this article: ...
@@ -663,11 +665,11 @@ $ codex
 
 ---
 
-## 더 알아보기
+## More
 
-- **명령어 레퍼런스**: `commands/*.md` (vault-setup, ingest, query, lint 등 12개)
-- **스크립트 API**: `scripts/*.py` (Python으로 직접 호출 가능, CLI는 일부 노출)
-- **설계 문서**: `docs/superpowers/specs/` (로컬 only, GitHub 미공개 — 개발자용)
-- **테스트**: `pytest -v` (91 tests, 모든 동작 검증)
+- **Command reference**: `commands/*.md` (vault-setup, ingest, query, lint, etc. — 12 docs)
+- **Script API**: `scripts/*.py` (callable from Python; partial CLI exposed)
+- **Design docs**: `docs/superpowers/specs/` (local-only, not published — for contributors)
+- **Tests**: `pytest -v` (91 tests covering every behavior)
 
-문제 신고: https://github.com/dandacompany/wiki-wizard/issues
+Issues: https://github.com/dandacompany/wiki-wizard/issues
