@@ -1,0 +1,52 @@
+from pathlib import Path
+import shutil
+import time
+import os
+
+import pytest
+
+from scripts import registry, adapters, reindex, wiki_lint
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture
+def broken_wiki(tmp_db, tmp_path):
+    registry.init_db(tmp_db)
+    dest = tmp_path / "broken-wiki"
+    shutil.copytree(FIXTURES / "wiki-vault-broken", dest)
+    # adapter normally creates these, but copytree from fixture won't:
+    (dest / ".trash").mkdir(exist_ok=True)
+    (dest / "raw").mkdir(exist_ok=True)
+    vault = registry.add_vault(
+        tmp_db, name="bw", path=dest, type_="markdown", mode="wiki"
+    )
+    # Force orphan-summary mtime to be 30 days old (passes 7-day grace)
+    old = time.time() - 30 * 86400
+    os.utime(dest / "wiki/summaries/orphan-summary.md", (old, old))
+    reindex.full(tmp_db, vault_id=vault["id"])
+    return tmp_db, vault, dest
+
+
+def test_orphan_pages_detected(broken_wiki):
+    db, vault, root = broken_wiki
+    report = wiki_lint.check(db, vault_id=vault["id"])
+    orphans = {item["relpath"] for item in report["orphan_pages"]}
+    assert "wiki/summaries/orphan-summary.md" in orphans
+    assert "wiki/summaries/good-summary.md" not in orphans
+
+
+def test_missing_concepts_detected(broken_wiki):
+    db, vault, root = broken_wiki
+    report = wiki_lint.check(db, vault_id=vault["id"])
+    missing = {item["title"] for item in report["missing_concepts"]}
+    assert "mentioned-twice" in missing
+    assert "missing-thing" not in missing
+
+
+def test_existing_entity_not_flagged_as_missing(broken_wiki):
+    db, vault, root = broken_wiki
+    report = wiki_lint.check(db, vault_id=vault["id"])
+    missing = {item["title"] for item in report["missing_concepts"]}
+    assert "karpathy" not in missing
+    assert "compounding" not in missing
