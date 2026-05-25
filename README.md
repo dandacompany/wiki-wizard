@@ -38,6 +38,47 @@ python3 -m pip install -e ".[dev]"
 pytest
 ```
 
+## Plan B — Vault management + memo-mode ops
+
+After Plan A's foundation, Plan B adds:
+
+- **Vault management** — `vault-setup`, `vault-use`, `vault-list`, `vault-forget`, `vault-import-memo`
+- **memo-mode ops** — `create`, `find`, `open`, `edit`, `move`, `delete`
+- **Common health** — `lint` (frontmatter validity + sqlite↔disk drift)
+
+### Quick start
+
+```
+# 1. Set up a fresh memo vault
+# (in Claude Code with this skill loaded)
+"vault-setup name=daily path=~/notes/daily mode=memo type=markdown"
+
+# 2. Capture a memo by pasting content
+"<paste long content>"
+# → wizard proposes title/folder/tags, you confirm.
+
+# 3. Find it later
+"find karpathy"
+
+# 4. Open in your editor
+"open inbox/karpathy-llm-wiki.md"
+
+# 5. Check vault health
+"lint"
+```
+
+### Migrating an existing /memo folder
+
+```
+"vault-import-memo path=/Volumes/DanteStorage/Obsidian/memo name=legacy"
+```
+
+The skill registers the folder, then offers a **dry-run** of frontmatter normalization (adds missing `type`/`date`/`tags`, converts string tags to lists). Pre-images are backed up to `.trash/` before any change.
+
+### What's not in Plan B
+
+`ingest`, `query`, and wiki-mode-specific lint checks land in Plan C.
+
 ## License
 
 MIT
