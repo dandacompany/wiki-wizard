@@ -1,18 +1,21 @@
 # wiki-wizard 사용 튜토리얼
 
-Claude Code 또는 Codex CLI에서 wiki-wizard를 실제로 어떻게 사용하는지 보여주는 실전 예제 모음입니다. 모든 대화는 실제 동작을 그대로 옮긴 것이며, 한국어/영어 트리거 둘 다 지원합니다.
+Claude Code 나 Codex CLI 에서 wiki-wizard 를 어떻게 사용하는지 실전 예제로 보여드립니다.
+모든 대화는 실제 동작을 그대로 옮긴 것이고, 한국어 트리거와 영어 트리거 모두 사용할 수 있습니다.
 
 > **표기 규약**
 >
-> - `> 사용자:` — 당신이 채팅창에 입력하는 텍스트
-> - `< Claude:` — wiki-wizard가 실행되어 나오는 응답
-> - `$` — 내부적으로 실행되는 Python 호출 (참고용, 직접 칠 필요 없음)
+> - `> 사용자:` 는 당신이 채팅창에 입력하는 텍스트입니다.
+> - `< Claude:` 는 wiki-wizard 가 실행되어 돌려주는 응답입니다.
+> - `$` 로 시작하는 줄은 내부적으로 실행되는 Python 호출입니다. 참고용이며 직접 칠 필요는 없습니다.
 
 ---
 
 ## 0. 설치 확인
 
-설치는 [README](./README.md) 참고. 설치되면 새 Claude Code 세션 어디서든 트리거 가능합니다. 빠른 헬스 체크:
+설치 방법은 [README](./README.md) 를 참고하세요.
+설치가 끝나면 새 Claude Code 세션 어디서든 트리거를 사용할 수 있습니다.
+헬스 체크는 이렇게 해보세요.
 
 ```
 > 사용자: 위키 상태 확인해줘
@@ -34,16 +37,18 @@ $ python3 -m scripts.wizard status
 4. 취소
 ```
 
-처음이면 `needs: setup`이 나옵니다. 트리거 phrase 예시:
+설치 직후라면 `needs: setup` 이 반환됩니다.
+사용할 수 있는 트리거 문구는 다음과 같습니다.
 
 - 영어: "open my wiki", "set up a new vault", "ingest this", "what does my wiki say about X"
 - 한국어: "위키 열어줘", "새 vault 만들어줘", "이거 정리해줘", "위키에 물어봐"
 
 ---
 
-## 시나리오 1: memo vault 첫 설정 + 첫 메모
+## 시나리오 1: memo vault 첫 설정과 첫 메모 작성
 
-가장 간단한 워크플로. 일상 메모를 빠르게 캡처하는 용도.
+가장 간단한 흐름입니다.
+일상 메모를 빠르게 캡처할 때 씁니다.
 
 ### 1.1 vault 생성
 
@@ -74,9 +79,10 @@ $ reindex.full(vault_id=1) → 0 notes
    └── .trash/
 ```
 
-### 1.2 paste로 첫 메모 캡처 (긴 텍스트)
+### 1.2 paste 로 첫 메모 캡처 (긴 텍스트)
 
-가장 자주 쓰는 패턴. 어떤 글이든 통째로 paste하면 wiki-wizard가 제목/태그/폴더를 제안합니다.
+가장 자주 쓰는 패턴입니다.
+어떤 글이든 통째로 paste 하면 wiki-wizard 가 제목과 태그, 폴더를 자동으로 제안합니다.
 
 ```
 > 사용자: 다음 내용 저장해줘
@@ -116,7 +122,7 @@ $ memo_ops.write(vault_id=1, title='Karpathy LLM Wiki — compounding knowledge'
 
 ### 1.3 prompt 방식 (짧은 메모)
 
-paste 본문이 200자 미만이면 자동으로 prompt 모드로 갑니다.
+paste 한 본문이 200 자보다 짧으면 자동으로 prompt 모드로 전환됩니다.
 
 ```
 > 사용자: 메모 하나 만들어줘
@@ -145,7 +151,8 @@ paste 본문이 200자 미만이면 자동으로 prompt 모드로 갑니다.
 ✅ inbox/slack-jeongri-sigan-30bun-jul-igi.md
 ```
 
-> **참고**: 한글 제목은 slugify에서 한글 음절 그대로 보존됩니다 (`가-힣` 허용). 다만 readable한 영문 슬러그가 좋다면 제목을 영문으로 주거나, edit으로 slug만 수정하세요.
+> **참고**: 한글 제목은 slugify 가 한글 음절을 그대로 보존합니다 (`가-힣` 허용).
+> 영문 슬러그를 쓰고 싶다면 제목을 영문으로 입력하거나, `edit` 으로 slug 만 따로 바꾸세요.
 
 ### 1.4 메모 검색
 
@@ -226,9 +233,11 @@ $ memo_ops.delete(relpath='...', hard=False)
 
 ---
 
-## 시나리오 2: wiki vault + ingest + query (Karpathy 워크플로)
+## 시나리오 2: wiki vault 에서 ingest 와 query (Karpathy 흐름)
 
-핵심 사용 사례. 출처 한 건 → raw 저장 → 요약 → 엔티티/개념 페이지 → 인덱스 갱신.
+wiki-wizard 의 핵심 사용 사례입니다.
+출처 한 건을 받으면 먼저 raw 폴더에 원본을 저장하고, 그 다음에 요약 페이지를 만듭니다.
+이어서 본문에 등장한 엔티티와 개념을 별도 페이지로 분리하고, 마지막으로 인덱스를 갱신합니다.
 
 ### 2.1 wiki vault 생성
 
@@ -255,7 +264,7 @@ $ reindex.full → 2 notes (index.md + log.md 자동 생성)
    └── .trash/
 ```
 
-### 2.2 paste로 ingest (텍스트 출처)
+### 2.2 paste 로 ingest (텍스트 출처)
 
 ```
 > 사용자: 이거 정리해줘
@@ -361,9 +370,11 @@ $ ingest.save_raw_pdf(pdf_bytes=..., title='Attention Is All You Need',
 ✅ Ingest 완료. 8개 페이지 갱신.
 ```
 
-> **PDF 주의**: 스캔된 (이미지) PDF는 텍스트 추출이 비어있을 수 있습니다. 이 경우 본문을 직접 paste해서 ingest하세요. OCR은 Plan C 범위 밖.
+> **PDF 주의**: 스캔된 이미지 PDF 는 텍스트 추출이 비어 있을 수 있습니다.
+> 이 경우 본문을 직접 paste 해서 ingest 하세요.
+> OCR 은 Plan C 범위 밖입니다.
 
-### 2.4 query — 위키에 묻기
+### 2.4 query 로 위키에 묻기
 
 ```
 > 사용자: attention 매커니즘이 왜 RNN보다 빠른지 위키에 물어봐
@@ -413,13 +424,14 @@ $ reindex.incremental
    다음 검색에서 이 페이지가 출처로 나옵니다.
 ```
 
-이 흐름이 Karpathy가 말하는 "loop closes" — 질문이 새 페이지가 되어 위키에 누적됨.
+바로 이 흐름이 Karpathy 가 말한 "loop closes" 입니다.
+질문이 새 페이지가 되어 위키에 누적되는 거죠.
 
 ---
 
 ## 시나리오 3: 기존 /memo 폴더 가져오기
 
-이미 Obsidian이나 일반 markdown으로 메모를 쌓아둔 경우.
+이미 Obsidian 이나 일반 markdown 으로 메모를 쌓아둔 경우에 사용합니다.
 
 ```
 > 사용자: vault-import-memo 실행해줘. 경로는 /Volumes/DanteStorage/Obsidian/memo
@@ -471,7 +483,8 @@ $ import_memo.apply(vault_id=2, plan=...)
 
 ## 시나리오 4: 정기 헬스 체크 (lint)
 
-vault 무결성 점검. memo-mode와 wiki-mode 자동 분기.
+vault 의 무결성을 점검합니다.
+활성 vault 가 memo-mode 인지 wiki-mode 인지에 따라 자동으로 분기합니다.
 
 ### 4.1 memo vault lint
 
@@ -546,7 +559,7 @@ $ wiki_lint.check(vault_id=2)
 
 ## 시나리오 5: 다중 vault 전환
 
-여러 vault를 운영할 때.
+여러 vault 를 함께 운영할 때 쓰는 흐름입니다.
 
 ```
 > 사용자: vault 목록 보여줘
@@ -584,19 +597,19 @@ $ registry.forget_vault('legacy')
 
 ## 자주 겪는 상황과 대처
 
-### Q. wiki-wizard가 자동으로 트리거되지 않을 때
+### Q. wiki-wizard 가 자동으로 트리거되지 않을 때
 
-명시적으로 호출하세요:
+명시적으로 호출하면 됩니다.
 
 ```
 > 사용자: wiki-wizard 실행해줘
 ```
 
-또는 SKILL.md frontmatter의 트리거 phrase 중 하나를 직접 사용:
+또는 SKILL.md frontmatter 에 정의된 트리거 문구를 직접 쓰세요.
 
-- "open my wiki" / "위키 열어줘"
-- "ingest this" / "이거 정리해줘"
-- "find a note about X" / "X 관련 노트 찾아줘"
+- "open my wiki" 또는 "위키 열어줘"
+- "ingest this" 또는 "이거 정리해줘"
+- "find a note about X" 또는 "X 관련 노트 찾아줘"
 
 ### Q. 활성 vault가 잘못 됐을 때
 
@@ -625,19 +638,21 @@ cp ~/notes/legacy/.trash/20260525-150823-456789-pre-import-2025-08-meeting-notes
 
 전체 되돌리기는 같은 timestamp를 가진 백업 파일들을 한꺼번에 복원하면 됩니다.
 
-### Q. PDF가 한국어인데 추출이 깨질 때
+### Q. 한국어 PDF 의 텍스트 추출이 깨질 때
 
-pypdf는 일부 한글 인코딩에서 약합니다. 우회:
+pypdf 는 일부 한글 인코딩 처리가 약합니다.
+우회 방법은 두 가지입니다.
 
-1. macOS Preview에서 PDF 열고 텍스트 복사 → 직접 paste ingest
-2. OCR이 필요한 스캔 PDF는 `paddleocr` 스킬을 별도 호출해서 텍스트 추출 후 paste
+1. macOS 미리보기에서 PDF 를 열고 텍스트를 복사한 다음, 직접 paste 해서 ingest 하세요.
+2. OCR 이 필요한 스캔 PDF 는 `paddleocr` 스킬을 따로 불러 텍스트를 뽑은 뒤 paste 하세요.
 
-### Q. Obsidian이 안 켜져 있을 때 open 실패
+### Q. Obsidian 이 켜져 있지 않아 open 이 실패할 때
 
-`obsidian://open?vault=...&file=...` URI가 macOS에서 거부됩니다. 두 가지 방법:
+`obsidian://open?vault=...&file=...` URI 가 macOS 에서 거부됩니다.
+해결 방법은 두 가지입니다.
 
-1. Obsidian 앱을 먼저 실행한 후 다시 open
-2. vault를 markdown 타입으로 등록해서 OS 기본 핸들러(`open`/`xdg-open`)로 열기
+1. Obsidian 앱을 먼저 실행한 다음 다시 open 하세요.
+2. vault 를 markdown 타입으로 등록해서 OS 기본 핸들러 (`open` 이나 `xdg-open`) 로 열게 하세요.
 
 ```
 > 사용자: vault-setup name=temp path=... mode=memo type=markdown
@@ -645,17 +660,20 @@ pypdf는 일부 한글 인코딩에서 약합니다. 우회:
 
 ---
 
-## Codex CLI에서 사용
+## Codex CLI 에서 사용하기
 
-Claude Code와 동일합니다. Codex가 wiki-wizard 스킬을 발견하면 같은 트리거로 호출됩니다. 차이점은 없습니다 — SKILL.md frontmatter의 트리거 phrase가 LLM-agnostic이라.
+Claude Code 와 동일합니다.
+Codex 가 wiki-wizard 스킬을 발견하면 같은 트리거로 호출됩니다.
+차이가 없는 이유는 SKILL.md frontmatter 의 트리거 문구가 특정 LLM 에 묶이지 않기 때문입니다.
 
 ```
 $ codex
 > 위키 상태 확인해줘
-[Codex가 wiki-wizard를 invoke, 동일한 흐름 진행]
+[Codex 가 wiki-wizard 를 호출하고 동일한 흐름을 진행]
 ```
 
-다만 Codex는 자동 트리거가 Claude Code보다 보수적입니다. 모호한 경우 명시적으로:
+다만 Codex 는 Claude Code 보다 자동 트리거가 보수적입니다.
+모호한 상황이라면 이렇게 명시적으로 호출하세요.
 
 ```
 > Use the wiki-wizard skill to ingest this article: ...
@@ -665,9 +683,9 @@ $ codex
 
 ## 더 알아보기
 
-- **명령어 레퍼런스**: `commands/*.md` (vault-setup, ingest, query, lint 등 12개)
-- **스크립트 API**: `scripts/*.py` (Python으로 직접 호출 가능, CLI는 일부 노출)
-- **설계 문서**: `docs/superpowers/specs/` (로컬 only, GitHub 미공개 — 개발자용)
-- **테스트**: `pytest -v` (91 tests, 모든 동작 검증)
+- **명령어 레퍼런스**: `commands/*.md` (vault-setup, ingest, query, lint 등 12 개)
+- **스크립트 API**: `scripts/*.py` (Python 에서 직접 호출 가능. 일부는 CLI 로도 노출됨)
+- **설계 문서**: `docs/superpowers/specs/` (로컬에만 두고 GitHub 에는 공개하지 않습니다. 기여자용)
+- **테스트**: `pytest -v` (총 91 개 테스트로 모든 동작을 검증합니다)
 
-문제 신고: https://github.com/dandacompany/wiki-wizard/issues
+문제 신고는 https://github.com/dandacompany/wiki-wizard/issues 에서 받습니다.

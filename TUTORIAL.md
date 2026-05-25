@@ -1,20 +1,20 @@
 # wiki-wizard Usage Tutorial
 
-Real-world examples of using wiki-wizard inside Claude Code or Codex CLI. Every dialog below mirrors actual behavior, and both English and Korean trigger phrases are supported.
+This is a hands-on tutorial for using wiki-wizard inside Claude Code or Codex CLI. Every dialog below reflects actual runtime behavior, and both English and Korean trigger phrases work.
 
-> **한국어 버전**: [TUTORIAL.ko.md](./TUTORIAL.ko.md)
+> **Korean version**: [TUTORIAL.ko.md](./TUTORIAL.ko.md)
 
 > **Notation**
 >
-> - `> You:` — what you type into the chat
-> - `< Claude:` — what wiki-wizard responds with
-> - `$` — Python calls executed internally (for reference; you never type these)
+> - `> You:` is what you type into the chat.
+> - `< Claude:` is what wiki-wizard responds with.
+> - `$` lines are Python calls executed internally. They are for reference; you never need to type them yourself.
 
 ---
 
 ## 0. Verify the install
 
-Install per [README](./README.md). Once linked, the trigger works in any new Claude Code session. Quick health check:
+See the [README](./README.md) for install instructions. Once the skill is linked, the trigger works in any new Claude Code session. Here is a quick health check.
 
 ```
 > You: check the wiki status
@@ -36,16 +36,16 @@ No vaults registered. Want to create one?
 4. cancel
 ```
 
-A fresh install returns `needs: setup`. Trigger phrases:
+A fresh install returns `needs: setup`. The trigger phrases you can use are:
 
 - English: "open my wiki", "set up a new vault", "ingest this", "what does my wiki say about X"
 - Korean: "위키 열어줘", "새 vault 만들어줘", "이거 정리해줘", "위키에 물어봐"
 
 ---
 
-## Scenario 1: First memo vault + first memo
+## Scenario 1: First memo vault and first memo
 
-Simplest workflow. Capture day-to-day notes quickly.
+This is the simplest workflow — use it to capture day-to-day notes quickly.
 
 ### 1.1 Create the vault
 
@@ -78,7 +78,7 @@ $ reindex.full(vault_id=1) → 0 notes
 
 ### 1.2 Capture a memo by pasting (long-form)
 
-The most common pattern. Paste any content and wiki-wizard proposes title/tags/folder.
+This is the most common pattern. Paste any content and wiki-wizard proposes a title, tags, and folder for you.
 
 ```
 > You: save this for me
@@ -117,7 +117,7 @@ $ memo_ops.write(vault_id=1, title='Karpathy LLM Wiki — compounding knowledge'
 
 ### 1.3 Prompt-driven (short memo)
 
-When the paste body is under 200 chars, the wizard switches to prompt mode automatically.
+When the pasted body is under 200 characters, the wizard automatically switches to prompt mode.
 
 ```
 > You: I want to write a quick memo
@@ -146,7 +146,7 @@ Save?
 ✅ inbox/cut-slack-triage-time-by-30-minutes.md
 ```
 
-> **Note**: The slugifier preserves Hangul syllables (`가-힣` allowed). If you want a readable English slug for a Korean title, write the title in English or `edit` the slug afterward.
+> **Note**: The slugifier preserves Hangul syllables (`가-힣` is allowed). If you want a readable English slug for a Korean title, either write the title in English up front, or use `edit` to change just the slug afterward.
 
 ### 1.4 Find a memo
 
@@ -227,9 +227,9 @@ $ memo_ops.delete(relpath='...', hard=False)
 
 ---
 
-## Scenario 2: Wiki vault + ingest + query (the Karpathy workflow)
+## Scenario 2: Wiki vault, ingest, and query (the Karpathy workflow)
 
-The core use case. One source → raw save → summary → entity/concept pages → index update.
+This is wiki-wizard's core use case. Each source flows through five steps: save the raw original, write a summary page, split out the entity and concept pages it mentions, and finally update the index.
 
 ### 2.1 Create the wiki vault
 
@@ -362,9 +362,9 @@ Confirm (yes/edit/cancel):
 ✅ Ingest complete. 8 pages touched.
 ```
 
-> **PDF caveat**: Scanned (image-only) PDFs may extract empty text. In that case, paste the body manually and ingest as text. OCR is out of scope for Plan C.
+> **PDF caveat**: Scanned, image-only PDFs may produce empty extracted text. In that case, paste the body manually and ingest it as text. OCR is out of scope for Plan C.
 
-### 2.4 Query — ask the wiki
+### 2.4 Query the wiki
 
 ```
 > You: ask the wiki why attention is faster than RNN
@@ -415,13 +415,13 @@ $ reindex.incremental
    Future searches will cite this page.
 ```
 
-This is what Karpathy means by "the loop closes" — the question becomes a new page in the wiki.
+This is exactly what Karpathy means when he says "the loop closes": the question itself becomes a new page in the wiki.
 
 ---
 
 ## Scenario 3: Import an existing /memo folder
 
-When you already have notes piled up in Obsidian or plain markdown.
+Use this when you already have notes piled up in Obsidian or plain markdown.
 
 ```
 > You: run vault-import-memo on /Volumes/DanteStorage/Obsidian/memo
@@ -473,7 +473,7 @@ $ import_memo.apply(vault_id=2, plan=...)
 
 ## Scenario 4: Routine health check (lint)
 
-Vault integrity check. memo-mode and wiki-mode dispatch automatically.
+`lint` runs an integrity check on the active vault. It dispatches automatically based on the vault's mode — memo-mode runs only the common checks, while wiki-mode adds the structural checks on top.
 
 ### 4.1 memo vault lint
 
@@ -548,7 +548,7 @@ Suggested next actions:
 
 ## Scenario 5: Multiple vaults
 
-When you run more than one vault.
+Use this flow when you run more than one vault side by side.
 
 ```
 > You: list my vaults
@@ -588,17 +588,17 @@ $ registry.forget_vault('legacy')
 
 ### Q. wiki-wizard didn't auto-trigger
 
-Invoke explicitly:
+Invoke it explicitly:
 
 ```
 > You: use the wiki-wizard skill
 ```
 
-Or use one of the trigger phrases from SKILL.md frontmatter:
+Or use one of the trigger phrases defined in SKILL.md frontmatter:
 
-- "open my wiki" / "위키 열어줘"
-- "ingest this" / "이거 정리해줘"
-- "find a note about X" / "X 관련 노트 찾아줘"
+- "open my wiki" or "위키 열어줘"
+- "ingest this" or "이거 정리해줘"
+- "find a note about X" or "X 관련 노트 찾아줘"
 
 ### Q. The active vault is wrong
 
@@ -629,17 +629,17 @@ To roll back the entire batch, restore every backup with the same timestamp pref
 
 ### Q. PDF extraction garbles Korean (or other CJK)
 
-pypdf is weak with some Hangul encodings. Workarounds:
+pypdf is weak with some Hangul encodings. You have two workarounds:
 
-1. Open the PDF in macOS Preview, copy the text, and paste-ingest manually
-2. For scanned PDFs that need OCR, invoke the separate `paddleocr` skill, then paste the text
+1. Open the PDF in macOS Preview, copy the text, and paste-ingest it manually.
+2. For scanned PDFs that need OCR, invoke the separate `paddleocr` skill first, then paste the extracted text.
 
 ### Q. Obsidian isn't running and `open` fails
 
-The `obsidian://open?vault=...&file=...` URI is rejected by macOS when the app is closed. Two options:
+The `obsidian://open?vault=...&file=...` URI is rejected by macOS when the app is closed. You have two options:
 
-1. Launch Obsidian first, then retry `open`
-2. Register the vault as `markdown` type so OS default handlers (`open`/`xdg-open`) take over
+1. Launch Obsidian first, then retry `open`.
+2. Register the vault as `markdown` type so that OS default handlers (`open` or `xdg-open`) take over.
 
 ```
 > You: vault-setup name=temp path=... mode=memo type=markdown
@@ -647,9 +647,9 @@ The `obsidian://open?vault=...&file=...` URI is rejected by macOS when the app i
 
 ---
 
-## Using from Codex CLI
+## Using wiki-wizard from Codex CLI
 
-Same as Claude Code. Once Codex discovers the wiki-wizard skill, the same triggers invoke it. SKILL.md frontmatter is LLM-agnostic.
+The experience is identical to Claude Code. Once Codex discovers the wiki-wizard skill, the same triggers invoke it. The SKILL.md frontmatter is not tied to any specific LLM, which is why both runtimes behave the same way.
 
 ```
 $ codex
@@ -657,7 +657,7 @@ $ codex
 [Codex invokes wiki-wizard, same flow as before]
 ```
 
-Codex tends to be more conservative about auto-triggering. When in doubt:
+That said, Codex is more conservative than Claude Code about auto-triggering. When in doubt, invoke it explicitly:
 
 ```
 > Use the wiki-wizard skill to ingest this article: ...
@@ -667,9 +667,9 @@ Codex tends to be more conservative about auto-triggering. When in doubt:
 
 ## More
 
-- **Command reference**: `commands/*.md` (vault-setup, ingest, query, lint, etc. — 12 docs)
-- **Script API**: `scripts/*.py` (callable from Python; partial CLI exposed)
-- **Design docs**: `docs/superpowers/specs/` (local-only, not published — for contributors)
-- **Tests**: `pytest -v` (91 tests covering every behavior)
+- **Command reference**: `commands/*.md` covers all 12 ops (vault-setup, ingest, query, lint, and the rest).
+- **Script API**: `scripts/*.py` is callable from Python, and a subset is also exposed as a CLI.
+- **Design docs**: `docs/superpowers/specs/` is kept local-only and not published. It is intended for contributors.
+- **Tests**: `pytest -v` runs all 91 tests, which cover every documented behavior.
 
-Issues: https://github.com/dandacompany/wiki-wizard/issues
+Issue tracker: https://github.com/dandacompany/wiki-wizard/issues
