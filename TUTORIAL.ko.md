@@ -13,7 +13,16 @@ Claude Code 나 Codex CLI 에서 oh-my-wiki 를 어떻게 사용하는지 실전
 
 ## 0. 설치 확인
 
-설치 방법은 [README](./README.md) 를 참고하세요.
+새 컴퓨터에서는 한 줄 설치를 권장합니다.
+
+```bash
+git clone https://github.com/dandacompany/oh-my-wiki
+cd oh-my-wiki
+bash bin/install.sh --dev
+```
+
+이 스크립트가 Python 의존성, 두 개의 스킬 symlink (`oh-my-wiki` 와 `omw`), pytest 검증까지 모두 처리합니다.
+플래그와 수동 설치 경로는 [README](./README.md) 를 참고하세요.
 설치가 끝나면 새 Claude Code 세션 어디서든 트리거를 사용할 수 있습니다.
 헬스 체크는 이렇게 해보세요.
 

@@ -30,3 +30,19 @@ jobs:
 
       - name: Run tests
         run: pytest -v
+
+      - name: Verify install script (fresh-clone equivalent)
+        run: |
+          # Use a throwaway skills dir so we don't touch the runner's real one
+          TMP_SKILLS="$(mktemp -d)"
+          bash bin/install.sh --force --no-test --skills-dir "$TMP_SKILLS"
+          # Confirm both symlinks were created and point inside the repo
+          test -L "$TMP_SKILLS/oh-my-wiki"
+          test -L "$TMP_SKILLS/omw"
+          [ "$(readlink "$TMP_SKILLS/oh-my-wiki")" = "$GITHUB_WORKSPACE" ]
+          [ "$(readlink "$TMP_SKILLS/omw")" = "$GITHUB_WORKSPACE/omw" ]
+          # Confirm uninstaller cleans up
+          bash bin/uninstall.sh --skills-dir "$TMP_SKILLS" --quiet
+          test ! -L "$TMP_SKILLS/oh-my-wiki"
+          test ! -L "$TMP_SKILLS/omw"
+          echo "✅ install + uninstall scripts verified"

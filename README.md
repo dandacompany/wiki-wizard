@@ -33,21 +33,45 @@ The skill exposes 11 user-facing ops:
 
 ## Install
 
+### One-line install (recommended)
+
 ```bash
-git clone <repo-url> oh-my-wiki
+git clone https://github.com/dandacompany/oh-my-wiki
 cd oh-my-wiki
-pip install -e ".[dev]"
-pytest -v   # 91 tests
+bash bin/install.sh --dev
 ```
 
-In Claude Code, link the skill into your active skill set, either at the project level or globally under `~/.claude/skills/`. For the short alias, also symlink the `omw/` subdirectory:
+The installer:
+
+1. Checks for Python 3.10+.
+2. Runs `pip install -e ".[dev]"` (drop `--dev` to skip pytest/ruff).
+3. Creates `~/.claude/skills/oh-my-wiki` and `~/.claude/skills/omw` symlinks (idempotent).
+4. Runs `pytest -q` to verify the install on your machine.
+5. Prints next steps and trigger phrases.
+
+It is safe to re-run. Use `--force` to replace pre-existing symlinks without a prompt, and `--no-test` to skip the verification step. Run `bash bin/install.sh --help` for all flags.
+
+After installation, both `oh-my-wiki` and `omw` appear in the Claude Code skill list and resolve to the same dispatcher.
+
+### Uninstall
 
 ```bash
+bash bin/uninstall.sh           # remove symlinks (keep pip package)
+bash bin/uninstall.sh --pip     # also pip uninstall oh-my-wiki
+```
+
+Your vaults and `data/registry.db` are never touched.
+
+### Manual install (advanced)
+
+If you prefer to wire things yourself:
+
+```bash
+pip install -e ".[dev]"
 ln -s "$PWD" ~/.claude/skills/oh-my-wiki
 ln -s "$PWD/omw" ~/.claude/skills/omw
+pytest -v
 ```
-
-After that, both `oh-my-wiki` and `omw` appear in the skill list and resolve to the same dispatcher.
 
 ## Quick start (memo vault)
 

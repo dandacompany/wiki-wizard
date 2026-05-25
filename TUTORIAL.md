@@ -14,7 +14,15 @@ This is a hands-on tutorial for using oh-my-wiki inside Claude Code or Codex CLI
 
 ## 0. Verify the install
 
-See the [README](./README.md) for install instructions. Once the skill is linked, the trigger works in any new Claude Code session. Here is a quick health check.
+For a fresh machine, the one-line install is:
+
+```bash
+git clone https://github.com/dandacompany/oh-my-wiki
+cd oh-my-wiki
+bash bin/install.sh --dev
+```
+
+That covers Python deps, both skill symlinks (`oh-my-wiki` and `omw`), and a pytest verification pass. See the [README](./README.md) for flags and the manual path. Once the skill is linked, the trigger works in any new Claude Code session. Here is a quick health check.
 
 ```
 > You: check the wiki status
