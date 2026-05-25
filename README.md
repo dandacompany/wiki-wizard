@@ -1,8 +1,10 @@
-# oh-my-wiki
+# oh-my-wiki (OMW)
 
 A Karpathy-style LLM Wiki skill that captures sources, builds a structured wiki out of them, and answers queries with proper citations.
 
-**Status:** Plan A + B + C are complete. The skill is production-ready for single-user workflows.
+**Status:** v1 (Plans A + B + C) is complete. The skill is production-ready for single-user workflows. v2 is in progress — see [docs/superpowers/specs/2026-05-25-oh-my-wiki-v2-master-design.md](./docs/superpowers/specs/2026-05-25-oh-my-wiki-v2-master-design.md) for the phased roadmap.
+
+**Short alias:** `OMW` (lowercase `omw`). Both `oh-my-wiki` and `omw` register as skills and respond to the same trigger phrases. Use whichever is more convenient.
 
 **Tutorial:** Walk through real Claude Code and Codex dialogs in [TUTORIAL.md](./TUTORIAL.md) (English) or [TUTORIAL.ko.md](./TUTORIAL.ko.md) (한국어).
 
@@ -38,7 +40,14 @@ pip install -e ".[dev]"
 pytest -v   # 91 tests
 ```
 
-In Claude Code, link the skill into your active skill set, either at the project level or globally under `~/.claude/skills/`.
+In Claude Code, link the skill into your active skill set, either at the project level or globally under `~/.claude/skills/`. For the short alias, also symlink the `omw/` subdirectory:
+
+```bash
+ln -s "$PWD" ~/.claude/skills/oh-my-wiki
+ln -s "$PWD/omw" ~/.claude/skills/omw
+```
+
+After that, both `oh-my-wiki` and `omw` appear in the skill list and resolve to the same dispatcher.
 
 ## Quick start (memo vault)
 

@@ -40,8 +40,11 @@ $ python3 -m scripts.wizard status
 설치 직후라면 `needs: setup` 이 반환됩니다.
 사용할 수 있는 트리거 문구는 다음과 같습니다.
 
-- 영어: "open my wiki", "set up a new vault", "ingest this", "what does my wiki say about X"
-- 한국어: "위키 열어줘", "새 vault 만들어줘", "이거 정리해줘", "위키에 물어봐"
+- 영어: "open my wiki", "set up a new vault", "ingest this", "what does my wiki say about X", "omw", "use omw", "/omw"
+- 한국어: "위키 열어줘", "새 vault 만들어줘", "이거 정리해줘", "위키에 물어봐", "오엠더블유", "오엠더블유 켜줘"
+
+**단축 별칭**: `omw` (또는 `/omw`) 만 입력해도 `oh-my-wiki` 와 똑같이 동작합니다.
+`omw` 스킬은 표준 디스패처로 즉시 위임하는 얇은 별칭 스킬입니다.
 
 ---
 

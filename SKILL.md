@@ -1,15 +1,19 @@
 ---
 name: oh-my-wiki
-description: Karpathy-style LLM Wiki with multi-vault sqlite registry and Socratic wizard. Manages multiple knowledge vaults (markdown or Obsidian). On invocation, infers user intent from registry state — first-time users get a setup wizard, returning users go straight to operations. Supports memo-mode (lightweight notes) and wiki-mode (Karpathy's raw/wiki/index/log pattern with ingest/query/lint). Trigger phrases — English "open my wiki", "ingest this", "find a note about X", "what does my wiki say about X"; Korean "위키 열어줘", "이거 정리해줘", "X 관련 노트 찾아줘", "위키에 물어봐". Also fires when the user pastes long-form content and asks to save it.
+description: Karpathy-style LLM Wiki with multi-vault sqlite registry and Socratic wizard. Also addressable by the short alias OMW. Manages multiple knowledge vaults (markdown or Obsidian). On invocation, infers user intent from registry state — first-time users get a setup wizard, returning users go straight to operations. Supports memo-mode (lightweight notes) and wiki-mode (Karpathy's raw/wiki/index/log pattern with ingest/query/lint). Trigger phrases — English "open my wiki", "ingest this", "find a note about X", "what does my wiki say about X", "omw", "use omw", "/omw"; Korean "위키 열어줘", "이거 정리해줘", "X 관련 노트 찾아줘", "위키에 물어봐", "오엠더블유", "오엠더블유 켜줘". Also fires when the user pastes long-form content and asks to save it.
 ---
 
-# oh-my-wiki
+# oh-my-wiki (OMW)
 
 A storage-agnostic LLM Wiki skill. Implements Andrej Karpathy's three-layer pattern (Raw / Wiki / Schema) with hybrid `memo-only` and `wiki-mode` per vault. Operations live in `commands/*.md`. Deterministic I/O lives in `scripts/*.py`. State lives in `data/registry.db`.
 
-## Plan A + B complete
+**Short alias:** `OMW` (lowercase `omw`). Both `oh-my-wiki` and `omw` resolve to this skill.
 
-Plan A delivered the dispatcher and foundation scripts. Plan B added vault management (`vault-setup`, `vault-use`, `vault-list`, `vault-forget`, `vault-import-memo`) and all memo-mode ops (`create`, `find`, `open`, `edit`, `move`, `delete`, `lint`). Plan C will add wiki-mode ops (`ingest`, `query`) and wiki-mode-specific lint checks.
+## Current status — v1 shipped, v2 in progress
+
+v1 (Plans A + B + C) is complete: dispatcher + foundation scripts, vault management (`vault-setup`, `vault-use`, `vault-list`, `vault-forget`, `vault-import-memo`), memo-mode ops (`create`, `find`, `open`, `edit`, `move`, `delete`), wiki-mode ops (`ingest`, `query`), and the common `lint` op (with wiki-mode structural extensions). 91 pytest tests pass on GitHub Actions matrix (Python 3.10/3.11/3.12 × ubuntu/macos). See `README.md`, `TUTORIAL.md`, `TUTORIAL.ko.md` for usage.
+
+v2 (in progress) adds plugin-marketplace install, session hot cache, 6 vault-setup modes, extended wiki-lint categories, autoresearch, writing-agent personas (translator / polisher / summarizer / scaffolder / fact-checker / consistency-checker / terminology-manager), tmux-based multi-agent orchestration, and a file-based swarm message protocol. See `docs/superpowers/specs/2026-05-25-oh-my-wiki-v2-master-design.md` for the phased roadmap.
 
 ## Step 1 — Read registry state
 
@@ -67,21 +71,22 @@ These hold across all commands. Each `commands/<op>.md` repeats the relevant one
 
 If the user input matches an op keyword, prefer that op over the wizard:
 
-| Keyword (EN / KO)                   | Op                  |
-| ----------------------------------- | ------------------- |
-| "ingest", "정리", "흡수"            | `ingest`            |
-| "query", "물어봐", "찾아봐"         | `query`             |
-| "find", "검색", "찾아줘"            | `find`              |
-| "open", "열어줘"                    | `open`              |
-| "edit", "수정", "편집"              | `edit`              |
-| "move", "이동", "옮겨"              | `move`              |
-| "delete", "삭제", "지워"            | `delete`            |
-| "lint", "점검", "정리하기"          | `lint`              |
-| "setup", "새 vault", "vault 만들기" | `vault-setup`       |
-| "use", "vault 전환", "vault 바꿔"   | `vault-use`         |
-| "list", "vault 목록"                | `vault-list`        |
-| "forget", "vault 제거"              | `vault-forget`      |
-| "import memo", "memo 가져오기"      | `vault-import-memo` |
+| Keyword (EN / KO)                   | Op                                                              |
+| ----------------------------------- | --------------------------------------------------------------- |
+| "ingest", "정리", "흡수"            | `ingest`                                                        |
+| "query", "물어봐", "찾아봐"         | `query`                                                         |
+| "find", "검색", "찾아줘"            | `find`                                                          |
+| "open", "열어줘"                    | `open`                                                          |
+| "edit", "수정", "편집"              | `edit`                                                          |
+| "move", "이동", "옮겨"              | `move`                                                          |
+| "delete", "삭제", "지워"            | `delete`                                                        |
+| "lint", "점검", "정리하기"          | `lint`                                                          |
+| "setup", "새 vault", "vault 만들기" | `vault-setup`                                                   |
+| "use", "vault 전환", "vault 바꿔"   | `vault-use`                                                     |
+| "list", "vault 목록"                | `vault-list`                                                    |
+| "forget", "vault 제거"              | `vault-forget`                                                  |
+| "import memo", "memo 가져오기"      | `vault-import-memo`                                             |
+| "omw", "OMW", "/omw", "오엠더블유"  | (alias for `oh-my-wiki`; routes through Step 1 wizard normally) |
 
 ## Pasted content heuristic
 

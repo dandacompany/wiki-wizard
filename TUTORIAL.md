@@ -38,8 +38,10 @@ No vaults registered. Want to create one?
 
 A fresh install returns `needs: setup`. The trigger phrases you can use are:
 
-- English: "open my wiki", "set up a new vault", "ingest this", "what does my wiki say about X"
-- Korean: "위키 열어줘", "새 vault 만들어줘", "이거 정리해줘", "위키에 물어봐"
+- English: "open my wiki", "set up a new vault", "ingest this", "what does my wiki say about X", "omw", "use omw", "/omw"
+- Korean: "위키 열어줘", "새 vault 만들어줘", "이거 정리해줘", "위키에 물어봐", "오엠더블유", "오엠더블유 켜줘"
+
+**Short alias:** Typing `omw` (or `/omw`) is identical to typing `oh-my-wiki`. The `omw` skill is a thin stub that delegates to the canonical dispatcher.
 
 ---
 
