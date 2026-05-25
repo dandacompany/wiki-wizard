@@ -45,3 +45,39 @@ def test_dry_run_summary_counts(imported_vault):
     assert report["summary"]["total"] == 5
     assert report["summary"]["needs_changes"] == 3
     assert report["summary"]["clean"] == 2
+
+
+def test_apply_writes_changes_and_backs_up(imported_vault):
+    db, vault, root = imported_vault
+    plan = import_memo.dry_run(db, vault_id=vault["id"])
+    result = import_memo.apply(db, vault_id=vault["id"], plan=plan)
+
+    # tag-string.md should now have tags as a YAML list
+    text = (root / "tag-string.md").read_text(encoding="utf-8")
+    assert "tags:\n- a\n- b\n- c" in text or "tags: [a, b, c]" in text
+
+    # article-no-type.md should now have a `type` field
+    text = (root / "article-no-type.md").read_text(encoding="utf-8")
+    assert "type: note" in text
+
+    # Backup of changed files exists under .trash/
+    trash = root / ".trash"
+    backups = list(trash.rglob("*.md"))
+    assert any("tag-string" in b.name for b in backups)
+    assert any("article-no-type" in b.name for b in backups)
+
+    # Clean files were not backed up
+    assert not any("kickoff" in b.name for b in backups)
+
+    # Return summary
+    assert result["applied"] == 3
+    assert result["skipped"] == 0  # no malformed YAML in fixture
+
+
+def test_apply_is_idempotent(imported_vault):
+    db, vault, root = imported_vault
+    plan1 = import_memo.dry_run(db, vault_id=vault["id"])
+    import_memo.apply(db, vault_id=vault["id"], plan=plan1)
+    # Second run on the freshly migrated files: no changes needed
+    plan2 = import_memo.dry_run(db, vault_id=vault["id"])
+    assert plan2["summary"]["needs_changes"] == 0

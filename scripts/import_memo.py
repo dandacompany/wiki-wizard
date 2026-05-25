@@ -1,10 +1,11 @@
 """Register a memo folder as a memo-mode vault, with optional frontmatter migration."""
 from __future__ import annotations
 
-from datetime import date as _date
+import shutil
+from datetime import date as _date, datetime
 from pathlib import Path
 
-from scripts import frontmatter, registry
+from scripts import frontmatter, reindex, registry
 
 REQUIRED_FIELDS = ("title", "date", "type", "tags")
 DEFAULT_TYPE = "note"
@@ -80,3 +81,49 @@ def dry_run(db_path: Path, *, vault_id: int) -> dict:
             "clean": clean,
         },
     }
+
+
+def apply(db_path: Path, *, vault_id: int, plan: dict) -> dict:
+    """Mutate files per plan. Backs up the pre-image of each changed file to .trash/."""
+    conn = registry.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT path FROM vaults WHERE id = ?", (vault_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        raise registry.VaultError(f"unknown vault_id={vault_id}")
+    root = Path(row["path"])
+    trash = root / ".trash"
+    trash.mkdir(exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+
+    applied = 0
+    skipped = 0
+    for entry in plan["files"]:
+        changes = entry["changes"]
+        if not changes:
+            continue
+        # Skip files we couldn't even parse
+        if any(c["op"] == "skip" for c in changes):
+            skipped += 1
+            continue
+        relpath = entry["relpath"]
+        abs_path = root / relpath
+        original = abs_path.read_text(encoding="utf-8")
+
+        # Backup pre-image
+        safe_name = relpath.replace("/", "__")
+        backup = trash / f"{ts}-pre-import-{safe_name}"
+        backup.write_text(original, encoding="utf-8")
+
+        # Apply each change in order
+        text = original
+        for c in changes:
+            text = frontmatter.edit_field(text, c["field"], c["value"])
+        abs_path.write_text(text, encoding="utf-8")
+        applied += 1
+
+    reindex.incremental(db_path, vault_id=vault_id)
+    return {"applied": applied, "skipped": skipped, "backup_ts": ts}
