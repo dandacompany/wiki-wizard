@@ -35,8 +35,8 @@ def check(db_path: Path, *, vault_id: int) -> dict:
         "vault_path": str(root),
         "orphan_pages":     _orphan_pages(pages),
         "missing_concepts": _missing_concepts(pages, root),
-        "empty_data":       [],   # Task 10
-        "dangling_links":   [],   # Task 10
+        "empty_data":       _empty_data(pages),
+        "dangling_links":   _dangling_links(pages, root),
     }
 
 
@@ -121,4 +121,53 @@ def _missing_concepts(
     for title, refs in sorted(referenced_by.items()):
         if len(refs) >= threshold:
             out.append({"title": title, "referenced_by": refs})
+    return out
+
+
+EMPTY_BODY_THRESHOLD = 50  # chars after stripping frontmatter and whitespace
+PLACEHOLDER_TOKENS = ("TBD", "TODO")
+
+
+def _strip_frontmatter(text: str) -> str:
+    """Return body after `---\\n…\\n---\\n` if present."""
+    if text.startswith("---\n"):
+        end = text.find("\n---\n", 4)
+        if end >= 0:
+            return text[end + 5:]
+    return text
+
+
+def _empty_data(pages: list[tuple[str, str, float]]) -> list[dict]:
+    out = []
+    for rel, text, _mt in pages:
+        body = _strip_frontmatter(text).strip()
+        if len(body) < EMPTY_BODY_THRESHOLD:
+            out.append({"relpath": rel, "reason": f"body<{EMPTY_BODY_THRESHOLD}chars"})
+            continue
+        non_blank_lines = [ln for ln in body.split("\n") if ln.strip()]
+        if not non_blank_lines:
+            out.append({"relpath": rel, "reason": "no_non_blank_lines"})
+            continue
+        placeholder_lines = sum(
+            1 for ln in non_blank_lines
+            if any(tok in ln for tok in PLACEHOLDER_TOKENS)
+        )
+        if placeholder_lines / len(non_blank_lines) > 0.5:
+            out.append({"relpath": rel, "reason": "majority_placeholders"})
+    return out
+
+
+def _dangling_links(
+    pages: list[tuple[str, str, float]],
+    root: Path,
+) -> list[dict]:
+    """Detect [text](./relpath.md) links whose target file doesn't exist (under wiki/)."""
+    out = []
+    wiki_dir = root / "wiki"
+    for rel, body, _mt in pages:
+        for m in _MDLINK_RE.finditer(body):
+            target_rel = m.group(1)
+            target_path = wiki_dir / target_rel
+            if not target_path.exists():
+                out.append({"source": rel, "target": target_rel})
     return out

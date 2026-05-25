@@ -50,3 +50,20 @@ def test_existing_entity_not_flagged_as_missing(broken_wiki):
     missing = {item["title"] for item in report["missing_concepts"]}
     assert "karpathy" not in missing
     assert "compounding" not in missing
+
+
+def test_empty_data_detected(broken_wiki):
+    db, vault, root = broken_wiki
+    report = wiki_lint.check(db, vault_id=vault["id"])
+    empty = {item["relpath"] for item in report["empty_data"]}
+    assert "wiki/concepts/empty.md" in empty
+    assert "wiki/summaries/good-summary.md" not in empty
+
+
+def test_dangling_links_detected(broken_wiki):
+    db, vault, root = broken_wiki
+    report = wiki_lint.check(db, vault_id=vault["id"])
+    dangling = [(d["source"], d["target"]) for d in report["dangling_links"]]
+    assert ("wiki/summaries/has-dangling.md", "entities/does-not-exist.md") in dangling
+    # [[karpathy]] resolves → NOT in dangling (we only check markdown links here)
+    assert all(d["target"] != "karpathy" for d in report["dangling_links"])
