@@ -13,7 +13,7 @@ def _vault_root(db_path: Path, vault_id: int) -> Path:
     finally:
         conn.close()
     if row is None:
-        raise ValueError(f"unknown vault_id={vault_id}")
+        raise registry.VaultError(f"unknown vault_id={vault_id}")
     return Path(row["path"])
 
 
