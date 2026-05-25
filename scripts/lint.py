@@ -6,7 +6,17 @@ from pathlib import Path
 from scripts import frontmatter, registry
 
 REQUIRED_FIELDS = ("title", "date", "type", "tags")
-VALID_TYPES = {"article", "link", "note", "paper", "video", "book", "doc"}
+VALID_TYPES = {
+    # memo-mode types
+    "article", "link", "note", "paper", "video", "book", "doc",
+    # wiki-mode layer types
+    "summary", "entity", "concept", "comparison", "synthesis",
+    # meta pages (index.md, log.md)
+    "meta",
+}
+
+# Files whose frontmatter is intentionally minimal (no full REQUIRED_FIELDS check)
+_META_RELPATHS = {"wiki/index.md", "wiki/log.md"}
 
 
 def check(db_path: Path, *, vault_id: int) -> dict:
@@ -44,11 +54,14 @@ def check(db_path: Path, *, vault_id: int) -> dict:
                 "disk_mtime": disk_mtime,
             })
 
-    # 2) disk files (.md, excluding .trash) — frontmatter checks
+    # 2) disk files (.md, excluding .trash and raw/) — frontmatter checks
     for md in sorted(root.rglob("*.md")):
         if ".trash" in md.parts:
             continue
-        relpath = str(md.relative_to(root))
+        relpath = str(md.relative_to(root)).replace("\\", "/")
+        # Raw source files and meta pages have intentionally loose/absent frontmatter.
+        if relpath in _META_RELPATHS or relpath.startswith("raw/"):
+            continue
         text = md.read_text(encoding="utf-8")
         try:
             meta, _ = frontmatter.parse(text)
