@@ -1,6 +1,25 @@
 # Meta/planning artifacts excluded from distribution
 docs/
 
+# Claude Code / AI agent instructions and memory (local-only, never publish)
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+GEMINI.md
+MEMORY.md
+memory/
+.claude/
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# IDE / editor config
+.vscode/
+.idea/
+*.swp
+
 # Python
 __pycache__/
 *.pyc
