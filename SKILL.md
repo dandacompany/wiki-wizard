@@ -30,8 +30,8 @@ Parse the JSON output. Fields:
 
 | `needs`    | Action                                                                                                                          |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `"setup"`  | Load `commands/vault-setup.md`. (Plan B)                                                                                        |
-| `"select"` | Load `commands/vault-use.md`. (Plan B)                                                                                          |
+| `"setup"`  | Load `commands/vault-setup.md`.                                                                                                 |
+| `"select"` | Load `commands/vault-use.md`.                                                                                                   |
 | `"op"`     | Inspect the user's input. If it names an op explicitly, load that op's `commands/<op>.md`. Otherwise run the Op Wizard (below). |
 
 ## Step 3 — Op Wizard (when no op specified)

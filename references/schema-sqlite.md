@@ -28,7 +28,7 @@ This pushes the invariant into the database. `set_active()` swaps in a single tr
 
 ## Drift recovery
 
-Filesystem and `notes` table can diverge if files are edited outside wiki-wizard. Recovery: `python3 -m scripts.reindex --vault <name>` (added in Plan B's `vault-use` follow-up, or invoke `reindex.full()` directly).
+Filesystem and `notes` table can diverge if files are edited outside wiki-wizard. Recovery: `python3 -m scripts.reindex --vault <name>` (or invoke `reindex.full()` directly).
 
 ## v1.1 plan — FTS5
 
