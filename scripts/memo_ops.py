@@ -127,12 +127,12 @@ def delete(
     if not src.exists():
         raise FileNotFoundError(relpath)
     if hard:
-        src.unlink()
         registry.delete_note(db_path, vault_id=vault_id, relpath=relpath)
+        src.unlink()
         return None
     trash_dir = root / ".trash"
     trash_dir.mkdir(exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     trash_relpath = f".trash/{ts}-{src.stem}.md"
     shutil.move(str(src), str(root / trash_relpath))
     registry.delete_note(db_path, vault_id=vault_id, relpath=relpath)
