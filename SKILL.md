@@ -7,9 +7,9 @@ description: Karpathy-style LLM Wiki with multi-vault sqlite registry and Socrat
 
 A storage-agnostic LLM Wiki skill. Implements Andrej Karpathy's three-layer pattern (Raw / Wiki / Schema) with hybrid `memo-only` and `wiki-mode` per vault. Operations live in `commands/*.md`. Deterministic I/O lives in `scripts/*.py`. State lives in `data/registry.db`.
 
-## Plan A scope (this file)
+## Plan A + B complete
 
-Plan A delivers the dispatcher and the foundation scripts only. `commands/*.md` are added in Plans B (vault + memo ops) and C (wiki-mode ops + migration). Until those land, the dispatcher returns the routing decision and tells the user what is not yet implemented.
+Plan A delivered the dispatcher and foundation scripts. Plan B added vault management (`vault-setup`, `vault-use`, `vault-list`, `vault-forget`, `vault-import-memo`) and all memo-mode ops (`create`, `find`, `open`, `edit`, `move`, `delete`, `lint`). Plan C will add wiki-mode ops (`ingest`, `query`) and wiki-mode-specific lint checks.
 
 ## Step 1 — Read registry state
 

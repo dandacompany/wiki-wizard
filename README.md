@@ -2,7 +2,7 @@
 
 > Karpathy-style LLM Wiki as a multi-vault Agent Skill, with a Socratic setup wizard.
 
-**Status:** Plan A (Foundation) complete. Commands and adapters extend in Plans B and C.
+**Status:** Plan A + B complete (vault management + memo-mode ops live). Plan C adds wiki-mode `ingest` / `query`.
 
 ## Concept
 
@@ -19,11 +19,9 @@ Two modes per vault:
 skills add dandacompany/dante-skills@wiki-wizard -g -y --copy -a claude-code
 ```
 
-(Available after Plan C ships.)
-
 ## Quick start
 
-(Filled in during Plan C.)
+See the **Plan B — Vault management + memo-mode ops** section below for a working Quick Start.
 
 ## Architecture
 
