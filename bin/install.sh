@@ -44,6 +44,15 @@ done
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PKG_TARGET="${EXTRAS:-.}"
 
+# ---------- Pre-flight: tmux required for dispatch workers ----------
+if ! command -v tmux &>/dev/null; then
+  echo "WARNING: tmux not found. dispatch/team commands require tmux >= 3.0."
+  echo "  Install: brew install tmux (macOS) or sudo apt install tmux (Linux)"
+else
+  TMUX_VER=$(tmux -V | awk '{print $2}')
+  echo "tmux $TMUX_VER found"
+fi
+
 # ---------- 1. Python version check ----------
 echo "==> [1/5] Python version check"
 if ! command -v python3 >/dev/null 2>&1; then
@@ -98,6 +107,17 @@ link_one() {
 echo "==> [3/5] Skill symlinks (under ${SKILLS_DIR})"
 link_one "oh-my-wiki" "$REPO_ROOT"
 link_one "omw"        "${REPO_ROOT}/omw"
+
+# Install omw-dispatch shim
+SKILL_BIN="$HOME/.claude/skills/oh-my-wiki/bin"
+mkdir -p "$SKILL_BIN"
+SHIM_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/omw-dispatch"
+SHIM_DST="$SKILL_BIN/omw-dispatch"
+rm -f "$SHIM_DST"
+ln -s "$SHIM_SRC" "$SHIM_DST"
+chmod +x "$SHIM_SRC"
+echo "omw-dispatch installed -> $SHIM_DST"
+echo "Add $SKILL_BIN to PATH to use outside Claude Code."
 
 # ---------- 4. Pytest verification (optional) ----------
 if [[ "$RUN_TEST" -eq 1 ]]; then
