@@ -118,3 +118,29 @@ def test_cli_on_session_start_no_cache_exits_zero_silent(wiki_vault):
     )
     assert proc.returncode == 0
     assert proc.stdout.strip() == ""
+
+
+def test_cli_on_session_stop_writes_cache_with_stdin_summary(wiki_vault):
+    db, vault, root = wiki_vault
+    proc = subprocess.run(
+        [sys.executable, "-m", "scripts.hot_cache", "--on-session-stop",
+         "--db", str(db)],
+        input="The user asked me to lint the daily vault and it returned clean.",
+        capture_output=True, text=True, check=False,
+        cwd=Path(__file__).resolve().parents[1],
+    )
+    assert proc.returncode == 0, proc.stderr
+    cache = (root / "wiki" / "hot.md").read_text(encoding="utf-8")
+    assert "lint the daily vault" in cache
+
+
+def test_cli_refresh_writes_cache_without_stdin(wiki_vault):
+    db, vault, root = wiki_vault
+    proc = subprocess.run(
+        [sys.executable, "-m", "scripts.hot_cache", "--refresh",
+         "--db", str(db)],
+        capture_output=True, text=True, check=False,
+        cwd=Path(__file__).resolve().parents[1],
+    )
+    assert proc.returncode == 0
+    assert (root / "wiki" / "hot.md").exists()
