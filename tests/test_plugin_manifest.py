@@ -78,3 +78,24 @@ def test_hooks_json_has_session_start_and_stop():
         assert "command" in binding
         assert "scripts.hot_cache" in binding["command"]
         assert binding.get("blocking") is False, f"{key} must be non-blocking"
+
+
+def test_plugin_json_lists_v2_2b_review_persona_ops():
+    import json
+    from pathlib import Path
+    manifest = json.loads(
+        (Path(__file__).resolve().parents[1] / ".claude-plugin/plugin.json")
+        .read_text(encoding="utf-8")
+    )
+    for op in ("persona-factcheck", "persona-consistency", "persona-terminology"):
+        assert op in manifest["ops"], f"missing op: {op}"
+
+
+def test_plugin_json_version_bumped_to_2_2_1():
+    import json
+    from pathlib import Path
+    manifest = json.loads(
+        (Path(__file__).resolve().parents[1] / ".claude-plugin/plugin.json")
+        .read_text(encoding="utf-8")
+    )
+    assert manifest["version"] == "2.2.1"

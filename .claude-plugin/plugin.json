@@ -1,6 +1,6 @@
 {
   "name": "oh-my-wiki",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Karpathy-style LLM Wiki skill with multi-vault sqlite registry. Capture sources, build a structured wiki, query it with cited answers. Also addressable as 'omw'.",
   "author": "dandacompany",
   "license": "MIT",
@@ -30,7 +30,14 @@
     "번역해줘",
     "윤문해줘",
     "요약해줘",
-    "초안 만들어줘"
+    "초안 만들어줘",
+    "fact-check this",
+    "verify the claims",
+    "check this for contradictions",
+    "build a glossary",
+    "팩트체크해줘",
+    "모순 있는지 봐줘",
+    "용어집 만들어줘"
   ],
   "ops": [
     "vault-setup",
@@ -51,6 +58,9 @@
     "persona-polish",
     "persona-summarize",
     "persona-scaffold",
+    "persona-factcheck",
+    "persona-consistency",
+    "persona-terminology",
     "lint",
     "hot-cache"
   ],

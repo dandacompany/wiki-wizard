@@ -91,6 +91,9 @@ If the user input matches an op keyword, prefer that op over the wizard:
 | "polish", "윤문", "다듬어줘"                      | `persona-polish`                                                |
 | "summarize", "요약"                               | `persona-summarize`                                             |
 | "scaffold", "초안", "outline"                     | `persona-scaffold`                                              |
+| "fact-check this" / "팩트체크해줘"                | `persona-factcheck`                                             |
+| "check for contradictions" / "모순 봐줘"          | `persona-consistency`                                           |
+| "build a glossary" / "용어집 만들어줘"            | `persona-terminology`                                           |
 | "omw", "OMW", "/omw", "오엠더블유"                | (alias for `oh-my-wiki`; routes through Step 1 wizard normally) |
 | "hot-cache", "session cache", "캐시 상태"         | `hot-cache`                                                     |
 
