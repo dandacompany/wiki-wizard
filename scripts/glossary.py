@@ -195,3 +195,87 @@ def find_inconsistencies(
         }
         for (c, s), paths in sorted(findings.items())
     ]
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    import sys as _sys
+
+    p = argparse.ArgumentParser(prog="scripts.glossary")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    p_init = sub.add_parser("init", help="Initialize .oh-my-wiki/glossary.db")
+    p_init.add_argument("--vault-root", required=True, help="vault root directory")
+
+    p_list = sub.add_parser("list", help="List all terms (JSON)")
+    p_list.add_argument("--vault-root", required=True, help="vault root directory")
+    p_list.add_argument("--vault-id", type=int, required=True)
+
+    p_show = sub.add_parser("show", help="Show one term by canonical (JSON)")
+    p_show.add_argument("--vault-root", required=True, help="vault root directory")
+    p_show.add_argument("--vault-id", type=int, required=True)
+    p_show.add_argument("--canonical", required=True)
+
+    p_up = sub.add_parser("upsert", help="Insert or update a term")
+    p_up.add_argument("--vault-root", required=True, help="vault root directory")
+    p_up.add_argument("--vault-id", type=int, required=True)
+    p_up.add_argument("--canonical", required=True)
+    p_up.add_argument("--alias", action="append", default=[],
+                      help="repeatable; each --alias adds one alias")
+    p_up.add_argument("--definition")
+    p_up.add_argument("--first-seen-relpath")
+
+    p_lint = sub.add_parser("lint", help="Find surface-form inconsistencies (JSON)")
+    p_lint.add_argument("--vault-root", required=True, help="vault root directory")
+    p_lint.add_argument("--vault-id", type=int, required=True)
+
+    args = p.parse_args(argv)
+    vault_root = Path(args.vault_root)
+    db_path = open_db(vault_root)
+
+    if args.cmd == "init":
+        print(str(db_path))
+        return 0
+
+    if args.cmd == "list":
+        print(json.dumps(list_terms(db_path, vault_id=args.vault_id),
+                         ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "show":
+        row = get_term(db_path, vault_id=args.vault_id, canonical=args.canonical)
+        if row is None:
+            print(f"term not found: {args.canonical!r}", file=_sys.stderr)
+            return 2
+        print(json.dumps(row, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "upsert":
+        try:
+            term_id = upsert_term(
+                db_path,
+                vault_id=args.vault_id,
+                canonical=args.canonical,
+                aliases=args.alias,
+                definition=args.definition,
+                first_seen_relpath=args.first_seen_relpath,
+            )
+        except GlossaryError as exc:
+            print(str(exc), file=_sys.stderr)
+            return 2
+        print(json.dumps({"id": term_id, "canonical": args.canonical},
+                         ensure_ascii=False))
+        return 0
+
+    if args.cmd == "lint":
+        result = find_inconsistencies(
+            db_path, vault_id=args.vault_id, vault_root=vault_root,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    raise SystemExit(f"unknown cmd: {args.cmd}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

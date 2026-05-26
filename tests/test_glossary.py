@@ -166,3 +166,84 @@ def test_find_inconsistencies_skips_glossary_db_dir(tmp_path):
     # No markdown files at all
     glossary.upsert_term(db, vault_id=1, canonical="Foo", aliases=["foo"])
     assert glossary.find_inconsistencies(db, vault_id=1, vault_root=vault) == []
+
+
+import json as _json
+import subprocess
+import sys
+
+
+def _run_cli(*args, cwd):
+    return subprocess.run(
+        [sys.executable, "-m", "scripts.glossary", *args],
+        capture_output=True, text=True, cwd=cwd,
+    )
+
+
+def test_cli_init(tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    project_root = Path(__file__).resolve().parents[1]
+    r = _run_cli("init", "--vault-root", str(vault), cwd=project_root)
+    assert r.returncode == 0, r.stderr
+    assert (vault / ".oh-my-wiki" / "glossary.db").exists()
+
+
+def test_cli_upsert_list_show(tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    project_root = Path(__file__).resolve().parents[1]
+    _run_cli("init", "--vault-root", str(vault), cwd=project_root)
+    r = _run_cli(
+        "upsert",
+        "--vault-root", str(vault),
+        "--vault-id", "1",
+        "--canonical", "Karpathy",
+        "--alias", "karpathy", "--alias", "AK",
+        "--definition", "Researcher",
+        cwd=project_root,
+    )
+    assert r.returncode == 0, r.stderr
+
+    r = _run_cli("list", "--vault-root", str(vault), "--vault-id", "1",
+                 cwd=project_root)
+    assert r.returncode == 0, r.stderr
+    data = _json.loads(r.stdout)
+    assert len(data) == 1
+    assert data[0]["canonical"] == "Karpathy"
+    assert data[0]["aliases"] == ["karpathy", "AK"]
+
+    r = _run_cli("show", "--vault-root", str(vault), "--vault-id", "1",
+                 "--canonical", "Karpathy", cwd=project_root)
+    assert r.returncode == 0, r.stderr
+    data = _json.loads(r.stdout)
+    assert data["definition"] == "Researcher"
+
+
+def test_cli_show_miss_returns_2(tmp_path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    project_root = Path(__file__).resolve().parents[1]
+    _run_cli("init", "--vault-root", str(vault), cwd=project_root)
+    r = _run_cli("show", "--vault-root", str(vault), "--vault-id", "1",
+                 "--canonical", "Nope", cwd=project_root)
+    assert r.returncode == 2
+    assert "not found" in r.stderr.lower()
+
+
+def test_cli_lint(tmp_path):
+    vault = tmp_path / "vault"
+    (vault / "wiki").mkdir(parents=True)
+    (vault / "wiki" / "page.md").write_text(
+        "Karpathy and karpathy and KARPATHY.\n", encoding="utf-8",
+    )
+    project_root = Path(__file__).resolve().parents[1]
+    _run_cli("init", "--vault-root", str(vault), cwd=project_root)
+    _run_cli("upsert", "--vault-root", str(vault), "--vault-id", "1",
+             "--canonical", "Karpathy", "--alias", "karpathy", cwd=project_root)
+    r = _run_cli("lint", "--vault-root", str(vault), "--vault-id", "1",
+                 cwd=project_root)
+    assert r.returncode == 0, r.stderr
+    data = _json.loads(r.stdout)
+    # KARPATHY (uppercase) is not in aliases, so should be flagged
+    assert any(f["surface_form"] == "KARPATHY" for f in data)
