@@ -81,3 +81,53 @@ def load_persona(name: str) -> dict:
     if not target.exists():
         raise PersonaError(f"unknown persona: {name!r}")
     return _parse_persona_text(target.read_text(encoding="utf-8"))
+
+
+def resolve_input(
+    *,
+    text: str | None = None,
+    file_path: Path | None = None,
+    vault_relpath: str | None = None,
+    db_path: Path | None = None,
+    vault_id: int | None = None,
+) -> tuple[str, dict]:
+    """Resolve exactly one input source into (content, source_meta).
+    source_meta = {kind, origin} where kind ∈ {text, file, vault_page}.
+    """
+    provided = sum(
+        x is not None for x in (text, file_path, vault_relpath)
+    )
+    if provided == 0:
+        raise PersonaError("no input provided (need text, file_path, or vault_relpath)")
+    if provided > 1:
+        raise PersonaError("exactly one of text, file_path, vault_relpath required")
+
+    if text is not None:
+        return text, {"kind": "text", "origin": None}
+
+    if file_path is not None:
+        fp = Path(file_path)
+        if not fp.exists():
+            raise PersonaError(f"file not found: {fp}")
+        return fp.read_text(encoding="utf-8"), {"kind": "file", "origin": fp}
+
+    # vault_relpath
+    if db_path is None or vault_id is None:
+        raise PersonaError("vault_relpath requires db_path and vault_id")
+    from scripts import registry as _registry
+    conn = _registry.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT path FROM vaults WHERE id = ?", (vault_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        raise PersonaError(f"unknown vault_id={vault_id}")
+    abs_path = Path(row["path"]) / vault_relpath
+    if not abs_path.exists():
+        raise PersonaError(f"vault page not found: {vault_relpath}")
+    return (
+        abs_path.read_text(encoding="utf-8"),
+        {"kind": "vault_page", "origin": abs_path},
+    )

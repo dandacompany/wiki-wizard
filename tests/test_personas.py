@@ -47,3 +47,64 @@ body
 """
     with pytest.raises(personas.PersonaError, match="output_kind"):
         personas._parse_persona_text(bad_text)
+
+
+from scripts import registry, adapters, reindex
+
+
+@pytest.fixture
+def wiki_vault(tmp_path, tmp_db):
+    registry.init_db(tmp_db)
+    root = tmp_path / "wiki"
+    adapters.get_adapter("markdown").init_vault(root, "wiki")
+    vault = registry.add_vault(
+        tmp_db, name="w", path=root, type_="markdown", mode="wiki"
+    )
+    registry.set_active(tmp_db, "w")
+    reindex.full(tmp_db, vault_id=vault["id"])
+    return tmp_db, vault, root
+
+
+def test_resolve_input_text_mode():
+    content, meta = personas.resolve_input(text="hello world")
+    assert content == "hello world"
+    assert meta["kind"] == "text"
+    assert meta["origin"] is None
+
+
+def test_resolve_input_file_mode(tmp_path):
+    p = tmp_path / "input.md"
+    p.write_text("file content", encoding="utf-8")
+    content, meta = personas.resolve_input(file_path=p)
+    assert content == "file content"
+    assert meta["kind"] == "file"
+    assert meta["origin"] == p
+
+
+def test_resolve_input_file_not_found(tmp_path):
+    with pytest.raises(personas.PersonaError, match="not found"):
+        personas.resolve_input(file_path=tmp_path / "nope.md")
+
+
+def test_resolve_input_vault_page_mode(wiki_vault):
+    db, vault, root = wiki_vault
+    page = root / "wiki" / "summaries" / "demo.md"
+    page.parent.mkdir(parents=True, exist_ok=True)
+    page.write_text("vault page content", encoding="utf-8")
+    content, meta = personas.resolve_input(
+        vault_relpath="wiki/summaries/demo.md",
+        db_path=db, vault_id=vault["id"],
+    )
+    assert content == "vault page content"
+    assert meta["kind"] == "vault_page"
+    assert meta["origin"] == page
+
+
+def test_resolve_input_no_input_raises():
+    with pytest.raises(personas.PersonaError, match="no input"):
+        personas.resolve_input()
+
+
+def test_resolve_input_multiple_inputs_raises(tmp_path):
+    with pytest.raises(personas.PersonaError, match="exactly one"):
+        personas.resolve_input(text="x", file_path=tmp_path / "y.md")
