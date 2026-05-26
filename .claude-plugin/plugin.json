@@ -18,7 +18,11 @@
     "이거 정리해줘",
     "X 관련 노트 찾아줘",
     "위키에 물어봐",
-    "오엠더블유"
+    "오엠더블유",
+    "autoresearch this",
+    "research this for me",
+    "이거 리서치해줘",
+    "이거 조사해줘"
   ],
   "ops": [
     "vault-setup",
@@ -34,6 +38,7 @@
     "delete",
     "ingest",
     "query",
+    "autoresearch",
     "lint",
     "hot-cache"
   ],

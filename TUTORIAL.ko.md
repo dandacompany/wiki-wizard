@@ -689,6 +689,24 @@ pypdf 는 일부 한글 인코딩 처리가 약합니다.
 각각 다른 폴더 구조를 만듭니다.
 자세한 레이아웃은 README 의 "Vault modes (v2.0)" 섹션에 있습니다.
 
+### Q. autoresearch 는 어떻게 동작하나요? (v2.1)
+
+`autoresearch <질문>` 을 입력하면 기본 3 라운드 (설정 가능, 최대 5) 의 흐름이 돕니다.
+
+1. 질문을 여러 개의 atomic claim 으로 쪼갭니다.
+2. claim 마다 Bright Data MCP 로 웹 검색을 합니다.
+3. 출처 품질에 따라 high / medium / low confidence 태그를 답니다.
+4. 다음 라운드가 필요한 gap 을 식별합니다.
+
+남은 gap 이 없거나 라운드 예산을 모두 쓰면 종합 답변 (synthesis) 초안을 작성한 다음, 저장 여부를 물어봅니다.
+승인 시 `wiki/syntheses/<slug>.md` 로 저장됩니다.
+세션 전체 (라운드별 claim · 출처 · gap) 는 `<vault>/.oh-my-wiki/sessions/<ts>-<slug>/` 아래에 audit + replay 용으로 보존됩니다.
+
+과거 세션 조회: `python3 -m scripts.autoresearch status --session-dir <DIR>`.
+
+수동으로 답을 작성해서 저장만 하고 싶다면 기존 `query` op 가 그대로 동작합니다.
+`autoresearch` 는 순수 추가 기능입니다.
+
 ### Q. v2.0 에서 lint 는 어떤 검사를 새로 합니까?
 
 wiki-mode vault 에서 4가지 구조적 candidate 카테고리가 추가됐습니다.

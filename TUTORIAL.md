@@ -668,6 +668,21 @@ Cap is 2000 characters. The summary is truncated first if the cache would otherw
 
 `vault-setup` accepts: `memo`, `wiki` (or `research`), `personal`, `book`, `business`, `github-codebase`, `website`. Each produces a different folder scaffold tuned to that use case. See README "Vault modes (v2.0)" for the full layout per mode.
 
+### Q. How does autoresearch work? (v2.1)
+
+`autoresearch <your question>` runs up to 3 rounds (configurable; hard cap 5) of:
+
+1. Decompose the question into claims.
+2. Search the web via Bright Data MCP per claim.
+3. Tag each claim with high/medium/low confidence based on source quality.
+4. Identify gaps that need another round.
+
+When there are no remaining gaps (or the round budget is hit), the skill drafts a synthesis and asks before filing it to `wiki/syntheses/<slug>.md`. The full session — claims, sources, gaps per round — is preserved under `<vault>/.oh-my-wiki/sessions/<ts>-<slug>/` for audit and replay.
+
+To inspect an old session: `python3 -m scripts.autoresearch status --session-dir <DIR>`.
+
+To file an answer after manually composing it (bypassing the loop), `query` works as before; `autoresearch` is purely additive.
+
 ### Q. What new checks does `lint` run in v2.0?
 
 Four new structural candidate categories on wiki-mode vaults:

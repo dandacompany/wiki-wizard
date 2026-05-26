@@ -152,6 +152,38 @@ The SessionStart and SessionStop bindings live in `hooks/hooks.json` and are non
 
 Every mode also gets `.trash/` for soft deletes and an `index.md` (or `wiki/index.md` + `wiki/log.md` for wiki mode).
 
+## Autoresearch (v2.1)
+
+Turn a question into a multi-round research loop that files the answer back into your wiki.
+
+```text
+"autoresearch how does attention enable parallel training compared to RNN?"
+```
+
+The skill:
+
+1. Decomposes the question into 3–6 atomic claims.
+2. For each claim, invokes Bright Data MCP for search + scrape.
+3. Reads returned sources and assigns a confidence tag (high / medium / low).
+4. Identifies remaining gaps and runs another round if any (default 3 rounds, hard cap 5).
+5. Composes a synthesis page, shows it to you, asks before filing.
+6. On approval, writes `wiki/syntheses/<slug>.md`, updates `wiki/index.md`, appends `wiki/log.md`.
+
+Session state lives at `<vault>/.oh-my-wiki/sessions/<ts>-<slug>/` (mission.json, round-\*.json, filed.json). Gitignored — never committed.
+
+CLI for manual control:
+
+```bash
+python3 -m scripts.autoresearch init --query "..." --max-rounds 3
+python3 -m scripts.autoresearch record --session-dir DIR --round 1 \
+  --claims-json '[...]' --gaps-json '[...]'
+python3 -m scripts.autoresearch should-stop --session-dir DIR
+python3 -m scripts.autoresearch status --session-dir DIR
+python3 -m scripts.autoresearch file-back --session-dir DIR \
+  --title "..." --body-file ./body.md --citations-json '[...]' \
+  --tags-json '[...]' --date 2026-05-26
+```
+
 ## Storage
 
 - The vault registry lives at `data/registry.db` as a per-user sqlite database (gitignored).

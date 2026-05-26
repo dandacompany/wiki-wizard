@@ -90,3 +90,7 @@ When `vault.mode == "wiki"`, the structural report from `wiki_lint.check` now in
   Render with your verdict + a one-sentence explanation.
 
 Do NOT auto-edit pages in v2.0. Print verdicts as suggestions; let the user apply fixes via `edit` or `ingest`.
+
+## Notes for v2.1+
+
+Per-vault autoresearch sessions are stored under `<vault>/.oh-my-wiki/sessions/<ts>-<slug>/` and are gitignored by default. `lint` does not currently inspect or clean them — see `python3 -m scripts.autoresearch status --session-dir <DIR>` for one-off inspection.
