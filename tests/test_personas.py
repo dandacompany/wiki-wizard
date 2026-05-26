@@ -179,3 +179,93 @@ def test_resolve_output_path_stdout_for_summarizer():
         source_meta={"kind": "text", "origin": None},
     )
     assert path is None
+
+
+from datetime import datetime
+
+
+def test_write_output_sibling_creates_file(wiki_vault):
+    db, vault, root = wiki_vault
+    src = root / "wiki" / "summaries" / "demo.md"
+    src.parent.mkdir(parents=True, exist_ok=True)
+    src.write_text("---\ntitle: Demo\n---\nbody", encoding="utf-8")
+    persona = personas.load_persona("translator")
+    out_path = personas.resolve_output_path(
+        persona=persona,
+        source_meta={"kind": "vault_page", "origin": src},
+        lang="ko",
+    )
+    result = personas.write_output(
+        persona=persona,
+        target_path=out_path,
+        content="---\ntitle: 데모\n---\n번역된 본문",
+        source_meta={"kind": "vault_page", "origin": src},
+    )
+    assert result == out_path
+    assert out_path.exists()
+    assert "번역된 본문" in out_path.read_text(encoding="utf-8")
+
+
+def test_write_output_inplace_backs_up_original(tmp_path):
+    src = tmp_path / "draft.md"
+    src.write_text("original prose", encoding="utf-8")
+    backup_dir = tmp_path / ".trash"
+    persona = personas.load_persona("polisher")
+    result = personas.write_output(
+        persona=persona,
+        target_path=src,
+        content="polished prose",
+        source_meta={"kind": "file", "origin": src},
+        backup_dir=backup_dir,
+    )
+    assert result == src
+    assert src.read_text(encoding="utf-8") == "polished prose"
+    backups = list(backup_dir.glob("*draft*.md"))
+    assert backups, "expected at least one backup file"
+    assert backups[0].read_text(encoding="utf-8") == "original prose"
+
+
+def test_write_output_inplace_skips_backup_when_no_backup_dir(tmp_path):
+    src = tmp_path / "draft.md"
+    src.write_text("original", encoding="utf-8")
+    persona = personas.load_persona("polisher")
+    result = personas.write_output(
+        persona=persona,
+        target_path=src,
+        content="updated",
+        source_meta={"kind": "file", "origin": src},
+        backup_dir=None,
+    )
+    assert result == src
+    assert src.read_text(encoding="utf-8") == "updated"
+
+
+def test_write_output_new_page_writes_to_wiki_syntheses(wiki_vault):
+    db, vault, root = wiki_vault
+    persona = personas.load_persona("scaffolder")
+    out_path = personas.resolve_output_path(
+        persona=persona,
+        source_meta={"kind": "text", "origin": None},
+        db_path=db, vault_id=vault["id"],
+        title="My Outline",
+    )
+    result = personas.write_output(
+        persona=persona,
+        target_path=out_path,
+        content="---\ntitle: My Outline\ntype: synthesis\n---\n## Section 1\n## Section 2\n",
+        source_meta={"kind": "text", "origin": None},
+    )
+    assert result == out_path
+    assert out_path.exists()
+    assert out_path == root / "wiki" / "syntheses" / "my-outline.md"
+
+
+def test_write_output_stdout_returns_none(tmp_path):
+    persona = personas.load_persona("summarizer")
+    result = personas.write_output(
+        persona=persona,
+        target_path=None,
+        content="some output",
+        source_meta={"kind": "text", "origin": None},
+    )
+    assert result is None

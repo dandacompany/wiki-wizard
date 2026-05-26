@@ -11,6 +11,7 @@ output). The LLM does the cognitive work via commands/persona-<role>.md.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 from scripts import frontmatter
@@ -185,3 +186,36 @@ def resolve_output_path(
         return Path(row["path"]) / "wiki" / "syntheses" / f"{slug}.md"
 
     raise PersonaError(f"unsupported output_kind: {kind!r}")
+
+
+def write_output(
+    *,
+    persona: dict,
+    target_path: Path | None,
+    content: str,
+    source_meta: dict,
+    backup_dir: Path | None = None,
+) -> Path | None:
+    """File the LLM-produced content per persona's output contract.
+    Returns the actual path written, or None for stdout kind."""
+    kind = persona["output_kind"]
+
+    if kind == "stdout":
+        return None
+
+    if target_path is None:
+        raise PersonaError(f"output_kind={kind!r} requires a target_path")
+
+    target = Path(target_path)
+
+    if kind == "inplace" and backup_dir is not None and target.exists():
+        backup_dir = Path(backup_dir)
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        backup_name = f"{ts}-{target.name}"
+        backup_path = backup_dir / backup_name
+        backup_path.write_text(target.read_text(encoding="utf-8"), encoding="utf-8")
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+    return target
