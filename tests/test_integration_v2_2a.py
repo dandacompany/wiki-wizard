@@ -105,7 +105,8 @@ def test_e2e_personas_listed_and_show_returns_full_spec():
     assert proc.returncode == 0
     data = json.loads(proc.stdout)
     names = {p["name"] for p in data}
-    assert names == {"translator", "polisher", "summarizer", "scaffolder"}
+    # v2.2a core 4; v2.2b adds more — use superset check so new personas don't break this
+    assert {"translator", "polisher", "summarizer", "scaffolder"} <= names
 
     proc = _run("show", "translator")
     assert proc.returncode == 0

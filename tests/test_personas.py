@@ -8,7 +8,8 @@ from scripts import personas
 
 def test_list_personas_returns_all_four():
     names = {p["name"] for p in personas.list_personas()}
-    assert names == {"translator", "polisher", "summarizer", "scaffolder"}
+    # v2.2a core 4; v2.2b adds more — use superset check so new personas don't break this
+    assert {"translator", "polisher", "summarizer", "scaffolder"} <= names
 
 
 def test_list_personas_entries_have_required_keys():
@@ -285,7 +286,8 @@ def test_cli_list_returns_4_personas():
     assert proc.returncode == 0, proc.stderr
     data = _json.loads(proc.stdout)
     names = {p["name"] for p in data}
-    assert names == {"translator", "polisher", "summarizer", "scaffolder"}
+    # v2.2a core 4; v2.2b adds more — use superset check so new personas don't break this
+    assert {"translator", "polisher", "summarizer", "scaffolder"} <= names
 
 
 def test_cli_show_returns_persona_spec():
