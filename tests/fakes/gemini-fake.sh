@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Fake gemini CLI for OMW dispatch integration tests.
 # Shape: gemini --model MODEL --system BODY -p TASK
+#
+# Environment:
+#   OMW_FAKE_FAIL  if set to "1", exit 1 (simulate failure)
 
 set -euo pipefail
 
@@ -18,6 +21,12 @@ while [[ $# -gt 0 ]]; do
     *) shift ;;
   esac
 done
+
+# Honour failure injection
+if [[ "${OMW_FAKE_FAIL:-0}" == "1" ]]; then
+  echo "FAKE-GEMINI: injected failure" >&2
+  exit 1
+fi
 
 OUTPUT="FAKE-GEMINI model=${MODEL} task=${TASK_PROMPT}"
 

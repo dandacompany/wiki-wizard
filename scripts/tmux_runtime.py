@@ -105,6 +105,7 @@ def _write_worker_script(
     command: list[str],
     worker_name: str,
     session_id: str,
+    extra_env: dict[str, str] | None = None,
 ) -> Path:
     """Write a self-contained bash wrapper script for the worker.
 
@@ -130,10 +131,17 @@ def _write_worker_script(
     worker_name_json = json.dumps(worker_name)
     session_id_json = json.dumps(session_id)
 
+    # Build export lines for extra_env (e.g. OMW_RESULT_PATH, OMW_MODEL)
+    env_exports = ""
+    if extra_env:
+        for k, v in extra_env.items():
+            env_exports += f"export {k}={shlex.quote(v)}\n"
+
     script_content = f"""#!/bin/bash
 # OMW worker script — auto-generated, do not edit
 set -o pipefail 2>/dev/null || true
 
+{env_exports}
 _START=$(date +%s 2>/dev/null || echo 0)
 
 # Run command, tee stdout+stderr to pane.log
@@ -173,6 +181,7 @@ def spawn_worker(
     worker_name: str,
     command: list[str],
     session_dir: Path,
+    extra_env: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Spawn a worker command in a detached tmux session window.
 
@@ -188,6 +197,8 @@ def spawn_worker(
         session_dir:  directory for done.json + pane.log.
                       Typically <vault>/.oh-my-wiki/dispatch-sessions/<ts>-<slug>/
                       A <worker_name>/ subdir is created automatically.
+        extra_env:    optional dict of env vars to export inside the worker
+                      script before running the command (e.g. OMW_RESULT_PATH).
 
     Returns:
         {session_id, window_name, done_json_path, pane_log_path}
@@ -205,6 +216,7 @@ def spawn_worker(
         command=command,
         worker_name=worker_name,
         session_id=session_id,
+        extra_env=extra_env,
     )
 
     shell_cmd = f"/bin/bash {shlex.quote(str(script_path))}"

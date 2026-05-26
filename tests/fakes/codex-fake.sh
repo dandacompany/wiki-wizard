@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Fake codex CLI for OMW dispatch integration tests.
 # Shape: codex exec [--yolo] --model MODEL --instructions BODY TASK
+#
+# Environment:
+#   OMW_FAKE_FAIL  if set to "1", exit 1 (simulate failure)
 
 set -euo pipefail
 
@@ -27,6 +30,12 @@ while [[ $# -gt 0 ]]; do
     *) TASK_PROMPT="$1"; shift ;;
   esac
 done
+
+# Honour failure injection
+if [[ "${OMW_FAKE_FAIL:-0}" == "1" ]]; then
+  echo "FAKE-CODEX: injected failure" >&2
+  exit 1
+fi
 
 OUTPUT="FAKE-CODEX model=${MODEL} task=${TASK_PROMPT}"
 

@@ -176,6 +176,7 @@ def build_invocation(
     model: str,
     skip_permissions: bool,
     extra_args: list[str] | None = None,
+    override_cli_path: str | None = None,
 ) -> list[str]:
     """Build the argv list for spawning a backend with a persona/task.
 
@@ -189,12 +190,24 @@ def build_invocation(
       codex:  codex exec [--yolo] --model M --instructions BODY TASK [extra]
       gemini: gemini [--model M] --system BODY -p TASK [extra]
       opencode: opencode run --model M --system BODY TASK [extra]
+
+    Args:
+        override_cli_path: If set (e.g. from OMW_BACKEND_OVERRIDE_PATH env var),
+            the CLI binary becomes <override_cli_path>/<backend>-fake.sh
+            (without .sh if a symlink without extension exists).
+            Used in tests to substitute fake backends.
     """
     if backend not in BACKENDS:
         raise BackendError(f"unknown backend: {backend!r}")
 
     spec = BACKENDS[backend]
     cli = spec["cli_name"]
+    if override_cli_path is not None:
+        # Prefer the bare symlink name (e.g. tests/fakes/claude) if it exists,
+        # otherwise fall back to the .sh variant
+        bare = str(Path(override_cli_path) / backend)
+        sh_variant = str(Path(override_cli_path) / f"{backend}-fake.sh")
+        cli = bare if Path(bare).exists() else sh_variant
     argv: list[str] = [cli]
 
     # codex uses a subcommand ("exec") as its non-interactive mode
