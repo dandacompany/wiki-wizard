@@ -89,3 +89,32 @@ def test_write_is_atomic(wiki_vault):
     target = root / "wiki" / "hot.md"
     tmps = list(target.parent.glob("hot.md.*"))
     assert tmps == [], f"stale temp files: {tmps}"
+
+
+import subprocess
+import sys
+
+
+def test_cli_on_session_start_prints_cache_when_present(wiki_vault, tmp_path):
+    db, vault, root = wiki_vault
+    hot_cache.write(db)
+    proc = subprocess.run(
+        [sys.executable, "-m", "scripts.hot_cache", "--on-session-start",
+         "--db", str(db)],
+        capture_output=True, text=True, check=False,
+        cwd=Path(__file__).resolve().parents[1],
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "## Active vaults" in proc.stdout
+
+
+def test_cli_on_session_start_no_cache_exits_zero_silent(wiki_vault):
+    db, vault, root = wiki_vault
+    proc = subprocess.run(
+        [sys.executable, "-m", "scripts.hot_cache", "--on-session-start",
+         "--db", str(db)],
+        capture_output=True, text=True, check=False,
+        cwd=Path(__file__).resolve().parents[1],
+    )
+    assert proc.returncode == 0
+    assert proc.stdout.strip() == ""

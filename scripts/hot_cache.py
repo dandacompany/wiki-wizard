@@ -160,3 +160,42 @@ def read(db_path: Path, *, data_dir: Path | None = None) -> str | None:
     if not target.exists():
         return None
     return target.read_text(encoding="utf-8")
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    import sys as _sys
+
+    p = argparse.ArgumentParser(prog="scripts.hot_cache")
+    p.add_argument("--db", default="data/registry.db")
+    p.add_argument("--data-dir", default=None,
+                   help="Override fallback dir when no active vault")
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--on-session-start", action="store_true",
+                   help="Read cache and print to stdout (silent if none)")
+    g.add_argument("--on-session-stop", action="store_true",
+                   help="Refresh cache from current state + optional summary on stdin")
+    g.add_argument("--refresh", action="store_true",
+                   help="Manual refresh equivalent to --on-session-stop without stdin")
+    args = p.parse_args(argv)
+
+    db_path = Path(args.db)
+    data_dir = Path(args.data_dir) if args.data_dir else None
+
+    if args.on_session_start:
+        text = read(db_path, data_dir=data_dir)
+        if text is not None:
+            _sys.stdout.write(text)
+        return 0
+
+    # session-stop / refresh
+    summary = None
+    if args.on_session_stop and not _sys.stdin.isatty():
+        summary = _sys.stdin.read().strip() or None
+    target = write(db_path, last_session_summary=summary, data_dir=data_dir)
+    _sys.stderr.write(f"hot_cache refreshed → {target}\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
