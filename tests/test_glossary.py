@@ -115,3 +115,54 @@ def test_list_terms_scoped_by_vault(tmp_path):
     glossary.upsert_term(db, vault_id=2, canonical="B", aliases=[])
     assert [r["canonical"] for r in glossary.list_terms(db, vault_id=1)] == ["A"]
     assert [r["canonical"] for r in glossary.list_terms(db, vault_id=2)] == ["B"]
+
+
+def test_find_inconsistencies_flags_unknown_variant(tmp_path):
+    vault = tmp_path / "vault"
+    (vault / "wiki" / "entities").mkdir(parents=True)
+    (vault / "wiki" / "entities" / "karpathy.md").write_text(
+        "# Karpathy\nAndrej Karpathy worked at Tesla.\n", encoding="utf-8",
+    )
+    (vault / "wiki" / "entities" / "tesla.md").write_text(
+        "# Tesla\nKarpathy led Autopilot. Andrej karpathy is a researcher.\n",
+        encoding="utf-8",
+    )
+    db = glossary.open_db(vault)
+    glossary.upsert_term(
+        db, vault_id=1,
+        canonical="Andrej Karpathy",
+        aliases=["Karpathy"],  # "andrej karpathy" (lowercase) is NOT a known alias
+    )
+    inconsistencies = glossary.find_inconsistencies(
+        db, vault_id=1, vault_root=vault,
+    )
+    assert len(inconsistencies) == 1
+    flag = inconsistencies[0]
+    assert flag["canonical"] == "Andrej Karpathy"
+    assert flag["surface_form"] == "Andrej karpathy"
+    assert "wiki/entities/tesla.md" in flag["found_in"]
+
+
+def test_find_inconsistencies_clean_vault(tmp_path):
+    vault = tmp_path / "vault"
+    (vault / "wiki").mkdir(parents=True)
+    (vault / "wiki" / "page.md").write_text(
+        "Andrej Karpathy and Karpathy both used.\n", encoding="utf-8",
+    )
+    db = glossary.open_db(vault)
+    glossary.upsert_term(
+        db, vault_id=1,
+        canonical="Andrej Karpathy",
+        aliases=["Karpathy"],
+    )
+    assert glossary.find_inconsistencies(db, vault_id=1, vault_root=vault) == []
+
+
+def test_find_inconsistencies_skips_glossary_db_dir(tmp_path):
+    """Should not scan inside .oh-my-wiki/."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    db = glossary.open_db(vault)  # creates .oh-my-wiki/
+    # No markdown files at all
+    glossary.upsert_term(db, vault_id=1, canonical="Foo", aliases=["foo"])
+    assert glossary.find_inconsistencies(db, vault_id=1, vault_root=vault) == []

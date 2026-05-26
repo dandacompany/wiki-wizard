@@ -7,6 +7,7 @@ consistency-checker do not write here.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -124,3 +125,73 @@ def list_terms(db_path: Path, *, vault_id: int) -> list[dict]:
         return [_row_to_dict(r) for r in rows]
     finally:
         conn.close()
+
+
+def _build_variant_pattern(canonical: str, aliases: list[str]) -> re.Pattern:
+    """Match the canonical word OR any token-permutation thereof.
+
+    Heuristic: split canonical into tokens, find any case-variant of all
+    tokens appearing in order separated by single whitespace. e.g. for
+    'Andrej Karpathy' this matches 'Andrej Karpathy', 'andrej Karpathy',
+    'ANDREJ karpathy'. Single-word canonicals match case-insensitively.
+    """
+    tokens = [t for t in canonical.split() if t]
+    if not tokens:
+        return re.compile(r"(?!x)x")  # never matches
+    if len(tokens) == 1:
+        return re.compile(rf"\b{re.escape(tokens[0])}\b", re.IGNORECASE)
+    pattern = r"\b" + r"\s+".join(re.escape(t) for t in tokens) + r"\b"
+    return re.compile(pattern, re.IGNORECASE)
+
+
+def find_inconsistencies(
+    db_path: Path,
+    *,
+    vault_id: int,
+    vault_root: Path,
+) -> list[dict]:
+    """Scan vault markdown for surface forms that match a term's pattern
+    but use an unrecognized case/spacing variant.
+
+    Returns [{"canonical": str, "surface_form": str,
+              "found_in": [relpath, ...]}, ...]
+    """
+    vault_root = Path(vault_root)
+    terms = list_terms(db_path, vault_id=vault_id)
+    if not terms:
+        return []
+
+    # Collect markdown files, skipping the glossary db dir
+    md_files = []
+    for path in vault_root.rglob("*.md"):
+        if GLOSSARY_DIR in path.relative_to(vault_root).parts:
+            continue
+        md_files.append(path)
+
+    findings: dict[tuple[str, str], set[str]] = {}
+    for term in terms:
+        canonical = term["canonical"]
+        aliases = set(term["aliases"])
+        known = {canonical} | aliases
+        pattern = _build_variant_pattern(canonical, term["aliases"])
+        for md in md_files:
+            try:
+                text = md.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for match in pattern.finditer(text):
+                surface = match.group(0)
+                if surface in known:
+                    continue
+                key = (canonical, surface)
+                rel = str(md.relative_to(vault_root))
+                findings.setdefault(key, set()).add(rel)
+
+    return [
+        {
+            "canonical": c,
+            "surface_form": s,
+            "found_in": sorted(paths),
+        }
+        for (c, s), paths in sorted(findings.items())
+    ]
