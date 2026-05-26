@@ -151,3 +151,129 @@ def test_list_models_filter_by_hint(monkeypatch, tmp_path):
 def test_list_models_bad_backend_raises():
     with pytest.raises(backends.BackendError, match="unknown backend"):
         backends.list_models("noexist", repo_root=PROJECT_ROOT)
+
+
+# ---------------------------------------------------------------------------
+# build_invocation — argv matrix
+# ---------------------------------------------------------------------------
+
+BUILD_CASES = [
+    # (backend, model, skip_permissions, expected_head, expected_contains)
+    pytest.param(
+        "claude", "claude-sonnet-4-6", False,
+        ["claude"],
+        ["--model", "claude-sonnet-4-6", "--append-system-prompt", "-p"],
+        id="claude-no-skip",
+    ),
+    pytest.param(
+        "claude", "claude-opus-4-7", True,
+        ["claude", "--dangerously-skip-permissions"],
+        ["--model", "claude-opus-4-7"],
+        id="claude-skip-perms",
+    ),
+    pytest.param(
+        "codex", "gpt-5", False,
+        ["codex", "exec"],
+        ["--model", "gpt-5", "--instructions", "gpt-5"],
+        id="codex-no-skip",
+    ),
+    pytest.param(
+        "codex", "gpt-5-high", True,
+        ["codex", "exec", "--yolo"],
+        ["--model", "gpt-5-high"],
+        id="codex-yolo",
+    ),
+    pytest.param(
+        "gemini", "gemini-2.5-pro", False,
+        ["gemini"],
+        ["--model", "gemini-2.5-pro", "--system", "-p"],
+        id="gemini-no-skip",
+    ),
+    pytest.param(
+        "gemini", "gemini-2.5-pro", True,
+        ["gemini"],
+        ["--model", "gemini-2.5-pro"],
+        id="gemini-skip-ignored",  # gemini has no skip_perm_flag
+    ),
+    pytest.param(
+        "opencode", "opencode-standard", False,
+        ["opencode", "run"],
+        ["--model", "opencode-standard", "--system"],
+        id="opencode-no-skip",
+    ),
+    pytest.param(
+        "opencode", "opencode-plus", True,
+        ["opencode", "run"],
+        ["--model", "opencode-plus"],
+        id="opencode-skip-ignored",  # opencode skip_perm_flag is None
+    ),
+]
+
+
+@pytest.mark.parametrize("backend,model,skip_perms,expected_head,expected_contains", BUILD_CASES)
+def test_build_invocation_head(backend, model, skip_perms, expected_head, expected_contains):
+    argv = backends.build_invocation(
+        backend,
+        persona_body="You are a test persona.",
+        task_prompt="Check this text.",
+        model=model,
+        skip_permissions=skip_perms,
+    )
+    # argv starts with expected_head
+    assert argv[:len(expected_head)] == expected_head, (
+        f"{backend} argv head mismatch: {argv[:len(expected_head)]!r} != {expected_head!r}"
+    )
+
+
+@pytest.mark.parametrize("backend,model,skip_perms,expected_head,expected_contains", BUILD_CASES)
+def test_build_invocation_contains_model(backend, model, skip_perms, expected_head, expected_contains):
+    argv = backends.build_invocation(
+        backend,
+        persona_body="You are a test persona.",
+        task_prompt="Check this text.",
+        model=model,
+        skip_permissions=skip_perms,
+    )
+    assert "--model" in argv
+    model_pos = argv.index("--model")
+    assert argv[model_pos + 1] == model
+
+
+@pytest.mark.parametrize("backend,model,skip_perms,expected_head,expected_contains", BUILD_CASES)
+def test_build_invocation_contains_persona_body(backend, model, skip_perms, expected_head, expected_contains):
+    persona_body = "UNIQUE_PERSONA_BODY_SENTINEL"
+    argv = backends.build_invocation(
+        backend,
+        persona_body=persona_body,
+        task_prompt="task",
+        model=model,
+        skip_permissions=skip_perms,
+    )
+    # Persona body must appear somewhere in argv
+    assert any(persona_body in str(arg) for arg in argv), (
+        f"persona_body not found in argv for {backend}: {argv!r}"
+    )
+
+
+def test_build_invocation_unknown_backend_raises():
+    with pytest.raises(backends.BackendError, match="unknown backend"):
+        backends.build_invocation(
+            "noexist",
+            persona_body="x",
+            task_prompt="y",
+            model="z",
+            skip_permissions=False,
+        )
+
+
+def test_build_invocation_extra_args_appended():
+    argv = backends.build_invocation(
+        "claude",
+        persona_body="persona",
+        task_prompt="task",
+        model="claude-sonnet-4-6",
+        skip_permissions=False,
+        extra_args=["--output-format", "stream-json"],
+    )
+    assert "--output-format" in argv
+    assert "stream-json" in argv

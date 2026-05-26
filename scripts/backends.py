@@ -162,3 +162,68 @@ def list_models(
         models = [m for m in models if m.get("hint") == hint_filter]
 
     return models
+
+
+# ---------------------------------------------------------------------------
+# build_invocation
+# ---------------------------------------------------------------------------
+
+def build_invocation(
+    backend: str,
+    *,
+    persona_body: str,
+    task_prompt: str,
+    model: str,
+    skip_permissions: bool,
+    extra_args: list[str] | None = None,
+) -> list[str]:
+    """Build the argv list for spawning a backend with a persona/task.
+
+    The resulting argv is suitable for passing directly to subprocess or tmux.
+    No shell quoting is done here — callers must handle that for tmux pane
+    commands (see tmux_runtime.spawn_worker).
+
+    Backend-specific argv shapes:
+      claude: claude [--dangerously-skip-permissions] --model M
+              --append-system-prompt BODY -p TASK [extra]
+      codex:  codex exec [--yolo] --model M --instructions BODY TASK [extra]
+      gemini: gemini [--model M] --system BODY -p TASK [extra]
+      opencode: opencode run --model M --system BODY TASK [extra]
+    """
+    if backend not in BACKENDS:
+        raise BackendError(f"unknown backend: {backend!r}")
+
+    spec = BACKENDS[backend]
+    cli = spec["cli_name"]
+    argv: list[str] = [cli]
+
+    # codex uses a subcommand ("exec") as its non-interactive mode
+    ni_flag = spec["non_interactive_flag"]
+    if ni_flag and ni_flag not in ("-p",):
+        # it's a subcommand word, not a flag
+        argv.append(ni_flag)
+
+    # skip-permissions flag (only if backend supports it and user opted in)
+    if skip_permissions and spec.get("skip_perm_flag"):
+        argv.append(spec["skip_perm_flag"])
+
+    # model
+    argv += [spec["model_flag"], model]
+
+    # system / persona body
+    argv += [spec["system_prompt_flag"], persona_body]
+
+    # task prompt
+    # For backends where non_interactive_flag == "-p" (claude, gemini):
+    #   the task prompt is passed as -p TASK
+    # For codex/opencode: task prompt is a positional after flags
+    if ni_flag == "-p":
+        argv += ["-p", task_prompt]
+    else:
+        argv.append(task_prompt)
+
+    # extra args (e.g. --output-format stream-json)
+    if extra_args:
+        argv.extend(extra_args)
+
+    return argv
