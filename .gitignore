@@ -46,3 +46,6 @@ data/*.db-shm
 
 # uv (not used here)
 uv.lock
+
+# Per-vault runtime state (autoresearch sessions, hot cache state, etc.)
+.oh-my-wiki/
