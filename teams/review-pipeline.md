@@ -1,29 +1,48 @@
 ---
 name: review-pipeline
-description: >
-  Parallel review team: fact-checker, consistency-checker, and summarizer
-  run concurrently and each produce a sibling output file.
+description: Three-way review of a draft (facts, consistency, terminology) in parallel.
 mode: parallel
-timeout_seconds: 600
 workers:
   - persona: fact-checker
     backend_default: claude
     model_hint: most_capable
   - persona: consistency-checker
-    backend_default: claude
+    backend_default: codex
     model_hint: standard
-  - persona: summarizer
+  - persona: terminology-manager
     backend_default: gemini
-    model_hint: fast
+    model_hint: standard
+timeout_seconds: 900
 ---
 
-# review-pipeline
+# review-pipeline team
 
-Run three reviewers in parallel against the same source document:
+Use when you have a draft you want triple-reviewed before publishing.
+All three workers run in parallel; expect ~5-10 min wall-clock on a
+medium-sized document.
 
-1. **fact-checker** — decomposes claims, verifies via web search, writes `<stem>.factcheck.md`
-2. **consistency-checker** — audits internal consistency, writes `<stem>.consistency.md`
-3. **summarizer** — produces a concise summary, writes `<stem>.summary.md`
+## Recommended invocation
 
-All three workers start simultaneously and produce independent sibling files.
-The dispatch session is closed once all three `done.json` sentinels appear.
+```
+omw team-run review-pipeline --on <draft.md>
+```
+
+## Workers
+
+| Worker              | Backend | Model hint   | Output                 |
+| ------------------- | ------- | ------------ | ---------------------- |
+| fact-checker        | claude  | most_capable | `<draft>.factcheck.md` |
+| consistency-checker | codex   | standard     | stdout JSON            |
+| terminology-manager | gemini  | standard     | stdout JSON            |
+
+## Outputs
+
+- `<draft>.factcheck.md` — fact-checker findings
+- `stdout JSON` — consistency-checker + terminology-manager reports
+- `summary.json` in the dispatch session dir
+
+## Notes
+
+- Override any backend at launch: `omw team-run review-pipeline --backend fact-checker=codex`
+- For large documents (>5k words) consider increasing timeout:
+  `omw team-run review-pipeline --timeout 1800`

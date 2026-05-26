@@ -1,27 +1,52 @@
 ---
 name: translation-pipeline
-description: >
-  Sequential translation pipeline: translator runs first, then the polisher
-  refines the translator's output.
+description: Translate a document then polish the translation for natural target-language flow.
 mode: sequential
-timeout_seconds: 900
 workers:
   - persona: translator
     backend_default: claude
     model_hint: standard
+    args:
+      lang: required
   - persona: polisher
-    backend_default: claude
+    backend_default: gemini
     model_hint: standard
     inputs_from: previous
+timeout_seconds: 1200
 ---
 
-# translation-pipeline
+# translation-pipeline team
 
-Two-stage sequential pipeline for high-quality translation:
+A two-step sequential pipeline: translate first, then polish.
+The polisher receives the translator's output file as its source
+(`inputs_from: previous`), so it works on the translated text rather
+than the original.
 
-1. **translator** — translates the source document to the target language.
-2. **polisher** — receives the translator's output (`inputs_from: previous`)
-   and refines grammar, style, and fluency.
+## Required argument
 
-Workers run one after the other; the polisher receives the translator's output
-file as its source document.
+Supply `--lang <target>` at launch — e.g. `--lang ko` for Korean.
+
+## Recommended invocation
+
+```
+omw team-run translation-pipeline --on <source.md> --lang ko
+```
+
+## Workers
+
+| Step | Worker     | Backend | Input             |
+| ---- | ---------- | ------- | ----------------- |
+| 1    | translator | claude  | original source   |
+| 2    | polisher   | gemini  | translator output |
+
+## Outputs
+
+- `<source>.<lang>.md` — translated document (translator, sibling_file output)
+- polished in-place by polisher (`inplace` output_kind)
+- `summary.json` in the dispatch session dir
+
+## Notes
+
+- Override backends: `omw team-run translation-pipeline --backend translator=gemini`
+- The polisher uses `inplace` output — it overwrites the translated file.
+  A backup is written to the dispatch session dir automatically.

@@ -320,3 +320,70 @@ class TestAggregateResults:
         agg = aggregate_results(results, session_dir=tmp_path, template_name="t")
         for w in agg["workers"]:
             assert isinstance(w.get("result_path", ""), str)
+
+
+# ── shipped template deep validation ───────────────────────────────
+
+class TestShippedTemplates:
+    """Each shipped team file must parse cleanly and pass full validation."""
+
+    def test_review_pipeline_worker_personas(self):
+        t = load_template("review-pipeline")
+        personas = [w.persona for w in t.workers]
+        assert "fact-checker" in personas
+        assert "consistency-checker" in personas
+        assert "terminology-manager" in personas
+
+    def test_review_pipeline_backend_defaults(self):
+        t = load_template("review-pipeline")
+        backend_map = {w.persona: w.backend_default for w in t.workers}
+        assert backend_map["fact-checker"] == "claude"
+        assert backend_map["consistency-checker"] == "codex"
+        assert backend_map["terminology-manager"] == "gemini"
+
+    def test_review_pipeline_timeout(self):
+        t = load_template("review-pipeline")
+        assert t.timeout_seconds == 900
+
+    def test_translation_pipeline_inputs_from(self):
+        t = load_template("translation-pipeline")
+        polisher_cfg = next(w for w in t.workers if w.persona == "polisher")
+        assert polisher_cfg.inputs_from == "previous"
+
+    def test_translation_pipeline_lang_arg_required(self):
+        t = load_template("translation-pipeline")
+        translator_cfg = next(w for w in t.workers if w.persona == "translator")
+        assert translator_cfg.args.get("lang") == "required"
+
+    def test_translation_pipeline_timeout(self):
+        t = load_template("translation-pipeline")
+        assert t.timeout_seconds == 1200
+
+    def test_draft_to_publish_stage_count(self):
+        t = load_template("draft-to-publish")
+        assert t.stages is not None
+        assert len(t.stages) == 3
+
+    def test_draft_to_publish_first_stage_is_scaffolder(self):
+        t = load_template("draft-to-publish")
+        first_stage = t.stages[0]
+        personas_in_first = list(first_stage.values())[0]
+        assert "scaffolder" in personas_in_first
+
+    def test_draft_to_publish_last_stage_is_parallel(self):
+        t = load_template("draft-to-publish")
+        last_stage = t.stages[-1]
+        assert "parallel" in last_stage
+
+    def test_draft_to_publish_timeout(self):
+        t = load_template("draft-to-publish")
+        assert t.timeout_seconds == 1800
+
+    def test_draft_to_publish_worker_count(self):
+        t = load_template("draft-to-publish")
+        assert len(t.workers) == 4
+
+    def test_all_templates_have_body_text(self):
+        for name in ("review-pipeline", "translation-pipeline", "draft-to-publish"):
+            t = load_template(name)
+            assert len(t.body.strip()) > 0, f"{name} body is empty"
