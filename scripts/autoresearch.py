@@ -200,3 +200,110 @@ def session_status(session_dir: Path) -> dict:
         "last_gaps": last_gaps,
         "filed": filed,
     }
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    import sys as _sys
+
+    p = argparse.ArgumentParser(prog="scripts.autoresearch")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    p_init = sub.add_parser("init")
+    p_init.add_argument("--db", default="data/registry.db")
+    p_init.add_argument("--vault-id", type=int)
+    p_init.add_argument("--query", required=True)
+    p_init.add_argument("--max-rounds", type=int, default=DEFAULT_MAX_ROUNDS)
+
+    p_rec = sub.add_parser("record")
+    p_rec.add_argument("--session-dir", required=True)
+    p_rec.add_argument("--round", dest="round_num", type=int, required=True)
+    p_rec.add_argument("--claims-json", default="[]")
+    p_rec.add_argument("--gaps-json", default="[]")
+    p_rec.add_argument("--notes", default="")
+
+    p_stop = sub.add_parser("should-stop")
+    p_stop.add_argument("--session-dir", required=True)
+
+    p_stat = sub.add_parser("status")
+    p_stat.add_argument("--session-dir", required=True)
+
+    p_file = sub.add_parser("file-back")
+    p_file.add_argument("--db", default="data/registry.db")
+    p_file.add_argument("--vault-id", type=int)
+    p_file.add_argument("--session-dir", required=True)
+    p_file.add_argument("--title", required=True)
+    p_file.add_argument("--body-file", required=True,
+                        help="Path to a file containing the synthesis body (UTF-8)")
+    p_file.add_argument("--citations-json", default="[]")
+    p_file.add_argument("--tags-json", default="[]")
+    p_file.add_argument("--date", dest="date_str", required=True)
+
+    args = p.parse_args(argv)
+
+    # db only needed for init / file-back; safe-default otherwise
+    db_path = Path(getattr(args, "db", "data/registry.db"))
+
+    def _resolve_vault_id(default_id: int | None) -> int:
+        if default_id is not None:
+            return default_id
+        active = registry.get_active(db_path)
+        if active is None:
+            print("no active vault — run vault-use first", file=_sys.stderr)
+            raise SystemExit(2)
+        return active["id"]
+
+    if args.cmd == "init":
+        vid = _resolve_vault_id(args.vault_id)
+        info = init_session(
+            db_path, vault_id=vid, query=args.query, max_rounds=args.max_rounds
+        )
+        print(json.dumps(info, ensure_ascii=False))
+        return 0
+
+    if args.cmd == "record":
+        claims = json.loads(args.claims_json)
+        gaps = json.loads(args.gaps_json)
+        path = record_round(
+            Path(args.session_dir),
+            round_num=args.round_num,
+            claims=claims,
+            gaps_remaining=gaps,
+            notes=args.notes,
+        )
+        print(json.dumps({"round_file": str(path)}, ensure_ascii=False))
+        return 0
+
+    if args.cmd == "should-stop":
+        stop, reason = should_stop(Path(args.session_dir))
+        print(json.dumps({"stop": stop, "reason": reason}))
+        return 0
+
+    if args.cmd == "status":
+        s = session_status(Path(args.session_dir))
+        print(json.dumps(s, ensure_ascii=False))
+        return 0
+
+    if args.cmd == "file-back":
+        vid = _resolve_vault_id(args.vault_id)
+        body = Path(args.body_file).read_text(encoding="utf-8")
+        citations = json.loads(args.citations_json)
+        tags = json.loads(args.tags_json)
+        relpath = file_back(
+            db_path,
+            vault_id=vid,
+            session_dir=Path(args.session_dir),
+            title=args.title,
+            body=body,
+            citations=citations,
+            tags=tags,
+            date_str=args.date_str,
+        )
+        print(relpath)
+        return 0
+
+    raise SystemExit(f"unknown cmd: {args.cmd}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -267,3 +267,57 @@ def test_session_status_after_two_rounds_and_file_back(wiki_vault):
     assert s["rounds_completed"] == 2
     assert s["last_gaps"] == []
     assert s["filed"] is True
+
+
+import subprocess
+import sys
+
+
+def test_cli_init_then_record_then_status(wiki_vault):
+    db, vault, root = wiki_vault
+    REPO_ROOT = Path(__file__).resolve().parents[1]
+    import json as _json
+
+    # init
+    proc = subprocess.run(
+        [sys.executable, "-m", "scripts.autoresearch", "init",
+         "--db", str(db), "--vault-id", str(vault["id"]),
+         "--query", "my CLI query"],
+        capture_output=True, text=True, check=False, cwd=REPO_ROOT,
+    )
+    assert proc.returncode == 0, proc.stderr
+    info = _json.loads(proc.stdout)
+    session_dir = info["session_dir"]
+    assert "my-cli-query" in session_dir
+
+    # record round 1 with empty gaps
+    claims_json = '[{"claim":"x","confidence":"high","sources":["s"]}]'
+    proc = subprocess.run(
+        [sys.executable, "-m", "scripts.autoresearch", "record",
+         "--session-dir", session_dir, "--round", "1",
+         "--claims-json", claims_json, "--gaps-json", "[]"],
+        capture_output=True, text=True, check=False, cwd=REPO_ROOT,
+    )
+    assert proc.returncode == 0, proc.stderr
+
+    # status
+    proc = subprocess.run(
+        [sys.executable, "-m", "scripts.autoresearch", "status",
+         "--session-dir", session_dir],
+        capture_output=True, text=True, check=False, cwd=REPO_ROOT,
+    )
+    assert proc.returncode == 0, proc.stderr
+    status = _json.loads(proc.stdout)
+    assert status["query"] == "my CLI query"
+    assert status["rounds_completed"] == 1
+
+    # should-stop should report no_gaps
+    proc = subprocess.run(
+        [sys.executable, "-m", "scripts.autoresearch", "should-stop",
+         "--session-dir", session_dir],
+        capture_output=True, text=True, check=False, cwd=REPO_ROOT,
+    )
+    assert proc.returncode == 0, proc.stderr
+    result = _json.loads(proc.stdout)
+    assert result["stop"] is True
+    assert result["reason"] == "no_gaps"
