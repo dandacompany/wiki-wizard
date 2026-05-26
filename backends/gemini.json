@@ -1,0 +1,12 @@
+[
+  {
+    "id": "gemini-2.5-flash",
+    "hint": "fast",
+    "description": "Gemini 2.5 Flash — fast, efficient, best for latency-sensitive dispatch"
+  },
+  {
+    "id": "gemini-2.5-pro",
+    "hint": "most_capable",
+    "description": "Gemini 2.5 Pro — strong multimodal reasoning, highest capability in Gemini 2.5"
+  }
+]

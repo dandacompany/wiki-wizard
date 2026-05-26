@@ -118,3 +118,47 @@ def detect_available(
             pass
         result[name] = info
     return result
+
+
+# ---------------------------------------------------------------------------
+# list_models
+# ---------------------------------------------------------------------------
+
+def list_models(
+    backend: str,
+    *,
+    repo_root: Path | None = None,
+    hint_filter: str | None = None,
+) -> list[dict[str, Any]]:
+    """Read backends/<name>.json model catalog.
+
+    Returns list of {id, hint, description} dicts, optionally filtered by hint.
+    Model IDs are sourced from the JSON file; never hardcoded in Python.
+
+    Args:
+        backend: one of the keys in BACKENDS.
+        repo_root: override repo root (useful in tests with tmp catalogs).
+        hint_filter: if given, return only models with this hint value.
+                     Must be one of: fast, standard, most_capable.
+    """
+    import json as _json
+
+    if backend not in BACKENDS:
+        raise BackendError(f"unknown backend: {backend!r}")
+
+    root = repo_root if repo_root is not None else _REPO_ROOT
+    catalog_rel = BACKENDS[backend]["model_catalog_path"]
+    catalog_path = root / catalog_rel
+
+    if not catalog_path.exists():
+        raise BackendError(
+            f"model catalog not found for backend {backend!r}: {catalog_path}"
+        )
+
+    with catalog_path.open(encoding="utf-8") as fh:
+        models: list[dict[str, Any]] = _json.load(fh)
+
+    if hint_filter is not None:
+        models = [m for m in models if m.get("hint") == hint_filter]
+
+    return models

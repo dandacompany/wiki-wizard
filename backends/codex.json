@@ -1,0 +1,17 @@
+[
+  {
+    "id": "gpt-5-low",
+    "hint": "fast",
+    "description": "GPT-5 Low — fast, cost-efficient, good for straightforward tasks"
+  },
+  {
+    "id": "gpt-5",
+    "hint": "standard",
+    "description": "GPT-5 — balanced, strong general capability"
+  },
+  {
+    "id": "gpt-5-high",
+    "hint": "most_capable",
+    "description": "GPT-5 High — maximum reasoning budget, best for complex tasks"
+  }
+]

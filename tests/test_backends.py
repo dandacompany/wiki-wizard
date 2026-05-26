@@ -98,3 +98,56 @@ def test_detect_available_handles_oserror(monkeypatch):
     result = backends.detect_available()
     for info in result.values():
         assert info["installed"] is False
+
+
+# ---------------------------------------------------------------------------
+# list_models
+# ---------------------------------------------------------------------------
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.parametrize("name", ["claude", "codex", "gemini", "opencode"])
+def test_list_models_returns_nonempty_list(name):
+    models = backends.list_models(name, repo_root=PROJECT_ROOT)
+    assert isinstance(models, list)
+    assert len(models) >= 1, f"{name} catalog must have at least 1 model"
+
+
+@pytest.mark.parametrize("name", ["claude", "codex", "gemini", "opencode"])
+def test_list_models_each_has_required_keys(name):
+    models = backends.list_models(name, repo_root=PROJECT_ROOT)
+    for m in models:
+        assert "id" in m, f"{name} model missing 'id'"
+        assert "hint" in m, f"{name} model missing 'hint'"
+        assert "description" in m, f"{name} model missing 'description'"
+
+
+@pytest.mark.parametrize("name", ["claude", "codex", "gemini", "opencode"])
+def test_list_models_hints_are_valid(name):
+    valid_hints = {"fast", "standard", "most_capable"}
+    models = backends.list_models(name, repo_root=PROJECT_ROOT)
+    for m in models:
+        assert m["hint"] in valid_hints, (
+            f"{name} model {m['id']!r} has invalid hint {m['hint']!r}"
+        )
+
+
+def test_list_models_filter_by_hint(monkeypatch, tmp_path):
+    catalog = [
+        {"id": "fast-model", "hint": "fast", "description": "Quick"},
+        {"id": "std-model", "hint": "standard", "description": "Standard"},
+        {"id": "cap-model", "hint": "most_capable", "description": "Capable"},
+    ]
+    (tmp_path / "backends").mkdir()
+    (tmp_path / "backends" / "claude.json").write_text(
+        __import__("json").dumps(catalog), encoding="utf-8"
+    )
+    fast_only = backends.list_models("claude", repo_root=tmp_path, hint_filter="fast")
+    assert len(fast_only) == 1
+    assert fast_only[0]["id"] == "fast-model"
+
+
+def test_list_models_bad_backend_raises():
+    with pytest.raises(backends.BackendError, match="unknown backend"):
+        backends.list_models("noexist", repo_root=PROJECT_ROOT)

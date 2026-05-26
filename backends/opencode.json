@@ -1,0 +1,17 @@
+[
+  {
+    "id": "opencode-fast",
+    "hint": "fast",
+    "description": "OpenCode fast tier — community CLI, fast inference"
+  },
+  {
+    "id": "opencode-standard",
+    "hint": "standard",
+    "description": "OpenCode standard tier — community CLI, balanced"
+  },
+  {
+    "id": "opencode-plus",
+    "hint": "most_capable",
+    "description": "OpenCode plus tier — community CLI, highest capability (TBD per CLI version)"
+  }
+]

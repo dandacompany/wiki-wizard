@@ -1,0 +1,17 @@
+[
+  {
+    "id": "claude-haiku-4-5",
+    "hint": "fast",
+    "description": "Claude Haiku 4.5 — fastest, lowest cost, best for high-volume tasks"
+  },
+  {
+    "id": "claude-sonnet-4-6",
+    "hint": "standard",
+    "description": "Claude Sonnet 4.6 — balanced speed and capability, recommended default"
+  },
+  {
+    "id": "claude-opus-4-7",
+    "hint": "most_capable",
+    "description": "Claude Opus 4.7 — highest capability, best for complex multi-step reasoning"
+  }
+]
