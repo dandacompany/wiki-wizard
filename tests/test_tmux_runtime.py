@@ -211,3 +211,133 @@ def test_shutdown_session_is_idempotent(tmp_path):
 
 def test_shutdown_nonexistent_session_does_not_raise():
     tmux_runtime.shutdown_session("omw-test-nonexistent-9999xxxx")
+
+
+# ---------------------------------------------------------------------------
+# wait_for_workers — T7
+# ---------------------------------------------------------------------------
+
+class TestWaitForWorkers:
+    """Real-tmux tests for wait_for_workers(); each uses a unique session."""
+
+    def test_returns_ok_when_all_done(self, tmp_path):
+        """Single worker running 'true' → status ok."""
+        sid = _unique_id("wfw-ok")
+        try:
+            w = tmux_runtime.spawn_worker(
+                session_id=sid,
+                worker_name="w-ok",
+                command=["true"],
+                session_dir=tmp_path,
+            )
+            results = tmux_runtime.wait_for_workers([w], timeout=30)
+            assert len(results) == 1
+            assert results[0]["status"] == "ok"
+            assert results[0]["exit_code"] == 0
+        finally:
+            _kill_session(sid)
+
+    def test_all_complete_returns_complete_list(self, tmp_path):
+        """Two workers that finish quickly → both status ok."""
+        sid = _unique_id("wfw-multi")
+        try:
+            workers = []
+            for i in range(2):
+                w = tmux_runtime.spawn_worker(
+                    session_id=sid,
+                    worker_name=f"wfw-{i}",
+                    command=["echo", f"worker-{i}"],
+                    session_dir=tmp_path,
+                )
+                workers.append(w)
+            results = tmux_runtime.wait_for_workers(workers, timeout=30)
+            assert len(results) == 2
+            assert all(r["status"] == "ok" for r in results)
+        finally:
+            _kill_session(sid)
+
+    def test_partial_results_on_timeout(self, tmp_path):
+        """One worker completes; one hangs. Short timeout → ok + timeout."""
+        sid = _unique_id("wfw-timeout")
+        try:
+            w_ok = tmux_runtime.spawn_worker(
+                session_id=sid,
+                worker_name="w-fast",
+                command=["true"],
+                session_dir=tmp_path,
+            )
+            w_hang = tmux_runtime.spawn_worker(
+                session_id=sid,
+                worker_name="w-hang",
+                command=["sleep", "120"],
+                session_dir=tmp_path,
+            )
+            # Give the fast worker time to complete before starting the wait
+            time.sleep(2)
+            results = tmux_runtime.wait_for_workers(
+                [w_ok, w_hang], timeout=3, poll_interval=0.5
+            )
+            by_name = {r["window_name"]: r for r in results}
+            assert by_name["w-fast"]["status"] == "ok"
+            assert by_name["w-hang"]["status"] == "timeout"
+            assert by_name["w-hang"]["exit_code"] is None
+        finally:
+            _kill_session(sid)
+
+    def test_propagates_nonzero_exit_as_failed(self, tmp_path):
+        """Worker exits 1 → status 'failed'."""
+        sid = _unique_id("wfw-fail")
+        try:
+            w = tmux_runtime.spawn_worker(
+                session_id=sid,
+                worker_name="w-fail",
+                command=["sh", "-c", "exit 1"],
+                session_dir=tmp_path,
+            )
+            results = tmux_runtime.wait_for_workers([w], timeout=15)
+            assert results[0]["status"] == "failed"
+            assert results[0]["exit_code"] == 1
+        finally:
+            _kill_session(sid)
+
+    def test_result_contains_done_json_path(self, tmp_path):
+        """Each result dict includes done_json_path pointing at a real file."""
+        sid = _unique_id("wfw-path")
+        try:
+            w = tmux_runtime.spawn_worker(
+                session_id=sid,
+                worker_name="w-path",
+                command=["true"],
+                session_dir=tmp_path,
+            )
+            results = tmux_runtime.wait_for_workers([w], timeout=30)
+            assert "done_json_path" in results[0]
+            assert Path(results[0]["done_json_path"]).exists()
+        finally:
+            _kill_session(sid)
+
+
+# ---------------------------------------------------------------------------
+# shutdown_session idempotence — T7 verification (T6 already added the function)
+# ---------------------------------------------------------------------------
+
+class TestShutdownSessionIdempotence:
+    """Verify shutdown_session idempotence; complements T6 basic tests."""
+
+    def test_double_shutdown_does_not_raise(self, tmp_path):
+        sid = _unique_id("t7-idem")
+        try:
+            tmux_runtime.spawn_worker(
+                session_id=sid,
+                worker_name="w",
+                command=["sleep", "60"],
+                session_dir=tmp_path,
+            )
+            tmux_runtime.shutdown_session(sid)
+            # Second call on dead session must be silent
+            tmux_runtime.shutdown_session(sid)
+        finally:
+            _kill_session(sid)
+
+    def test_shutdown_nonexistent_does_not_raise(self):
+        tmux_runtime.shutdown_session("omw-t7-ghost-session-99zz")
