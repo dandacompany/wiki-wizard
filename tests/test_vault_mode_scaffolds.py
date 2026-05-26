@@ -34,3 +34,11 @@ def test_business_mode_scaffolds_meetings_decisions_clients_vendors_processes(tm
     for sub in ("meetings", "decisions", "clients", "vendors", "processes", ".trash"):
         assert (root / sub).is_dir(), f"missing {sub}/"
     assert (root / "index.md").exists()
+
+
+def test_github_codebase_mode_scaffolds_modules_apis_decisions_runbooks_glossary(tmp_path):
+    root = tmp_path / "code-vault"
+    adapters.get_adapter("markdown").init_vault(root, "github-codebase")
+    for sub in ("modules", "apis", "decisions", "runbooks", "glossary", ".trash"):
+        assert (root / sub).is_dir(), f"missing {sub}/"
+    assert (root / "index.md").exists()

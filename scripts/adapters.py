@@ -93,6 +93,23 @@ status: meta
 ## Processes
 """
 
+_GITHUB_CODEBASE_INDEX_TEMPLATE = """---
+title: Codebase Index
+type: meta
+status: meta
+---
+
+## Modules
+
+## APIs
+
+## Decisions
+
+## Runbooks
+
+## Glossary
+"""
+
 
 class MarkdownAdapter:
     """Plain-markdown adapter — works with any editor (VS Code, Cursor, etc.)."""
@@ -121,6 +138,8 @@ class MarkdownAdapter:
             self._init_book(root)
         elif mode == "business":
             self._init_business(root)
+        elif mode == "github-codebase":
+            self._init_github_codebase(root)
         else:
             raise AdapterError(f"unknown mode: {mode!r}")
 
@@ -160,6 +179,13 @@ class MarkdownAdapter:
         index_path = root / "index.md"
         if not index_path.exists():
             index_path.write_text(_BUSINESS_INDEX_TEMPLATE, encoding="utf-8")
+
+    def _init_github_codebase(self, root: Path) -> None:
+        for sub in ("modules", "apis", "decisions", "runbooks", "glossary"):
+            (root / sub).mkdir(exist_ok=True)
+        index_path = root / "index.md"
+        if not index_path.exists():
+            index_path.write_text(_GITHUB_CODEBASE_INDEX_TEMPLATE, encoding="utf-8")
 
     def is_valid(self, root: Path) -> bool:
         return Path(root).is_dir()
