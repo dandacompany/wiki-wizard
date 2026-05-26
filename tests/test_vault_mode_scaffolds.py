@@ -26,3 +26,11 @@ def test_book_mode_scaffolds_chapters_characters_worldbuilding_outlines_drafts(t
     assert index.exists()
     text = index.read_text(encoding="utf-8")
     assert "Book" in text or "Chapters" in text
+
+
+def test_business_mode_scaffolds_meetings_decisions_clients_vendors_processes(tmp_path):
+    root = tmp_path / "biz-vault"
+    adapters.get_adapter("markdown").init_vault(root, "business")
+    for sub in ("meetings", "decisions", "clients", "vendors", "processes", ".trash"):
+        assert (root / sub).is_dir(), f"missing {sub}/"
+    assert (root / "index.md").exists()

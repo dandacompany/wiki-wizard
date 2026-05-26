@@ -76,6 +76,23 @@ status: meta
 ## Drafts
 """
 
+_BUSINESS_INDEX_TEMPLATE = """---
+title: Business Index
+type: meta
+status: meta
+---
+
+## Meetings
+
+## Decisions
+
+## Clients
+
+## Vendors
+
+## Processes
+"""
+
 
 class MarkdownAdapter:
     """Plain-markdown adapter — works with any editor (VS Code, Cursor, etc.)."""
@@ -102,6 +119,8 @@ class MarkdownAdapter:
             self._init_personal(root)
         elif mode == "book":
             self._init_book(root)
+        elif mode == "business":
+            self._init_business(root)
         else:
             raise AdapterError(f"unknown mode: {mode!r}")
 
@@ -134,6 +153,13 @@ class MarkdownAdapter:
         index_path = root / "index.md"
         if not index_path.exists():
             index_path.write_text(_BOOK_INDEX_TEMPLATE, encoding="utf-8")
+
+    def _init_business(self, root: Path) -> None:
+        for sub in ("meetings", "decisions", "clients", "vendors", "processes"):
+            (root / sub).mkdir(exist_ok=True)
+        index_path = root / "index.md"
+        if not index_path.exists():
+            index_path.write_text(_BUSINESS_INDEX_TEMPLATE, encoding="utf-8")
 
     def is_valid(self, root: Path) -> bool:
         return Path(root).is_dir()
