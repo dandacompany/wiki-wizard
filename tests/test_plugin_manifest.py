@@ -39,3 +39,29 @@ def test_plugin_json_trigger_keywords_non_empty():
     has_en = any("wiki" in t.lower() or "omw" in t.lower() for t in data["trigger_keywords"])
     has_ko = any("위키" in t for t in data["trigger_keywords"])
     assert has_en and has_ko, "need both EN and KO triggers"
+
+
+def test_marketplace_json_has_required_fields():
+    p = REPO_ROOT / ".claude-plugin" / "marketplace.json"
+    assert p.exists(), "marketplace.json must exist at .claude-plugin/marketplace.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    for key in ("name", "description", "plugins"):
+        assert key in data, f"marketplace.json missing required key: {key}"
+    assert data["name"].endswith("-marketplace")
+    assert isinstance(data["plugins"], list)
+    assert len(data["plugins"]) >= 1
+
+
+def test_marketplace_json_lists_oh_my_wiki_plugin():
+    p = REPO_ROOT / ".claude-plugin" / "marketplace.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    plugin_names = [p["name"] for p in data["plugins"]]
+    assert "oh-my-wiki" in plugin_names
+
+
+def test_marketplace_plugin_manifest_paths_resolve():
+    p = REPO_ROOT / ".claude-plugin" / "marketplace.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    for entry in data["plugins"]:
+        manifest_path = REPO_ROOT / entry["manifest"].lstrip("./")
+        assert manifest_path.exists(), f"manifest path {manifest_path} not found"
