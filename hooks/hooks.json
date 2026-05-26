@@ -1,0 +1,14 @@
+{
+  "session_start": {
+    "command": "python3 -m scripts.hot_cache --on-session-start",
+    "timeout_s": 5,
+    "blocking": false,
+    "description": "Read wiki/hot.md if present and inject as preamble. Silent if no cache yet."
+  },
+  "session_stop": {
+    "command": "python3 -m scripts.hot_cache --on-session-stop",
+    "timeout_s": 10,
+    "blocking": false,
+    "description": "Refresh wiki/hot.md from current registry + optional stdin summary of the just-completed session."
+  }
+}

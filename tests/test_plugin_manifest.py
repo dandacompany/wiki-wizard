@@ -65,3 +65,16 @@ def test_marketplace_plugin_manifest_paths_resolve():
     for entry in data["plugins"]:
         manifest_path = REPO_ROOT / entry["manifest"].removeprefix("./")
         assert manifest_path.exists(), f"manifest path {manifest_path} not found"
+
+
+def test_hooks_json_has_session_start_and_stop():
+    p = REPO_ROOT / "hooks" / "hooks.json"
+    assert p.exists(), "hooks.json must exist at hooks/hooks.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    assert "session_start" in data
+    assert "session_stop" in data
+    for key in ("session_start", "session_stop"):
+        binding = data[key]
+        assert "command" in binding
+        assert "scripts.hot_cache" in binding["command"]
+        assert binding.get("blocking") is False, f"{key} must be non-blocking"
