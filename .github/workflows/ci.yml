@@ -23,6 +23,18 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install tmux
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt-get update -qq && sudo apt-get install -y tmux
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew list tmux >/dev/null 2>&1 || brew install tmux
+          fi
+        shell: bash
+
+      - name: Verify tmux version
+        run: tmux -V
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
