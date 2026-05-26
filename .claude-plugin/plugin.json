@@ -22,7 +22,15 @@
     "autoresearch this",
     "research this for me",
     "이거 리서치해줘",
-    "이거 조사해줘"
+    "이거 조사해줘",
+    "translate this",
+    "polish this draft",
+    "summarize this",
+    "scaffold an outline",
+    "번역해줘",
+    "윤문해줘",
+    "요약해줘",
+    "초안 만들어줘"
   ],
   "ops": [
     "vault-setup",
@@ -39,6 +47,10 @@
     "ingest",
     "query",
     "autoresearch",
+    "persona-translate",
+    "persona-polish",
+    "persona-summarize",
+    "persona-scaffold",
     "lint",
     "hot-cache"
   ],

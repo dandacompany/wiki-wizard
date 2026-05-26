@@ -87,6 +87,10 @@ If the user input matches an op keyword, prefer that op over the wizard:
 | "forget", "vault 제거"                            | `vault-forget`                                                  |
 | "import memo", "memo 가져오기"                    | `vault-import-memo`                                             |
 | "autoresearch", "research this", "리서치", "조사" | `autoresearch`                                                  |
+| "translate", "번역"                               | `persona-translate`                                             |
+| "polish", "윤문", "다듬어줘"                      | `persona-polish`                                                |
+| "summarize", "요약"                               | `persona-summarize`                                             |
+| "scaffold", "초안", "outline"                     | `persona-scaffold`                                              |
 | "omw", "OMW", "/omw", "오엠더블유"                | (alias for `oh-my-wiki`; routes through Step 1 wizard normally) |
 | "hot-cache", "session cache", "캐시 상태"         | `hot-cache`                                                     |
 

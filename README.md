@@ -184,6 +184,37 @@ python3 -m scripts.autoresearch file-back --session-dir DIR \
   --tags-json '[...]' --date 2026-05-26
 ```
 
+## Writing personas (v2.2a)
+
+Four reusable writing-agent personas live at `personas/<role>.md`. Each declares input/output contracts; the LLM follows the persona body when invoked, then the runtime files the output.
+
+| Persona        | Op                  | Output                                            |
+| -------------- | ------------------- | ------------------------------------------------- |
+| **translator** | `persona-translate` | `<base>.<lang>.md` sibling                        |
+| **polisher**   | `persona-polish`    | inplace (with `.trash/` backup)                   |
+| **summarizer** | `persona-summarize` | stdout JSON (one_line / one_paragraph / detailed) |
+| **scaffolder** | `persona-scaffold`  | `wiki/syntheses/<slug>.md` (draft status)         |
+
+```text
+"translate wiki/summaries/karpathy.md to Korean"
+"polish this paragraph in Korean"
+"summarize wiki/summaries/karpathy.md"
+"scaffold an outline for: how attention enables parallel training"
+```
+
+CLI for manual control:
+
+```bash
+python3 -m scripts.personas list
+python3 -m scripts.personas show translator
+python3 -m scripts.personas run translator \
+  --vault-relpath wiki/summaries/karpathy.md \
+  --lang ko \
+  --output-file ./translated.md
+```
+
+Persona definitions are plain markdown; add your own under `personas/` and they appear in `list` automatically (must pass the frontmatter schema).
+
 ## Storage
 
 - The vault registry lives at `data/registry.db` as a per-user sqlite database (gitignored).

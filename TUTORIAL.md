@@ -683,6 +683,17 @@ To inspect an old session: `python3 -m scripts.autoresearch status --session-dir
 
 To file an answer after manually composing it (bypassing the loop), `query` works as before; `autoresearch` is purely additive.
 
+### Q. What are writing personas? (v2.2a)
+
+Four reusable agent personas for writing tasks:
+
+- **translator** (`persona-translate`) — multi-language translation with structure preservation. Files to `<base>.<lang>.md` next to the source.
+- **polisher** (`persona-polish`) — smooth awkward prose. `--lang ko` applies korean-prose-polish patterns (no em-dashes, no sentence-ending colons, etc.). Overwrites in place; backup at `.trash/`.
+- **summarizer** (`persona-summarize`) — three tiers (one_line / one_paragraph / detailed) as JSON. Stdout only; pipe or save as you like.
+- **scaffolder** (`persona-scaffold`) — outline + section placeholders for a new wiki page (`status: draft`, filed under `wiki/syntheses/<slug>.md`).
+
+Each persona is a markdown file at `personas/<role>.md` with YAML frontmatter declaring its contract. To list all installed personas: `python3 -m scripts.personas list`. To show one persona's full prompt: `python3 -m scripts.personas show <name>`.
+
 ### Q. What new checks does `lint` run in v2.0?
 
 Four new structural candidate categories on wiki-mode vaults:

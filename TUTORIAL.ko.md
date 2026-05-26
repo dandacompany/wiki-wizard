@@ -707,6 +707,19 @@ pypdf 는 일부 한글 인코딩 처리가 약합니다.
 수동으로 답을 작성해서 저장만 하고 싶다면 기존 `query` op 가 그대로 동작합니다.
 `autoresearch` 는 순수 추가 기능입니다.
 
+### Q. writing persona 는 무엇인가요? (v2.2a)
+
+글쓰기 작업을 위한 재사용 가능한 에이전트 페르소나 4종입니다.
+
+- **translator** (`persona-translate`) — 구조를 보존하면서 다국어로 번역합니다. 결과는 원본 옆에 `<base>.<lang>.md` 형식으로 저장됩니다.
+- **polisher** (`persona-polish`) — 어색한 문장을 다듬습니다. `--lang ko` 는 korean-prose-polish 패턴을 적용합니다 (em-dash 제거, 문장 끝 콜론 제거 등). 원본을 덮어쓰며, 이전 버전은 `.trash/` 에 백업됩니다.
+- **summarizer** (`persona-summarize`) — 1줄 / 1문단 / 상세 3단 요약을 JSON 으로 반환합니다. 표준출력 전용입니다.
+- **scaffolder** (`persona-scaffold`) — 새 wiki 페이지의 outline + 섹션 자리표시자를 생성합니다 (`status: draft`, `wiki/syntheses/<slug>.md` 에 저장).
+
+각 페르소나는 `personas/<role>.md` 파일이며 YAML frontmatter 로 입출력 contract 를 선언합니다.
+설치된 페르소나 목록 조회: `python3 -m scripts.personas list`
+특정 페르소나의 전체 프롬프트 확인: `python3 -m scripts.personas show <name>`
+
 ### Q. v2.0 에서 lint 는 어떤 검사를 새로 합니까?
 
 wiki-mode vault 에서 4가지 구조적 candidate 카테고리가 추가됐습니다.
