@@ -765,3 +765,39 @@ That said, Codex is more conservative than Claude Code about auto-triggering. Wh
 - **Tests**: `pytest -v` runs all 91 tests, which cover every documented behavior.
 
 Issue tracker: https://github.com/dandacompany/oh-my-wiki/issues
+
+---
+
+### Q. How do I dispatch one persona to a backend.
+
+Say "dispatch the `<persona>` to review `<file>` using `<backend>`."
+oh-my-wiki asks which model (filtered by the persona's `model_hint`), whether
+to skip permissions, and which form factor. It then runs
+`python3 -m scripts.dispatch` and reports the output path on completion.
+
+Available backends: claude / codex / gemini / opencode (whichever are
+installed and authenticated on your system).
+
+### Q. How do I run a team of personas in parallel.
+
+Say "run the review-pipeline on `<file>`" (or any shipped template name).
+oh-my-wiki reads the template worker list, confirms backends and models,
+spawns all workers into separate tmux panes at once, and waits for all
+done.json sentinels before reporting results.
+
+For a custom team without a template, say
+"run a team: `<persona>:<backend>`, `<persona>:<backend>` on `<file>`."
+
+### Q. Can I use codex or gemini instead of claude.
+
+Yes. Any of the four supported backends (claude / codex / gemini / opencode)
+can be chosen per worker at dispatch time. oh-my-wiki detects which ones are
+installed and authenticated. It never installs or authenticates backends for
+you — run each CLI's own login command once, and OMW picks it up automatically.
+
+### Q. Do I need Docker.
+
+No. Docker is an optional reference form factor for users who want complete
+backend isolation or a reproducible environment. The default in-skill form
+factor requires only tmux (>= 3.0) on your host plus whichever backend CLIs
+you want to use. See `docker/README.md` for the Docker setup.

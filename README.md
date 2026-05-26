@@ -247,6 +247,56 @@ python3 -m scripts.glossary upsert --vault-root <vault> --vault-id 1 \
 python3 -m scripts.glossary lint --vault-root <vault> --vault-id 1
 ```
 
+## Dispatch + Teams (v2.3)
+
+v2.3 adds a **dispatch runtime** that spawns persona workers into separate
+tmux panes, each running its own AI backend (claude / codex / gemini / opencode).
+
+**Prerequisites:** tmux >= 3.0 installed; at least one backend CLI authenticated.
+
+### Example invocations
+
+**Single dispatch** — send one persona to one backend:
+
+```
+> dispatch the fact-checker to review draft.md using codex
+```
+
+oh-my-wiki asks which model, whether to skip permissions, then runs:
+`python3 -m scripts.dispatch --persona fact-checker --source draft.md --backend codex --model gpt-5-high`
+
+**Explicit team** — name workers and backends inline:
+
+```
+> run a team: fact-checker on claude, consistency-checker on codex, on draft.md
+```
+
+**Template-based team** — use a shipped template:
+
+```
+> omw team-run review-pipeline --on draft.md
+```
+
+Spawns 3 parallel workers (fact-checker/claude, consistency-checker/codex,
+terminology-manager/gemini). Leader waits for all done.json sentinels, then
+reports output paths and durations.
+
+### Form factors
+
+| Form factor               | How to invoke                          | When to use            |
+| ------------------------- | -------------------------------------- | ---------------------- |
+| In-skill (default)        | Works within Claude Code automatically | Most users             |
+| CLI shim (`omw-dispatch`) | `bin/omw-dispatch` on PATH             | Scripting / CI         |
+| Docker                    | `docker/docker-compose.yml`            | Full backend isolation |
+
+### Shipped team templates
+
+| Template               | Mode       | Workers                                                                                     |
+| ---------------------- | ---------- | ------------------------------------------------------------------------------------------- |
+| `review-pipeline`      | parallel   | fact-checker (claude) + consistency-checker (codex) + terminology-manager (gemini)          |
+| `translation-pipeline` | sequential | translator (claude) -> polisher (gemini)                                                    |
+| `draft-to-publish`     | mixed      | scaffolder (codex) -> polisher (claude) -> [fact-checker + consistency-checker] in parallel |
+
 ## Storage
 
 - The vault registry lives at `data/registry.db` as a per-user sqlite database (gitignored).
