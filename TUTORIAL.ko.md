@@ -720,6 +720,43 @@ pypdf 는 일부 한글 인코딩 처리가 약합니다.
 설치된 페르소나 목록 조회: `python3 -m scripts.personas list`
 특정 페르소나의 전체 프롬프트 확인: `python3 -m scripts.personas show <name>`
 
+### Q: 초안을 마무리하는 중인데, 발행 전에 사실 확인을 하고 싶어요.
+
+**"이 초안 팩트체크해줘"** 또는 **"fact-check this"** 라고 요청해 보세요.
+fact-checker 페르소나가 초안을 원자 단위 주장으로 쪼개고, 주장마다
+웹 검색을 돌려서 검증한 다음, `<원본>.factcheck.md` 파일로 옆에 리포트를
+남깁니다.
+리포트에는 주장 표(근거 있음 / 반박됨 / 부분 일치 / 검증 불가) 와 출처 URL 이
+들어 있습니다.
+
+검색 예산은 주장당 약 3회입니다.
+주장이 50개 넘는 큰 초안은 "foo.md 의 API 섹션만 팩트체크해줘" 처럼 범위를
+좁히는 게 좋습니다.
+
+### Q: 위키 안에서 페이지끼리 서로 어긋나는 부분을 찾고 싶어요.
+
+**"위키에서 모순 있는지 봐줘"** 라고 요청하세요.
+consistency-checker 가 먼저 `wiki_lint` 로 후보 쌍 (예: "X 이다" vs "X 가 아니다")
+을 모은 다음, 각 쌍을 `confirmed` (진짜 모순) / `nuanced` (관점·시점이
+달라 둘 다 가능) / `false_positive` (오탐) 로 판정합니다.
+JSON 형태로 stdout 에 출력합니다.
+
+특정 문서만 보고 싶을 때는 **"이 페이지 안에 모순 있어?"** 라고 물어보세요.
+
+### Q: 같은 개념을 "LLM" 과 "Large Language Model" 로 섞어 써서 정리가 안 돼요.
+
+**"내 위키 용어집 만들어줘"** 라고 요청하세요.
+terminology-manager 가 `wiki/` 페이지를 훑어서 표준 형태 (canonical) 와
+별칭 (aliases) 을 정리하고, `<vault>/.oh-my-wiki/glossary.db` 에 영구
+저장합니다.
+별칭에 들어 있지 않은 표기는 inconsistency 로 보고합니다.
+
+저장된 용어집은 언제든 아래 명령으로 살펴볼 수 있습니다.
+
+```bash
+python3 -m scripts.glossary list --vault-root <vault> --vault-id 1
+```
+
 ### Q. v2.0 에서 lint 는 어떤 검사를 새로 합니까?
 
 wiki-mode vault 에서 4가지 구조적 candidate 카테고리가 추가됐습니다.

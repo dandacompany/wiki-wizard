@@ -694,6 +694,40 @@ Four reusable agent personas for writing tasks:
 
 Each persona is a markdown file at `personas/<role>.md` with YAML frontmatter declaring its contract. To list all installed personas: `python3 -m scripts.personas list`. To show one persona's full prompt: `python3 -m scripts.personas show <name>`.
 
+### Q: I'm finishing a draft. How do I sanity-check the facts before publishing?
+
+Ask: **"fact-check this draft"** while the file is open or the vault page is
+active. The fact-checker persona decomposes your draft into atomic claims,
+runs targeted web searches per claim, and writes a sibling report at
+`<your-page>.factcheck.md` with a verdict table (supported / contradicted /
+partial / unverifiable) and source URLs.
+
+Budget: ~3 searches per claim. For drafts with 50+ claims, scope to one
+section ("fact-check the API section of foo.md") so the run finishes.
+
+### Q: Different pages in my vault contradict each other. How do I find them?
+
+Ask: **"check my wiki for contradictions"**. The consistency-checker first
+runs `wiki_lint` to get candidate pairs (pattern-based: "is X" vs
+"is not X", etc.), then judges each as `confirmed` (real contradiction),
+`nuanced` (different scope/time, both can be true), or `false_positive`.
+JSON output goes to stdout.
+
+For single-doc check: **"check this page for contradictions"**.
+
+### Q: My wiki uses "LLM" and "Large Language Model" inconsistently. Help.
+
+Ask: **"build a glossary for my vault"**. The terminology-manager scans
+your `wiki/` pages, extracts canonical terms with aliases, writes a
+per-vault glossary at `<vault>/.oh-my-wiki/glossary.db`, and flags any
+surface forms not in the alias list.
+
+Browse the glossary anytime with:
+
+```bash
+python3 -m scripts.glossary list --vault-root <vault> --vault-id 1
+```
+
 ### Q. What new checks does `lint` run in v2.0?
 
 Four new structural candidate categories on wiki-mode vaults:

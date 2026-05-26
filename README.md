@@ -215,6 +215,38 @@ python3 -m scripts.personas run translator \
 
 Persona definitions are plain markdown; add your own under `personas/` and they appear in `list` automatically (must pass the frontmatter schema).
 
+## Review personas (v2.2b)
+
+Three review personas lift drafts from "drafted" to "shippable":
+
+- **fact-checker** — decomposes a doc into atomic claims, verifies each
+  via Bright Data MCP web search, writes a sibling report at
+  `<page>.factcheck.md` with verdict + confidence + sources per claim.
+- **consistency-checker** — judges contradictions found by `wiki_lint`
+  (single-doc or vault-wide) as `confirmed` / `nuanced` /
+  `false_positive`. JSON to stdout.
+- **terminology-manager** — extracts canonical terms with aliases and
+  definitions into a per-vault glossary at
+  `<vault>/.oh-my-wiki/glossary.db`. Flags inconsistent surface forms.
+  JSON to stdout.
+
+### Invoke
+
+```text
+fact-check this draft
+check this for contradictions
+build a glossary for my vault
+```
+
+### Glossary CLI
+
+```bash
+python3 -m scripts.glossary list --vault-root <vault> --vault-id 1
+python3 -m scripts.glossary upsert --vault-root <vault> --vault-id 1 \
+    --canonical "LLM" --alias "Large Language Model" --definition "..."
+python3 -m scripts.glossary lint --vault-root <vault> --vault-id 1
+```
+
 ## Storage
 
 - The vault registry lives at `data/registry.db` as a per-user sqlite database (gitignored).
