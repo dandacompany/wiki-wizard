@@ -110,6 +110,23 @@ status: meta
 ## Glossary
 """
 
+_WEBSITE_INDEX_TEMPLATE = """---
+title: Website Index
+type: meta
+status: meta
+---
+
+## Pages
+
+## Posts
+
+## Assets
+
+## SEO
+
+## Outlines
+"""
+
 
 class MarkdownAdapter:
     """Plain-markdown adapter — works with any editor (VS Code, Cursor, etc.)."""
@@ -140,6 +157,8 @@ class MarkdownAdapter:
             self._init_business(root)
         elif mode == "github-codebase":
             self._init_github_codebase(root)
+        elif mode == "website":
+            self._init_website(root)
         else:
             raise AdapterError(f"unknown mode: {mode!r}")
 
@@ -186,6 +205,13 @@ class MarkdownAdapter:
         index_path = root / "index.md"
         if not index_path.exists():
             index_path.write_text(_GITHUB_CODEBASE_INDEX_TEMPLATE, encoding="utf-8")
+
+    def _init_website(self, root: Path) -> None:
+        for sub in ("pages", "posts", "assets", "seo", "outlines"):
+            (root / sub).mkdir(exist_ok=True)
+        index_path = root / "index.md"
+        if not index_path.exists():
+            index_path.write_text(_WEBSITE_INDEX_TEMPLATE, encoding="utf-8")
 
     def is_valid(self, root: Path) -> bool:
         return Path(root).is_dir()

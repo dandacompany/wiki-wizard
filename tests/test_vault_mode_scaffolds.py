@@ -42,3 +42,18 @@ def test_github_codebase_mode_scaffolds_modules_apis_decisions_runbooks_glossary
     for sub in ("modules", "apis", "decisions", "runbooks", "glossary", ".trash"):
         assert (root / sub).is_dir(), f"missing {sub}/"
     assert (root / "index.md").exists()
+
+
+def test_website_mode_scaffolds_pages_posts_assets_seo_outlines(tmp_path):
+    root = tmp_path / "site-vault"
+    adapters.get_adapter("markdown").init_vault(root, "website")
+    for sub in ("pages", "posts", "assets", "seo", "outlines", ".trash"):
+        assert (root / sub).is_dir(), f"missing {sub}/"
+    assert (root / "index.md").exists()
+
+
+def test_unknown_mode_still_raises(tmp_path):
+    root = tmp_path / "weird-vault"
+    import pytest as _pytest
+    with _pytest.raises(adapters.AdapterError, match="unknown mode"):
+        adapters.get_adapter("markdown").init_vault(root, "not-a-real-mode")
