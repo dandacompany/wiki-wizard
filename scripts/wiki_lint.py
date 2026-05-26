@@ -12,6 +12,16 @@ ORPHAN_GRACE_DAYS = 7
 
 # Matches [[target]] or [[target|alias]] — captures the target slug
 _WIKILINK_RE = re.compile(r"\[\[([^\]|#]+)(?:\|[^\]]+)?\]\]")
+
+# v2.0 candidate detection
+STALE_CLAIM_AGE_DAYS = 180
+STALE_CLAIM_PHRASES = ("currently", "as of", "the latest")
+CONTRADICTION_PAIRS = [
+    ("is faster", "is not faster"),
+    ("supports", "contradicts"),
+    ("is", "is not"),
+    ("can", "cannot"),
+]
 # Matches [text](./path.md) — captures relpath (without ./ prefix)
 _MDLINK_RE = re.compile(r"\[[^\]]+\]\(\./([^)]+\.md)\)")
 
@@ -37,6 +47,11 @@ def check(db_path: Path, *, vault_id: int) -> dict:
         "missing_concepts": _missing_concepts(pages, root),
         "empty_data":       _empty_data(pages),
         "dangling_links":   _dangling_links(pages, root),
+        # v2.0 additions:
+        "contradiction_candidates": _contradiction_candidates(pages),
+        "stale_claim_candidates":   _stale_claim_candidates(pages),
+        "link_bidirectionality_gaps": [],   # Task 14
+        "terminology_drift_candidates": [], # Task 14
     }
 
 
@@ -170,4 +185,61 @@ def _dangling_links(
             target_path = wiki_dir / target_rel
             if not target_path.exists():
                 out.append({"source": rel, "target": target_rel})
+    return out
+
+
+def _contradiction_candidates(
+    pages: list[tuple[str, str, float]],
+) -> list[dict]:
+    """For every pair of pages that share at least one wikilink target,
+    flag them as a candidate if their bodies contain opposing-verb pairs.
+    Final verdict is LLM-judged in commands/lint.md."""
+    targets_by_page: dict[str, set[str]] = {}
+    bodies_by_page: dict[str, str] = {}
+    for rel, body, _mt in pages:
+        targets_by_page[rel] = {m.group(1).strip() for m in _WIKILINK_RE.finditer(body)}
+        bodies_by_page[rel] = body.lower()
+
+    out: list[dict] = []
+    relpaths = sorted(targets_by_page.keys())
+    for i, a in enumerate(relpaths):
+        for b in relpaths[i + 1:]:
+            shared = targets_by_page[a] & targets_by_page[b]
+            if not shared:
+                continue
+            body_a = bodies_by_page[a]
+            body_b = bodies_by_page[b]
+            for pos, neg in CONTRADICTION_PAIRS:
+                if (pos in body_a and neg in body_b) or (neg in body_a and pos in body_b):
+                    for entity in sorted(shared):
+                        out.append({
+                            "page_a": a,
+                            "page_b": b,
+                            "shared_entity": entity,
+                            "lexicon_pair": [pos, neg],
+                            "verdict": "candidate",
+                        })
+                    break
+    return out
+
+
+def _stale_claim_candidates(
+    pages: list[tuple[str, str, float]],
+) -> list[dict]:
+    now = time.time()
+    out: list[dict] = []
+    for rel, body, mt in pages:
+        age_days = int((now - mt) / 86400)
+        if age_days < STALE_CLAIM_AGE_DAYS:
+            continue
+        body_lc = body.lower()
+        for phrase in STALE_CLAIM_PHRASES:
+            if phrase in body_lc:
+                out.append({
+                    "relpath": rel,
+                    "claim_phrase": phrase,
+                    "age_days": age_days,
+                    "verdict": "candidate",
+                })
+                break
     return out
