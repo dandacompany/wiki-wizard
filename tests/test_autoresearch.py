@@ -321,3 +321,93 @@ def test_cli_init_then_record_then_status(wiki_vault):
     result = _json.loads(proc.stdout)
     assert result["stop"] is True
     assert result["reason"] == "no_gaps"
+
+
+def test_full_autoresearch_loop_3_rounds_then_file_back(wiki_vault):
+    db, vault, root = wiki_vault
+
+    # Simulate what commands/autoresearch.md does without invoking MCP
+    info = autoresearch.init_session(
+        db, vault_id=vault["id"],
+        query="How does attention enable parallel training compared to RNN?",
+        max_rounds=3,
+    )
+    session_dir = Path(info["session_dir"])
+
+    # Round 1: 3 claims with mixed confidence, 1 gap remaining
+    autoresearch.record_round(
+        session_dir, round_num=1,
+        claims=[
+            {"claim": "attention computes all token pairs in parallel",
+             "confidence": "high", "sources": ["https://arxiv.org/abs/1706.03762"]},
+            {"claim": "RNN hidden state depends on previous timestep",
+             "confidence": "high", "sources": ["nn-textbook-ch5"]},
+            {"claim": "multi-head attention adds expressive capacity",
+             "confidence": "medium", "sources": ["https://arxiv.org/abs/1706.03762"]},
+        ],
+        gaps_remaining=["quantify the speedup ratio in practice"],
+    )
+
+    # Round 2: 1 more claim, no gaps left
+    autoresearch.record_round(
+        session_dir, round_num=2,
+        claims=[
+            {"claim": "in practice attention is ~10x faster at training due to GPU parallelism",
+             "confidence": "medium", "sources": ["blog-post-benchmark"]},
+        ],
+        gaps_remaining=[],
+    )
+
+    # should-stop reports no_gaps
+    stop, reason = autoresearch.should_stop(session_dir)
+    assert stop is True and reason == "no_gaps"
+
+    # status snapshot
+    s = autoresearch.session_status(session_dir)
+    assert s["rounds_completed"] == 2
+    assert s["filed"] is False
+
+    # File back
+    body = (
+        "Attention enables full parallelism across token pairs, while RNNs serialize\n"
+        "computation through their hidden-state recurrence. In practice this yields\n"
+        "roughly an order of magnitude speedup at training time on modern GPUs."
+    )
+    relpath = autoresearch.file_back(
+        db, vault_id=vault["id"],
+        session_dir=session_dir,
+        title="Attention parallelism beats RNN serialism",
+        body=body,
+        citations=[
+            "https://arxiv.org/abs/1706.03762",
+            "nn-textbook-ch5",
+            "blog-post-benchmark",
+        ],
+        tags=["attention", "rnn", "transformer", "parallelism"],
+        date_str="2026-05-26",
+    )
+
+    # Verify the full file-back surface
+    assert relpath == "wiki/syntheses/attention-parallelism-beats-rnn-serialism.md"
+    page = (root / relpath).read_text(encoding="utf-8")
+    assert "type: synthesis" in page
+    assert "Attention enables full parallelism" in page
+    assert "citations:" in page
+
+    index_text = (root / "wiki" / "index.md").read_text(encoding="utf-8")
+    assert "attention-parallelism-beats-rnn-serialism" in index_text
+
+    log_text = (root / "wiki" / "log.md").read_text(encoding="utf-8")
+    assert "autoresearch" in log_text
+    assert "Attention parallelism beats RNN serialism" in log_text
+
+    # filed.json marker present
+    s_final = autoresearch.session_status(session_dir)
+    assert s_final["filed"] is True
+
+    # Session dir has the expected artifacts
+    expected_files = {
+        "mission.json", "round-1.json", "round-2.json", "filed.json",
+    }
+    actual_files = {p.name for p in session_dir.iterdir()}
+    assert expected_files.issubset(actual_files)
