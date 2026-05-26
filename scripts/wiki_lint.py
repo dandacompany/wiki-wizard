@@ -1,6 +1,7 @@
 """Wiki-mode structural lint: orphan/missing/empty/dangling checks."""
 from __future__ import annotations
 
+import difflib
 import re
 import time
 from collections import Counter, defaultdict
@@ -24,6 +25,10 @@ CONTRADICTION_PAIRS = [
 ]
 # Matches [text](./path.md) — captures relpath (without ./ prefix)
 _MDLINK_RE = re.compile(r"\[[^\]]+\]\(\./([^)]+\.md)\)")
+
+# v2.0 bidir / drift constants
+LINK_BIDIR_LAYERS = {"entities", "concepts"}
+TERMINOLOGY_DRIFT_THRESHOLD = 0.85
 
 
 def check(db_path: Path, *, vault_id: int) -> dict:
@@ -50,8 +55,8 @@ def check(db_path: Path, *, vault_id: int) -> dict:
         # v2.0 additions:
         "contradiction_candidates": _contradiction_candidates(pages),
         "stale_claim_candidates":   _stale_claim_candidates(pages),
-        "link_bidirectionality_gaps": [],   # Task 14
-        "terminology_drift_candidates": [], # Task 14
+        "link_bidirectionality_gaps":   _link_bidirectionality_gaps(pages, root),
+        "terminology_drift_candidates": _terminology_drift_candidates(pages, root),
     }
 
 
@@ -242,4 +247,117 @@ def _stale_claim_candidates(
                     "verdict": "candidate",
                 })
                 break
+    return out
+
+
+def _layer_of(relpath: str) -> str:
+    """Returns 'summaries', 'entities', 'concepts', etc. or '' for top-level files."""
+    parts = relpath.split("/")
+    if len(parts) >= 3 and parts[0] == "wiki":
+        return parts[1]
+    return ""
+
+
+def _link_bidirectionality_gaps(
+    pages: list[tuple[str, str, float]],
+    root: Path,
+) -> list[dict]:
+    """For every link A → B where A and B are both wiki pages,
+    flag if B does NOT link back to A.
+    Same-layer constraint: only flag when both pages are in
+    LINK_BIDIR_LAYERS (entities or concepts). Cross-layer
+    (summary → entity, etc.) is normal and never flagged.
+    """
+    slug_to_rel: dict[str, str] = {}
+    for rel, _body, _mt in pages:
+        slug_to_rel[_slug_from_relpath(rel)] = rel
+
+    outgoing: dict[str, set[str]] = {rel: set() for rel, _b, _m in pages}
+    for rel, body, _mt in pages:
+        for m in _WIKILINK_RE.finditer(body):
+            tgt = m.group(1).strip()
+            if tgt in slug_to_rel:
+                outgoing[rel].add(slug_to_rel[tgt])
+        for m in _MDLINK_RE.finditer(body):
+            tgt_slug = _slug_from_relpath(m.group(1))
+            if tgt_slug in slug_to_rel:
+                outgoing[rel].add(slug_to_rel[tgt_slug])
+
+    out: list[dict] = []
+    for src, targets in outgoing.items():
+        src_layer = _layer_of(src)
+        for tgt in targets:
+            tgt_layer = _layer_of(tgt)
+            same_layer = src_layer == tgt_layer
+            both_in_bidir_layers = (
+                src_layer in LINK_BIDIR_LAYERS and tgt_layer in LINK_BIDIR_LAYERS
+            )
+            if not (same_layer and both_in_bidir_layers):
+                continue
+            if src not in outgoing.get(tgt, set()):
+                out.append({
+                    "source": src,
+                    "target": tgt,
+                    "same_layer": True,
+                })
+    return out
+
+
+def _slug_similarity(a: str, b: str) -> float:
+    """Return the higher of raw SequenceMatcher ratio and token-set ratio.
+
+    Token-set ratio sorts the hyphen-delimited tokens before comparing, which
+    catches "andrej-karpathy" vs "karpathy-andrej" style drift where the same
+    words appear in a different order.
+    """
+    raw = difflib.SequenceMatcher(None, a, b).ratio()
+    a_sorted = "-".join(sorted(a.split("-")))
+    b_sorted = "-".join(sorted(b.split("-")))
+    token_set = difflib.SequenceMatcher(None, a_sorted, b_sorted).ratio()
+    return max(raw, token_set)
+
+
+def _terminology_drift_candidates(
+    pages: list[tuple[str, str, float]],
+    root: Path,
+) -> list[dict]:
+    """Find pairs of existing slugs whose names are highly similar AND that
+    are referenced from the same source page.
+
+    Similarity is the max of the raw SequenceMatcher ratio and a token-set
+    ratio (tokens sorted before comparison) so that word-reorder variants like
+    "andrej-karpathy" / "karpathy-andrej" are also detected.
+    """
+    slugs: list[str] = sorted({_slug_from_relpath(rel) for rel, _b, _m in pages})
+
+    co_ref: dict[str, set[str]] = {}
+    for rel, body, _mt in pages:
+        refs: set[str] = set()
+        for m in _WIKILINK_RE.finditer(body):
+            refs.add(m.group(1).strip())
+        for m in _MDLINK_RE.finditer(body):
+            refs.add(_slug_from_relpath(m.group(1)))
+        co_ref[rel] = refs
+
+    out: list[dict] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for i, a in enumerate(slugs):
+        for b in slugs[i + 1:]:
+            if (a, b) in seen_pairs:
+                continue
+            ratio = _slug_similarity(a, b)
+            if ratio < TERMINOLOGY_DRIFT_THRESHOLD:
+                continue
+            co_ref_pages = sorted(
+                rel for rel, refs in co_ref.items() if a in refs and b in refs
+            )
+            if not co_ref_pages:
+                continue
+            seen_pairs.add((a, b))
+            out.append({
+                "slug_a": a,
+                "slug_b": b,
+                "similarity": round(ratio, 3),
+                "co_referenced_in": co_ref_pages,
+            })
     return out
