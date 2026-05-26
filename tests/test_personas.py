@@ -108,3 +108,74 @@ def test_resolve_input_no_input_raises():
 def test_resolve_input_multiple_inputs_raises(tmp_path):
     with pytest.raises(personas.PersonaError, match="exactly one"):
         personas.resolve_input(text="x", file_path=tmp_path / "y.md")
+
+
+def test_resolve_output_path_sibling_for_translator(wiki_vault):
+    db, vault, root = wiki_vault
+    src = root / "wiki" / "summaries" / "demo.md"
+    src.parent.mkdir(parents=True, exist_ok=True)
+    src.write_text("x", encoding="utf-8")
+    persona = personas.load_persona("translator")
+    path = personas.resolve_output_path(
+        persona=persona,
+        source_meta={"kind": "vault_page", "origin": src},
+        lang="ko",
+    )
+    assert path == src.with_name("demo.ko.md")
+
+
+def test_resolve_output_path_sibling_requires_lang(wiki_vault):
+    db, vault, root = wiki_vault
+    src = root / "wiki" / "summaries" / "demo.md"
+    src.parent.mkdir(parents=True, exist_ok=True)
+    src.write_text("x", encoding="utf-8")
+    persona = personas.load_persona("translator")
+    with pytest.raises(personas.PersonaError, match="lang"):
+        personas.resolve_output_path(
+            persona=persona,
+            source_meta={"kind": "vault_page", "origin": src},
+        )
+
+
+def test_resolve_output_path_inplace_for_polisher(tmp_path):
+    src = tmp_path / "draft.md"
+    src.write_text("x", encoding="utf-8")
+    persona = personas.load_persona("polisher")
+    path = personas.resolve_output_path(
+        persona=persona,
+        source_meta={"kind": "file", "origin": src},
+    )
+    assert path == src
+
+
+def test_resolve_output_path_new_page_for_scaffolder(wiki_vault):
+    db, vault, root = wiki_vault
+    persona = personas.load_persona("scaffolder")
+    path = personas.resolve_output_path(
+        persona=persona,
+        source_meta={"kind": "text", "origin": None},
+        db_path=db,
+        vault_id=vault["id"],
+        title="My New Topic",
+    )
+    assert path == root / "wiki" / "syntheses" / "my-new-topic.md"
+
+
+def test_resolve_output_path_new_page_requires_title(wiki_vault):
+    db, vault, root = wiki_vault
+    persona = personas.load_persona("scaffolder")
+    with pytest.raises(personas.PersonaError, match="title"):
+        personas.resolve_output_path(
+            persona=persona,
+            source_meta={"kind": "text", "origin": None},
+            db_path=db, vault_id=vault["id"],
+        )
+
+
+def test_resolve_output_path_stdout_for_summarizer():
+    persona = personas.load_persona("summarizer")
+    path = personas.resolve_output_path(
+        persona=persona,
+        source_meta={"kind": "text", "origin": None},
+    )
+    assert path is None

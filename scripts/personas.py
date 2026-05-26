@@ -131,3 +131,57 @@ def resolve_input(
         abs_path.read_text(encoding="utf-8"),
         {"kind": "vault_page", "origin": abs_path},
     )
+
+
+def resolve_output_path(
+    *,
+    persona: dict,
+    source_meta: dict,
+    db_path: Path | None = None,
+    vault_id: int | None = None,
+    lang: str | None = None,
+    title: str | None = None,
+) -> Path | None:
+    """Compute where this persona's output should be filed.
+    Returns None for stdout kind."""
+    from scripts import slugify as _slugify
+    kind = persona["output_kind"]
+
+    if kind == "stdout":
+        return None
+
+    if kind == "sibling_file":
+        if not lang:
+            raise PersonaError("sibling_file output requires lang= argument")
+        origin = source_meta.get("origin")
+        if origin is None:
+            raise PersonaError("sibling_file output requires source with origin path")
+        origin = Path(origin)
+        stem = origin.stem
+        return origin.with_name(f"{stem}.{lang}{origin.suffix}")
+
+    if kind == "inplace":
+        origin = source_meta.get("origin")
+        if origin is None:
+            raise PersonaError("inplace output requires source with origin path")
+        return Path(origin)
+
+    if kind == "new_page":
+        if not title:
+            raise PersonaError("new_page output requires title= argument")
+        if db_path is None or vault_id is None:
+            raise PersonaError("new_page output requires db_path and vault_id")
+        from scripts import registry as _registry
+        conn = _registry.connect(db_path)
+        try:
+            row = conn.execute(
+                "SELECT path FROM vaults WHERE id = ?", (vault_id,)
+            ).fetchone()
+        finally:
+            conn.close()
+        if row is None:
+            raise PersonaError(f"unknown vault_id={vault_id}")
+        slug = _slugify.slugify(title)
+        return Path(row["path"]) / "wiki" / "syntheses" / f"{slug}.md"
+
+    raise PersonaError(f"unsupported output_kind: {kind!r}")
