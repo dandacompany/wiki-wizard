@@ -1,0 +1,43 @@
+{
+  "name": "oh-my-wiki",
+  "version": "2.0.0",
+  "description": "Karpathy-style LLM Wiki skill with multi-vault sqlite registry. Capture sources, build a structured wiki, query it with cited answers. Also addressable as 'omw'.",
+  "author": "dandacompany",
+  "license": "MIT",
+  "homepage": "https://github.com/dandacompany/oh-my-wiki",
+  "repository": "https://github.com/dandacompany/oh-my-wiki",
+  "trigger_keywords": [
+    "open my wiki",
+    "ingest this",
+    "find a note about X",
+    "what does my wiki say about X",
+    "omw",
+    "use omw",
+    "/omw",
+    "위키 열어줘",
+    "이거 정리해줘",
+    "X 관련 노트 찾아줘",
+    "위키에 물어봐",
+    "오엠더블유"
+  ],
+  "ops": [
+    "vault-setup",
+    "vault-use",
+    "vault-list",
+    "vault-forget",
+    "vault-import-memo",
+    "create",
+    "find",
+    "open",
+    "edit",
+    "move",
+    "delete",
+    "ingest",
+    "query",
+    "lint",
+    "hot-cache"
+  ],
+  "skill_path": "./SKILL.md",
+  "commands_path": "./commands",
+  "scripts_path": "./scripts"
+}
