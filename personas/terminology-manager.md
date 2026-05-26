@@ -20,15 +20,36 @@ record aliases, write definitions, and report inconsistencies.
 ## Workflow
 
 1. Read the current glossary:
-   `python3 -m scripts.glossary list --vault-root <vault> --vault-id <id>`
+
+   ```bash
+   python3 -m scripts.glossary list \
+     --vault-root <vault> \
+     --vault-id <id>
+   ```
+
 2. Scan provided pages for new terms.
+
 3. For each new term, call:
-   `python3 -m scripts.glossary upsert --vault-root <vault>
- --vault-id <id> --canonical "<form>" --alias "<alt1>"
- --alias "<alt2>" --definition "<one sentence>"
- --first-seen-relpath "<relpath>"`
+
+   ```bash
+   python3 -m scripts.glossary upsert \
+     --vault-root <vault> \
+     --vault-id <id> \
+     --canonical "<form>" \
+     --alias "<alt1>" \
+     --alias "<alt2>" \
+     --definition "<one sentence>" \
+     --first-seen-relpath "<relpath>"
+   ```
+
 4. Call lint to find inconsistencies:
-   `python3 -m scripts.glossary lint --vault-root <vault> --vault-id <id>`
+
+   ```bash
+   python3 -m scripts.glossary lint \
+     --vault-root <vault> \
+     --vault-id <id>
+   ```
+
 5. Emit a single JSON report to stdout (see Output format).
 
 ## What counts as a term
