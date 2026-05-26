@@ -277,3 +277,94 @@ def test_build_invocation_extra_args_appended():
     )
     assert "--output-format" in argv
     assert "stream-json" in argv
+
+
+# ---------------------------------------------------------------------------
+# Fake-backend integration: OMW_BACKEND_OVERRIDE_PATH
+# ---------------------------------------------------------------------------
+import os
+import stat
+
+
+FAKES_DIR = PROJECT_ROOT / "tests" / "fakes"
+
+
+@pytest.mark.parametrize("backend,cli_name", [
+    ("claude", "claude"),
+    ("codex", "codex"),
+    ("gemini", "gemini"),
+    ("opencode", "opencode"),
+])
+def test_detect_available_finds_fake_backends(backend, cli_name, tmp_path):
+    """With OMW_BACKEND_OVERRIDE_PATH pointing at tests/fakes/, detect_available
+    should report all 4 backends as installed."""
+    assert FAKES_DIR.exists(), f"tests/fakes/ not found at {FAKES_DIR}"
+    result = backends.detect_available(override_path=str(FAKES_DIR))
+    assert result[backend]["installed"] is True, (
+        f"fake {backend} not detected; fakes dir: {list(FAKES_DIR.iterdir())}"
+    )
+
+
+@pytest.mark.parametrize("backend,cli_name,fake_script", [
+    ("claude", "claude", "claude-fake.sh"),
+    ("codex", "codex", "codex-fake.sh"),
+    ("gemini", "gemini", "gemini-fake.sh"),
+    ("opencode", "opencode", "opencode-fake.sh"),
+])
+def test_fake_script_is_executable(backend, cli_name, fake_script):
+    """Each *-fake.sh must be executable (chmod +x)."""
+    script_path = FAKES_DIR / fake_script
+    assert script_path.exists(), f"{fake_script} not found at {script_path}"
+    assert os.access(script_path, os.X_OK), f"{fake_script} is not executable"
+
+
+@pytest.mark.parametrize("backend,symlink_name,fake_script", [
+    ("claude", "claude", "claude-fake.sh"),
+    ("codex", "codex", "codex-fake.sh"),
+    ("gemini", "gemini", "gemini-fake.sh"),
+    ("opencode", "opencode", "opencode-fake.sh"),
+])
+def test_bare_name_symlink_exists_and_points_to_fake(backend, symlink_name, fake_script):
+    """Bare-name symlink (no .sh) must exist and resolve to *-fake.sh."""
+    symlink_path = FAKES_DIR / symlink_name
+    assert symlink_path.exists(), f"symlink {symlink_name!r} not found at {symlink_path}"
+    assert symlink_path.is_symlink(), f"{symlink_name!r} is not a symlink"
+    target = symlink_path.resolve().name
+    assert target == fake_script, (
+        f"symlink {symlink_name!r} points to {target!r}, expected {fake_script!r}"
+    )
+
+
+@pytest.mark.parametrize("backend,cli_name", [
+    ("claude", "claude"),
+    ("codex", "codex"),
+    ("gemini", "gemini"),
+    ("opencode", "opencode"),
+])
+def test_fake_dry_run_produces_output(backend, cli_name, tmp_path):
+    """Running the fake via PATH override should write output to OMW_FAKE_OUTPUT_PATH."""
+    output_file = tmp_path / f"{backend}-output.txt"
+    env = os.environ.copy()
+    env["PATH"] = f"{FAKES_DIR}:{env.get('PATH', '')}"
+    env["OMW_FAKE_OUTPUT_PATH"] = str(output_file)
+
+    # Use build_invocation to get real argv, then run it
+    argv = backends.build_invocation(
+        backend,
+        persona_body="Test persona body.",
+        task_prompt="Test task prompt.",
+        model="test-model",
+        skip_permissions=False,
+    )
+    result = subprocess.run(argv, env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, (
+        f"fake {backend} exited {result.returncode}; "
+        f"stdout={result.stdout!r}; stderr={result.stderr!r}"
+    )
+    assert output_file.exists(), (
+        f"OMW_FAKE_OUTPUT_PATH file not written by fake {backend}"
+    )
+    content = output_file.read_text(encoding="utf-8")
+    assert f"FAKE-{backend.upper()}" in content, (
+        f"Expected 'FAKE-{backend.upper()}' in output; got: {content!r}"
+    )
