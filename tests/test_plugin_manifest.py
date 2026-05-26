@@ -92,10 +92,52 @@ def test_plugin_json_lists_v2_2b_review_persona_ops():
 
 
 def test_plugin_json_version_bumped_to_2_2_1():
+    # Version was 2.2.1; bumped to 2.3.0 in Task 16. Test kept for history;
+    # TestV23ManifestOps.test_version_is_2_3_0 is the authoritative version check.
     import json
     from pathlib import Path
     manifest = json.loads(
         (Path(__file__).resolve().parents[1] / ".claude-plugin/plugin.json")
         .read_text(encoding="utf-8")
     )
-    assert manifest["version"] == "2.2.1"
+    assert manifest["version"] >= "2.2.1", \
+        f"version should be >= 2.2.1, got {manifest['version']}"
+
+
+# ---- Task 16: v2.3 manifest tests -------------------------------------------
+import json
+from pathlib import Path
+
+
+class TestV23ManifestOps:
+    """Verify plugin.json has the 3 new v2.3 ops and trigger keywords."""
+
+    PLUGIN = json.loads(
+        (Path(__file__).parent.parent / ".claude-plugin" / "plugin.json").read_text()
+    )
+
+    def test_version_is_2_3_0(self):
+        assert self.PLUGIN["version"] == "2.3.0", \
+            f"Expected 2.3.0, got {self.PLUGIN['version']}"
+
+    def test_ops_include_dispatch(self):
+        ops = [op["name"] if isinstance(op, dict) else op for op in self.PLUGIN.get("ops", [])]
+        assert "dispatch" in ops, "'dispatch' op missing from plugin.json"
+
+    def test_ops_include_team(self):
+        ops = [op["name"] if isinstance(op, dict) else op for op in self.PLUGIN.get("ops", [])]
+        assert "team" in ops, "'team' op missing from plugin.json"
+
+    def test_ops_include_team_run(self):
+        ops = [op["name"] if isinstance(op, dict) else op for op in self.PLUGIN.get("ops", [])]
+        assert "team-run" in ops, "'team-run' op missing from plugin.json"
+
+    def test_trigger_keywords_english(self):
+        keywords = self.PLUGIN.get("trigger_keywords", [])
+        for kw in ("dispatch this", "run a team", "review this in parallel"):
+            assert kw in keywords, f"EN trigger keyword missing: {kw!r}"
+
+    def test_trigger_keywords_korean(self):
+        keywords = self.PLUGIN.get("trigger_keywords", [])
+        for kw in ("디스패치", "팀 실행", "병렬 검토"):
+            assert kw in keywords, f"KO trigger keyword missing: {kw!r}"

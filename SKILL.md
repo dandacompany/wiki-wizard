@@ -96,6 +96,9 @@ If the user input matches an op keyword, prefer that op over the wizard:
 | "build a glossary" / "용어집 만들어줘"            | `persona-terminology`                                           |
 | "omw", "OMW", "/omw", "오엠더블유"                | (alias for `oh-my-wiki`; routes through Step 1 wizard normally) |
 | "hot-cache", "session cache", "캐시 상태"         | `hot-cache`                                                     |
+| dispatch / 디스패치 / dispatch this               | `commands/dispatch.md`                                          |
+| team / 팀 실행 / run a team                       | `commands/team.md`                                              |
+| team-run / 병렬 검토 / team template              | `commands/team-run.md`                                          |
 
 ## Pasted content heuristic
 
