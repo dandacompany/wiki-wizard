@@ -25,7 +25,7 @@ def test_plugin_json_ops_resolve_to_command_files():
     """Every op listed in plugin.json must have a corresponding commands/<op>.md."""
     p = REPO_ROOT / ".claude-plugin" / "plugin.json"
     data = json.loads(p.read_text(encoding="utf-8"))
-    commands_dir = REPO_ROOT / data["commands_path"].lstrip("./")
+    commands_dir = REPO_ROOT / data["commands_path"].removeprefix("./")
     for op in data["ops"]:
         cmd_path = commands_dir / f"{op}.md"
         assert cmd_path.exists(), f"op {op!r} declared but {cmd_path} missing"
@@ -63,5 +63,5 @@ def test_marketplace_plugin_manifest_paths_resolve():
     p = REPO_ROOT / ".claude-plugin" / "marketplace.json"
     data = json.loads(p.read_text(encoding="utf-8"))
     for entry in data["plugins"]:
-        manifest_path = REPO_ROOT / entry["manifest"].lstrip("./")
+        manifest_path = REPO_ROOT / entry["manifest"].removeprefix("./")
         assert manifest_path.exists(), f"manifest path {manifest_path} not found"
