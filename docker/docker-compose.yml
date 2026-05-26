@@ -1,0 +1,33 @@
+# oh-my-wiki v2.3 reference docker-compose
+# Named volumes store each backend's auth credentials across restarts.
+# This is optional -- most users run OMW on their host directly.
+services:
+  omw:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: oh-my-wiki:2.3.0
+    container_name: oh-my-wiki
+    volumes:
+      # Bind-mount your vault (set OMW_VAULT_PATH in your shell)
+      - type: bind
+        source: ${OMW_VAULT_PATH:-~/wiki}
+        target: /vault
+      # Named volumes for each backend's auth config dirs
+      - claude-config:/home/omwuser/.config/claude
+      - opencode-config:/home/omwuser/.config/opencode
+      - gemini-config:/home/omwuser/.config/gemini
+      - codex-config:/home/omwuser/.config/codex
+      # Dispatch session artifacts and OMW metadata
+      - omw-work:/home/omwuser/.oh-my-wiki
+    environment:
+      - OMW_VAULT=/vault
+    stdin_open: true
+    tty: true
+
+volumes:
+  claude-config:
+  opencode-config:
+  gemini-config:
+  codex-config:
+  omw-work:
