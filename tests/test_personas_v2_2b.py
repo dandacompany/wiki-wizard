@@ -114,3 +114,24 @@ def test_fact_checker_persona_loads():
     assert len(persona["body"]) > 500  # substantive prompt
     assert "atomic claim" in persona["body"].lower()
     assert "confidence" in persona["body"].lower()
+    assert persona["model_hint"] == "most_capable"
+
+
+def test_consistency_checker_persona_loads():
+    persona = personas.load_persona("consistency-checker")
+    assert persona["name"] == "consistency-checker"
+    assert persona["output_kind"] == "stdout"
+    assert "vault_page" in persona["input_kinds"]
+    assert len(persona["body"]) > 400
+    assert "contradiction" in persona["body"].lower()
+    assert persona["model_hint"] == "standard"
+
+
+def test_terminology_manager_persona_loads():
+    persona = personas.load_persona("terminology-manager")
+    assert persona["name"] == "terminology-manager"
+    assert persona["output_kind"] == "stdout"
+    assert len(persona["body"]) > 400
+    assert "glossary" in persona["body"].lower()
+    assert "canonical" in persona["body"].lower()
+    assert persona["model_hint"] == "standard"
