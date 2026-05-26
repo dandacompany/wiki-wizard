@@ -63,3 +63,30 @@ Active vault must exist.
 
 - Active vault is None → suggest `vault-use`.
 - `wiki_lint` on a memo-mode vault is skipped (not an error — the dispatcher uses mode to gate it).
+
+### v2.0 candidate categories (LLM-judged where indicated)
+
+When `vault.mode == "wiki"`, the structural report from `wiki_lint.check` now includes four additional candidate categories. Two are deterministic; two require a final LLM judgment.
+
+**Deterministic (render as-is):**
+
+- **Link bidirectionality gaps** — page A links to B, B does not link back, and both A and B live in the same `entities/` or `concepts/` layer. Render as a list of `(source → target)` pairs.
+- **Terminology drift candidates** — two existing slugs with similarity ≥ 0.85 are referenced from the same source page. Render slug pairs with similarity and the co-referencing page(s).
+
+**LLM-judged (the script emits _candidates_; you decide the verdict):**
+
+- **Contradiction candidates** — two pages share an entity reference and contain opposing-verb lexicon (`is faster` ↔ `is not faster`, etc.). For each candidate, read both pages and decide:
+  - `confirmed` — they do contradict; recommend the user reconcile
+  - `nuanced` — same claim under different conditions, not a real contradiction
+  - `false_positive` — the lexicon hit was coincidental
+
+  Render with your verdict + a one-sentence explanation.
+
+- **Stale claim candidates** — pages older than 180 days containing phrases like `currently`, `as of`, or `the latest`. For each candidate, decide:
+  - `likely_stale` — the time-sensitive phrasing is outdated; suggest the user re-verify
+  - `still_valid` — the claim happens to still hold
+  - `false_positive` — the phrase isn't actually a time-sensitive claim
+
+  Render with your verdict + a one-sentence explanation.
+
+Do NOT auto-edit pages in v2.0. Print verdicts as suggestions; let the user apply fixes via `edit` or `ingest`.

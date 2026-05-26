@@ -670,6 +670,34 @@ pypdf 는 일부 한글 인코딩 처리가 약합니다.
 > 사용자: vault-setup name=temp path=... mode=memo type=markdown
 ```
 
+### Q. 세션 사이의 컨텍스트는 어떻게 유지되나요? (v2.0)
+
+세션이 끝날 때 활성 vault 옆에 작은 `hot.md` 캐시 파일을 씁니다.
+다음 세션 시작 시 이 파일을 읽어 와서 다시 설명할 필요가 없게 됩니다.
+
+- wiki-mode vault: `<vault>/wiki/hot.md`
+- memo-mode 와 기타 mode: `<vault>/hot.md`
+
+캡은 2000자입니다.
+캡 초과 시 요약 부분이 먼저 잘립니다.
+강제 갱신은 `python3 -m scripts.hot_cache --refresh` 명령으로 가능합니다.
+조회는 `python3 -m scripts.hot_cache --on-session-start` 명령입니다.
+
+### Q. 어떤 vault mode가 있나요? (v2.0)
+
+`vault-setup` 은 `memo`, `wiki` (또는 `research`), `personal`, `book`, `business`, `github-codebase`, `website` 를 받습니다.
+각각 다른 폴더 구조를 만듭니다.
+자세한 레이아웃은 README 의 "Vault modes (v2.0)" 섹션에 있습니다.
+
+### Q. v2.0 에서 lint 는 어떤 검사를 새로 합니까?
+
+wiki-mode vault 에서 4가지 구조적 candidate 카테고리가 추가됐습니다.
+
+- **양방향 링크 갭** — A 가 B 를 참조하지만 B 는 A 를 참조하지 않고, 둘 다 같은 `entities/` 나 `concepts/` 안에 있을 때. 결정적 판단.
+- **용어 표류 candidate** — 유사도 0.85 이상인 두 slug 가 같은 출처 페이지에서 함께 언급될 때 (예: `andrej-karpathy` 와 `karpathy-andrej`). 결정적 판단.
+- **모순 candidate** — 같은 wikilink 대상을 공유하면서 반대 의미 동사를 가진 두 페이지. LLM 이 `confirmed` / `nuanced` / `false_positive` 로 최종 판정합니다.
+- **stale claim candidate** — 180일 이상 된 페이지에 `currently`, `as of`, `the latest` 같은 시간 민감 표현이 들어 있을 때. LLM 이 `likely_stale` / `still_valid` / `false_positive` 로 판정합니다.
+
 ---
 
 ## Codex CLI 에서 사용하기

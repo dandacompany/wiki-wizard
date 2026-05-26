@@ -655,6 +655,28 @@ The `obsidian://open?vault=...&file=...` URI is rejected by macOS when the app i
 > You: vault-setup name=temp path=... mode=memo type=markdown
 ```
 
+### Q. How does oh-my-wiki remember context between sessions? (v2.0)
+
+Each session writes a small `hot.md` cache file next to your active vault when it ends. The next session reads it at start so you don't have to recap.
+
+- wiki-mode vaults: `<vault>/wiki/hot.md`
+- memo-mode and other modes: `<vault>/hot.md`
+
+Cap is 2000 characters. The summary is truncated first if the cache would otherwise overflow. To force a refresh: `python3 -m scripts.hot_cache --refresh`. To inspect: `python3 -m scripts.hot_cache --on-session-start`.
+
+### Q. What vault modes are available? (v2.0)
+
+`vault-setup` accepts: `memo`, `wiki` (or `research`), `personal`, `book`, `business`, `github-codebase`, `website`. Each produces a different folder scaffold tuned to that use case. See README "Vault modes (v2.0)" for the full layout per mode.
+
+### Q. What new checks does `lint` run in v2.0?
+
+Four new structural candidate categories on wiki-mode vaults:
+
+- **Link bidirectionality gaps** — A links to B, B doesn't link back, both in `entities/` or both in `concepts/`. Deterministic.
+- **Terminology drift candidates** — slugs with ≥ 0.85 similarity that are co-referenced from a single source page (e.g. `andrej-karpathy` vs `karpathy-andrej`). Deterministic.
+- **Contradiction candidates** — pages sharing a wikilink target AND containing opposing-verb lexicon. LLM-judged: `confirmed` / `nuanced` / `false_positive`.
+- **Stale claim candidates** — pages older than 180 days containing time-sensitive phrases (`currently`, `as of`, `the latest`). LLM-judged: `likely_stale` / `still_valid` / `false_positive`.
+
 ---
 
 ## Using oh-my-wiki from Codex CLI

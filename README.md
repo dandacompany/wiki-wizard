@@ -33,7 +33,18 @@ The skill exposes 11 user-facing ops:
 
 ## Install
 
-### One-line install (recommended)
+### Via Claude Code plugin marketplace (recommended)
+
+In any Claude Code session:
+
+```
+/plugin marketplace add dandacompany/oh-my-wiki
+/plugin install oh-my-wiki@oh-my-wiki-marketplace
+```
+
+This wires the skill + hooks + commands in one shot. Update later with `/plugin marketplace update oh-my-wiki-marketplace`.
+
+### Via clone + bin/install.sh (developers, Codex CLI users)
 
 ```bash
 git clone https://github.com/dandacompany/oh-my-wiki
@@ -114,6 +125,32 @@ This registers the folder as a vault and then offers a **dry-run** of frontmatte
 - Missing concepts: `[[slug]]` referenced by two or more pages, but no page exists for it.
 - Empty data: body shorter than 50 characters, or more than half of its non-blank lines are placeholders.
 - Dangling markdown links.
+
+## Hot cache (session continuity, v2.0)
+
+Each session, oh-my-wiki reads `<active_vault>/wiki/hot.md` (wiki-mode) or `<active_vault>/hot.md` (memo-mode and other non-wiki modes) at SessionStart and refreshes it at SessionStop. The cache holds:
+
+- Active vaults and their state
+- Last 10 touched pages
+- One-paragraph summary of the previous session
+
+Cap: 2000 chars. Manual refresh: `python3 -m scripts.hot_cache --refresh`. Manual inspect: `python3 -m scripts.hot_cache --on-session-start`.
+
+The SessionStart and SessionStop bindings live in `hooks/hooks.json` and are non-blocking — if the hook fails, Claude Code keeps going.
+
+## Vault modes (v2.0)
+
+`vault-setup` accepts 7 mode names:
+
+- **memo** — flat `inbox/` for quick capture
+- **wiki** — Karpathy three-layer (`raw/` + `wiki/{summaries,entities,concepts,comparisons,syntheses}/`)
+- **personal** — `journal/ goals/ people/ health/`
+- **book** — `chapters/ characters/ worldbuilding/ outlines/ drafts/`
+- **business** — `meetings/ decisions/ clients/ vendors/ processes/`
+- **github-codebase** — `modules/ apis/ decisions/ runbooks/ glossary/`
+- **website** — `pages/ posts/ assets/ seo/ outlines/`
+
+Every mode also gets `.trash/` for soft deletes and an `index.md` (or `wiki/index.md` + `wiki/log.md` for wiki mode).
 
 ## Storage
 

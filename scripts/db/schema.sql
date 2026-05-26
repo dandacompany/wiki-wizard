@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS vaults (
   name        TEXT NOT NULL UNIQUE,
   path        TEXT NOT NULL UNIQUE,
   type        TEXT NOT NULL CHECK (type IN ('markdown', 'obsidian')),
-  mode        TEXT NOT NULL CHECK (mode IN ('memo', 'wiki')),
+  mode        TEXT NOT NULL CHECK (mode IN ('memo', 'wiki', 'personal', 'book', 'business', 'github-codebase', 'website')),
   is_active   INTEGER NOT NULL DEFAULT 0 CHECK (is_active IN (0, 1)),
   created_at  TEXT NOT NULL,
   last_used   TEXT NOT NULL,
