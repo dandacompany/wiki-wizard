@@ -235,3 +235,35 @@ def test_file_back_is_idempotent(wiki_vault):
     # Same relpath returned both times
     assert first == second
     assert "first-title" in first
+
+
+def test_session_status_fresh_session(wiki_vault):
+    db, vault, root = wiki_vault
+    info = autoresearch.init_session(db, vault_id=vault["id"], query="my question")
+    session_dir = Path(info["session_dir"])
+    s = autoresearch.session_status(session_dir)
+    assert s["query"] == "my question"
+    assert s["rounds_completed"] == 0
+    assert s["max_rounds"] == 3
+    assert s["last_gaps"] == []
+    assert s["filed"] is False
+
+
+def test_session_status_after_two_rounds_and_file_back(wiki_vault):
+    db, vault, root = wiki_vault
+    info = autoresearch.init_session(db, vault_id=vault["id"], query="q")
+    session_dir = Path(info["session_dir"])
+    autoresearch.record_round(
+        session_dir, round_num=1, claims=[], gaps_remaining=["gap-a"]
+    )
+    autoresearch.record_round(
+        session_dir, round_num=2, claims=[], gaps_remaining=[]
+    )
+    autoresearch.file_back(
+        db, vault_id=vault["id"], session_dir=session_dir,
+        title="Done", body="b", citations=[], tags=[], date_str="2026-05-26",
+    )
+    s = autoresearch.session_status(session_dir)
+    assert s["rounds_completed"] == 2
+    assert s["last_gaps"] == []
+    assert s["filed"] is True

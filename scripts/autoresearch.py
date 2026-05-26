@@ -181,3 +181,22 @@ def file_back(
         encoding="utf-8",
     )
     return relpath
+
+
+def session_status(session_dir: Path) -> dict:
+    """For commands/autoresearch.md and debug."""
+    session_dir = Path(session_dir)
+    mission = json.loads((session_dir / "mission.json").read_text(encoding="utf-8"))
+    round_files = sorted(session_dir.glob("round-*.json"))
+    last_gaps: list[str] = []
+    if round_files:
+        last = json.loads(round_files[-1].read_text(encoding="utf-8"))
+        last_gaps = list(last["gaps_remaining"])
+    filed = (session_dir / "filed.json").exists()
+    return {
+        "query": mission["query"],
+        "rounds_completed": len(round_files),
+        "max_rounds": mission["max_rounds"],
+        "last_gaps": last_gaps,
+        "filed": filed,
+    }
