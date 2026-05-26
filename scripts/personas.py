@@ -219,3 +219,104 @@ def write_output(
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
     return target
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    import json as _json
+    import sys as _sys
+
+    p = argparse.ArgumentParser(prog="scripts.personas")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("list", help="List all personas (JSON)")
+
+    p_show = sub.add_parser("show", help="Show one persona's full spec (JSON)")
+    p_show.add_argument("name")
+
+    p_run = sub.add_parser("run", help="File pre-written LLM output per persona contract")
+    p_run.add_argument("name")
+    p_run.add_argument("--db", default="data/registry.db")
+    p_run.add_argument("--vault-id", type=int)
+    grp_in = p_run.add_mutually_exclusive_group(required=True)
+    grp_in.add_argument("--text")
+    grp_in.add_argument("--file", dest="file_path")
+    grp_in.add_argument("--vault-relpath")
+    p_run.add_argument("--lang", help="target language for sibling_file (e.g. ko)")
+    p_run.add_argument("--title", help="title for new_page output kind")
+    p_run.add_argument("--output-file", required=True,
+                       help="path to file containing the LLM-produced output")
+    p_run.add_argument("--backup-dir",
+                       help="for inplace output: directory to back up original")
+
+    args = p.parse_args(argv)
+
+    if args.cmd == "list":
+        print(_json.dumps(list_personas(), ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "show":
+        try:
+            spec = load_persona(args.name)
+        except PersonaError as exc:
+            print(str(exc), file=_sys.stderr)
+            return 2
+        print(_json.dumps(spec, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "run":
+        try:
+            persona = load_persona(args.name)
+        except PersonaError as exc:
+            print(str(exc), file=_sys.stderr)
+            return 2
+
+        db_path = Path(args.db)
+        try:
+            _, source_meta = resolve_input(
+                text=args.text,
+                file_path=Path(args.file_path) if args.file_path else None,
+                vault_relpath=args.vault_relpath,
+                db_path=db_path if args.vault_relpath else None,
+                vault_id=args.vault_id if args.vault_relpath else None,
+            )
+        except PersonaError as exc:
+            print(str(exc), file=_sys.stderr)
+            return 2
+
+        output_content = Path(args.output_file).read_text(encoding="utf-8")
+
+        if persona["output_kind"] == "stdout":
+            print(output_content)
+            return 0
+
+        try:
+            target_path = resolve_output_path(
+                persona=persona,
+                source_meta=source_meta,
+                db_path=db_path,
+                vault_id=args.vault_id,
+                lang=args.lang,
+                title=args.title,
+            )
+        except PersonaError as exc:
+            print(str(exc), file=_sys.stderr)
+            return 2
+
+        backup_dir = Path(args.backup_dir) if args.backup_dir else None
+        result = write_output(
+            persona=persona,
+            target_path=target_path,
+            content=output_content,
+            source_meta=source_meta,
+            backup_dir=backup_dir,
+        )
+        if result is not None:
+            print(str(result))
+        return 0
+
+    raise SystemExit(f"unknown cmd: {args.cmd}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

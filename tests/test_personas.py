@@ -269,3 +269,79 @@ def test_write_output_stdout_returns_none(tmp_path):
         source_meta={"kind": "text", "origin": None},
     )
     assert result is None
+
+
+import subprocess
+import sys
+import json as _json
+
+
+def test_cli_list_returns_4_personas():
+    REPO_ROOT = Path(__file__).resolve().parents[1]
+    proc = subprocess.run(
+        [sys.executable, "-m", "scripts.personas", "list"],
+        capture_output=True, text=True, check=False, cwd=REPO_ROOT,
+    )
+    assert proc.returncode == 0, proc.stderr
+    data = _json.loads(proc.stdout)
+    names = {p["name"] for p in data}
+    assert names == {"translator", "polisher", "summarizer", "scaffolder"}
+
+
+def test_cli_show_returns_persona_spec():
+    REPO_ROOT = Path(__file__).resolve().parents[1]
+    proc = subprocess.run(
+        [sys.executable, "-m", "scripts.personas", "show", "translator"],
+        capture_output=True, text=True, check=False, cwd=REPO_ROOT,
+    )
+    assert proc.returncode == 0, proc.stderr
+    data = _json.loads(proc.stdout)
+    assert data["name"] == "translator"
+    assert "body" in data
+
+
+def test_cli_run_translator_sibling_file(wiki_vault, tmp_path):
+    db, vault, root = wiki_vault
+    REPO_ROOT = Path(__file__).resolve().parents[1]
+    src = root / "wiki" / "summaries" / "demo.md"
+    src.parent.mkdir(parents=True, exist_ok=True)
+    src.write_text("---\ntitle: Demo\n---\nEnglish body", encoding="utf-8")
+    out = tmp_path / "translated.md"
+    out.write_text("---\ntitle: 데모\n---\n한국어 본문", encoding="utf-8")
+
+    proc = subprocess.run(
+        [
+            sys.executable, "-m", "scripts.personas", "run", "translator",
+            "--db", str(db),
+            "--vault-id", str(vault["id"]),
+            "--vault-relpath", "wiki/summaries/demo.md",
+            "--lang", "ko",
+            "--output-file", str(out),
+        ],
+        capture_output=True, text=True, check=False, cwd=REPO_ROOT,
+    )
+    assert proc.returncode == 0, proc.stderr
+    final_path = proc.stdout.strip()
+    assert final_path.endswith("demo.ko.md")
+    written = Path(final_path)
+    assert written.exists()
+    assert "한국어 본문" in written.read_text(encoding="utf-8")
+
+
+def test_cli_run_summarizer_stdout(tmp_path):
+    REPO_ROOT = Path(__file__).resolve().parents[1]
+    out = tmp_path / "summary.json"
+    out.write_text(
+        '{"one_line":"x","one_paragraph":"y","detailed":"z"}',
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [
+            sys.executable, "-m", "scripts.personas", "run", "summarizer",
+            "--text", "some body",
+            "--output-file", str(out),
+        ],
+        capture_output=True, text=True, check=False, cwd=REPO_ROOT,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "one_line" in proc.stdout
