@@ -59,6 +59,23 @@ status: meta
 ## Health
 """
 
+_BOOK_INDEX_TEMPLATE = """---
+title: Book Index
+type: meta
+status: meta
+---
+
+## Chapters
+
+## Characters
+
+## Worldbuilding
+
+## Outlines
+
+## Drafts
+"""
+
 
 class MarkdownAdapter:
     """Plain-markdown adapter — works with any editor (VS Code, Cursor, etc.)."""
@@ -83,6 +100,8 @@ class MarkdownAdapter:
             self._init_wiki(root)
         elif mode == "personal":
             self._init_personal(root)
+        elif mode == "book":
+            self._init_book(root)
         else:
             raise AdapterError(f"unknown mode: {mode!r}")
 
@@ -108,6 +127,13 @@ class MarkdownAdapter:
         index_path = root / "index.md"
         if not index_path.exists():
             index_path.write_text(_PERSONAL_INDEX_TEMPLATE, encoding="utf-8")
+
+    def _init_book(self, root: Path) -> None:
+        for sub in ("chapters", "characters", "worldbuilding", "outlines", "drafts"):
+            (root / sub).mkdir(exist_ok=True)
+        index_path = root / "index.md"
+        if not index_path.exists():
+            index_path.write_text(_BOOK_INDEX_TEMPLATE, encoding="utf-8")
 
     def is_valid(self, root: Path) -> bool:
         return Path(root).is_dir()
