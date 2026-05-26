@@ -72,3 +72,37 @@ def init_session(
         "session_dir": str(session_dir),
         "max_rounds": capped,
     }
+
+
+def record_round(
+    session_dir: Path,
+    *,
+    round_num: int,
+    claims: list[dict],
+    gaps_remaining: list[str],
+    notes: str = "",
+) -> Path:
+    """Write round-N.json into session_dir. Idempotent (overwrites)."""
+    session_dir = Path(session_dir)
+    mission_path = session_dir / "mission.json"
+    if not mission_path.exists():
+        raise FileNotFoundError(f"no mission.json in {session_dir}")
+    mission = json.loads(mission_path.read_text(encoding="utf-8"))
+    max_rounds = mission["max_rounds"]
+    if not (1 <= round_num <= max_rounds):
+        raise ValueError(
+            f"round_num={round_num} out of bounds (1..{max_rounds})"
+        )
+    payload = {
+        "round_num": round_num,
+        "claims": list(claims),
+        "gaps_remaining": list(gaps_remaining),
+        "notes": notes,
+        "recorded_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    target = session_dir / f"round-{round_num}.json"
+    target.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return target

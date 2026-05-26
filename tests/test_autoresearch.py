@@ -76,3 +76,49 @@ def test_init_session_caps_max_rounds_at_5(wiki_vault):
     import json
     mission = json.loads((Path(info["session_dir"]) / "mission.json").read_text())
     assert mission["max_rounds"] == 5
+
+
+def test_record_round_writes_json_with_expected_shape(wiki_vault):
+    db, vault, root = wiki_vault
+    info = autoresearch.init_session(db, vault_id=vault["id"], query="q")
+    session_dir = Path(info["session_dir"])
+    p = autoresearch.record_round(
+        session_dir,
+        round_num=1,
+        claims=[
+            {"claim": "attention is parallelizable",
+             "confidence": "high",
+             "sources": ["https://arxiv.org/abs/1706.03762"]},
+        ],
+        gaps_remaining=["how does multi-head differ from single-head?"],
+        notes="search round 1 returned good results on parallelism",
+    )
+    import json
+    assert p == session_dir / "round-1.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    assert data["round_num"] == 1
+    assert len(data["claims"]) == 1
+    assert data["claims"][0]["confidence"] == "high"
+    assert "how does multi-head" in data["gaps_remaining"][0]
+    assert "recorded_at" in data
+
+
+def test_record_round_idempotent_overwrite(wiki_vault):
+    db, vault, root = wiki_vault
+    info = autoresearch.init_session(db, vault_id=vault["id"], query="q")
+    session_dir = Path(info["session_dir"])
+    autoresearch.record_round(session_dir, round_num=1, claims=[], gaps_remaining=["a"])
+    autoresearch.record_round(session_dir, round_num=1, claims=[], gaps_remaining=["b"])
+    import json
+    data = json.loads((session_dir / "round-1.json").read_text())
+    assert data["gaps_remaining"] == ["b"], "second call should overwrite, not append"
+
+
+def test_record_round_validates_round_num_bounds(wiki_vault):
+    db, vault, root = wiki_vault
+    info = autoresearch.init_session(db, vault_id=vault["id"], query="q", max_rounds=3)
+    session_dir = Path(info["session_dir"])
+    with pytest.raises(ValueError, match="round_num"):
+        autoresearch.record_round(session_dir, round_num=0, claims=[], gaps_remaining=[])
+    with pytest.raises(ValueError, match="round_num"):
+        autoresearch.record_round(session_dir, round_num=4, claims=[], gaps_remaining=[])
