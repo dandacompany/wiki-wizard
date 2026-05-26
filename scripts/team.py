@@ -10,6 +10,9 @@ The public API (Tasks 9-11):
 """
 from __future__ import annotations
 
+import datetime
+import json
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -229,8 +232,9 @@ def run(
             backend_overrides, model_overrides, skip_permissions,
         )
     if template.mode == "mixed":
-        raise NotImplementedError(
-            "mixed mode is implemented in Task 11 — not yet available"
+        return _run_mixed(
+            template, source_path, session_dir,
+            backend_overrides, model_overrides, skip_permissions,
         )
     raise ValueError(f"Unknown mode: {template.mode!r}")
 
@@ -288,3 +292,139 @@ def _run_sequential(
         if result.result_path is not None:
             last_result_path = result.result_path
     return results
+
+
+def _run_mixed(
+    template: TeamTemplate,
+    source_path: Path,
+    session_dir: Path,
+    backend_overrides: dict[str, str],
+    model_overrides: dict[str, str],
+    skip_permissions: dict[str, bool],
+) -> list[DispatchResult]:
+    """
+    Execute stages in order. Within each stage entry:
+      - {"parallel": [persona_name, ...]}  → dispatch all concurrently
+      - {"sequential": [persona_name, ...]}  → dispatch one at a time
+
+    inputs_from=previous is resolved across stages: each stage receives
+    the last result_path of the preceding stage as its source_path.
+
+    Returns results in template.workers order.
+    """
+    stages: list[dict] = template.stages or []
+
+    # Build persona → WorkerConfig lookup
+    worker_map: dict[str, WorkerConfig] = {w.persona: w for w in template.workers}
+
+    results_by_persona: dict[str, DispatchResult] = {}
+    current_source = Path(source_path)
+    last_result_path: Path | None = None
+
+    for stage_def in stages:
+        stage_results: list[DispatchResult] = []
+
+        if "parallel" in stage_def:
+            personas = stage_def["parallel"]
+            workers_in_stage = [worker_map[p] for p in personas]
+            # Parallel: all workers in this stage share the same current_source
+            with ThreadPoolExecutor(max_workers=len(workers_in_stage)) as pool:
+                fmap: dict[Any, str] = {}
+                for w in workers_in_stage:
+                    src = last_result_path if (w.inputs_from == "previous"
+                                               and last_result_path) else current_source
+                    req = _make_request(w, src, backend_overrides,
+                                        model_overrides, skip_permissions,
+                                        template.timeout_seconds)
+                    fmap[pool.submit(dispatch_one, req, session_dir)] = w.persona
+                for f in as_completed(fmap):
+                    stage_results.append(f.result())
+
+        elif "sequential" in stage_def:
+            personas = stage_def["sequential"]
+            stage_source = last_result_path if last_result_path else current_source
+            for p in personas:
+                w = worker_map[p]
+                src = stage_source if w.inputs_from == "previous" else current_source
+                req = _make_request(w, src, backend_overrides,
+                                    model_overrides, skip_permissions,
+                                    template.timeout_seconds)
+                r = dispatch_one(req, session_dir)
+                stage_results.append(r)
+                if r.result_path:
+                    stage_source = r.result_path
+
+        for r in stage_results:
+            # Derive persona from worker_id (strip "worker-" prefix)
+            persona_key = r.worker_id.split("-", 1)[1] if "-" in r.worker_id else r.worker_id
+            results_by_persona[persona_key] = r
+        # Update last_result_path to the last result for the next stage
+        if stage_results:
+            last_result_path = stage_results[-1].result_path
+
+    # Preserve template.workers order
+    return [
+        results_by_persona.get(
+            w.persona,
+            DispatchResult(f"worker-{w.persona}", "skipped", None, 0, "", session_dir),
+        )
+        for w in template.workers
+    ]
+
+
+def aggregate_results(
+    results: list[DispatchResult],
+    session_dir: Path,
+    template_name: str,
+    started_at: float | None = None,
+) -> dict:
+    """
+    Aggregate DispatchResult list into a summary dict and write summary.json.
+
+    summary.json shape:
+    {
+      "template": "<name>",
+      "started_at": "<iso>",
+      "total_wall_seconds": <float>,
+      "workers": [
+        {
+          "worker_id": "...",
+          "persona": "...",
+          "status": "ok"|"failed"|"timeout"|"skipped",
+          "result_path": "/abs/path/or/empty",
+          "duration_seconds": <float>,
+          "model": "..."
+        }, ...
+      ]
+    }
+    """
+    now = time.monotonic()
+    wall = now - started_at if started_at is not None else 0.0
+
+    workers_summary = []
+    for r in results:
+        # Derive persona from worker_id (strip "worker-" prefix)
+        persona = r.worker_id.split("-", 1)[1] if "-" in r.worker_id else r.worker_id
+        workers_summary.append({
+            "worker_id": r.worker_id,
+            "persona": persona,
+            "status": r.status,
+            "result_path": str(r.result_path) if r.result_path else "",
+            "duration_seconds": r.duration_seconds,
+            "model": r.model,
+        })
+
+    summary = {
+        "template": template_name,
+        "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "total_wall_seconds": wall,
+        "workers": workers_summary,
+    }
+
+    session_dir = Path(session_dir)
+    session_dir.mkdir(parents=True, exist_ok=True)
+    (session_dir / "summary.json").write_text(
+        json.dumps(summary, indent=2), encoding="utf-8"
+    )
+
+    return summary

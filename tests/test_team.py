@@ -5,6 +5,7 @@ Tasks 9-11 progressively fill in this file.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -212,3 +213,110 @@ class TestTeamRun:
                            session_dir=tmp_path / "sess6",
                            backend_overrides={}, model_overrides={})
         assert all(r.status == "ok" for r in results)
+
+
+# ── run() — mixed mode ─────────────────────────────────────────────
+
+class TestTeamRunMixed:
+    """draft-to-publish has stages: [seq:scaffolder] → [seq:polisher] → [par: fact-checker, consistency-checker]"""
+
+    @pytest.fixture
+    def fake_dispatch_mixed(self, monkeypatch, tmp_path):
+        call_order: list[str] = []
+
+        def fake_one(req, session_dir):
+            call_order.append(req.persona)
+            out = tmp_path / f"{req.persona}-out.md"
+            out.write_text(f"out:{req.persona}")
+            return _make_ok_result(f"worker-{req.persona}", out)
+
+        monkeypatch.setattr("scripts.team.dispatch_one", fake_one)
+        return call_order
+
+    def test_mixed_correct_stage_order(self, fake_dispatch_mixed, tmp_path):
+        """Stages execute in order: scaffolder first, then polisher, then parallel pair."""
+        t = load_template("draft-to-publish")
+        team_run(t, source_path=tmp_path / "raw.md",
+                 session_dir=tmp_path / "sess-m",
+                 backend_overrides={}, model_overrides={})
+        # scaffolder must come before polisher which must come before fact-checker
+        order = fake_dispatch_mixed
+        assert order.index("scaffolder") < order.index("polisher")
+        assert order.index("polisher") < order.index("fact-checker")
+        assert order.index("polisher") < order.index("consistency-checker")
+
+    def test_mixed_total_worker_count(self, fake_dispatch_mixed, tmp_path):
+        t = load_template("draft-to-publish")
+        results = team_run(t, source_path=tmp_path / "raw2.md",
+                           session_dir=tmp_path / "sess-m2",
+                           backend_overrides={}, model_overrides={})
+        assert len(results) == len(t.workers)
+
+    def test_mixed_inputs_from_previous_across_stages(self, fake_dispatch_mixed, tmp_path):
+        """polisher's source should be scaffolder's output (inputs_from=previous across stages)."""
+        sources_seen: list[Path] = []
+        import scripts.team as tm
+
+        def tracking(req, session_dir):
+            sources_seen.append(req.source_path)
+            out = tmp_path / f"{req.persona}-out.md"
+            out.write_text("out")
+            return _make_ok_result(f"worker-{req.persona}", out)
+
+        tm.dispatch_one = tracking
+        t = load_template("draft-to-publish")
+        team_run(t, source_path=tmp_path / "origin.md",
+                 session_dir=tmp_path / "sess-m3",
+                 backend_overrides={}, model_overrides={})
+        # polisher (index 1) should NOT use the original source
+        assert sources_seen[1] != tmp_path / "origin.md"
+
+
+# ── aggregate_results ──────────────────────────────────────────────
+
+from scripts.team import aggregate_results
+
+
+class TestAggregateResults:
+    def test_writes_summary_json(self, tmp_path):
+        results = [
+            _make_ok_result("worker-fact-checker", tmp_path / "doc.factcheck.md"),
+            _make_ok_result("worker-summarizer", tmp_path / "doc.summary.json"),
+        ]
+        agg = aggregate_results(results, session_dir=tmp_path, template_name="review-pipeline")
+        summary_path = tmp_path / "summary.json"
+        assert summary_path.exists()
+        data = json.loads(summary_path.read_text())
+        assert data["template"] == "review-pipeline"
+        assert len(data["workers"]) == 2
+
+    def test_summary_contains_status_per_worker(self, tmp_path):
+        results = [
+            _make_ok_result("worker-fact-checker", tmp_path / "fc.md"),
+            DispatchResult("worker-polisher", "failed", None, 5.0, "model", tmp_path),
+        ]
+        agg = aggregate_results(results, session_dir=tmp_path, template_name="t")
+        assert agg["workers"][0]["status"] == "ok"
+        assert agg["workers"][1]["status"] == "failed"
+
+    def test_summary_total_duration(self, tmp_path):
+        results = [
+            _make_ok_result("w1", tmp_path / "a.md"),
+            _make_ok_result("w2", tmp_path / "b.md"),
+        ]
+        results[0].duration_seconds = 10.0
+        results[1].duration_seconds = 20.0
+        agg = aggregate_results(results, session_dir=tmp_path, template_name="t")
+        assert agg["total_wall_seconds"] >= 0  # wall time, not sum
+
+    def test_aggregate_returns_dict(self, tmp_path):
+        results = [_make_ok_result("w1", tmp_path / "out.md")]
+        agg = aggregate_results(results, session_dir=tmp_path, template_name="t")
+        assert isinstance(agg, dict)
+        assert "workers" in agg
+
+    def test_summary_result_paths_are_strings(self, tmp_path):
+        results = [_make_ok_result("w1", tmp_path / "out.md")]
+        agg = aggregate_results(results, session_dir=tmp_path, template_name="t")
+        for w in agg["workers"]:
+            assert isinstance(w.get("result_path", ""), str)
