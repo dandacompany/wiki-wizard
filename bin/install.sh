@@ -109,14 +109,27 @@ link_one "oh-my-wiki" "$REPO_ROOT"
 link_one "omw"        "${REPO_ROOT}/omw"
 
 # Install omw-dispatch shim
+# Resolve SHIM_SRC to the real path so chmod works even when
+# $HOME/.claude/skills/oh-my-wiki/bin is itself a symlink into the repo.
+SHIM_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/omw-dispatch"
+# Resolve physical location of SHIM_SRC to detect self-symlink scenarios
+SHIM_SRC_REAL="$(realpath "$SHIM_SRC" 2>/dev/null || readlink -f "$SHIM_SRC" 2>/dev/null || echo "$SHIM_SRC")"
+chmod +x "$SHIM_SRC_REAL"
+
 SKILL_BIN="$HOME/.claude/skills/oh-my-wiki/bin"
 mkdir -p "$SKILL_BIN"
-SHIM_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/omw-dispatch"
 SHIM_DST="$SKILL_BIN/omw-dispatch"
-rm -f "$SHIM_DST"
-ln -s "$SHIM_SRC" "$SHIM_DST"
-chmod +x "$SHIM_SRC"
-echo "omw-dispatch installed -> $SHIM_DST"
+# Resolve SKILL_BIN to catch the case where it's already a symlink into repo/bin
+SKILL_BIN_REAL="$(realpath "$SKILL_BIN" 2>/dev/null || readlink -f "$SKILL_BIN" 2>/dev/null || echo "$SKILL_BIN")"
+SHIM_DST_REAL="$SKILL_BIN_REAL/omw-dispatch"
+if [ "$SHIM_DST_REAL" = "$SHIM_SRC_REAL" ]; then
+  # SKILL_BIN already resolves into the repo's bin/ — no symlink needed
+  echo "omw-dispatch available at $SHIM_SRC_REAL (via oh-my-wiki skill link)"
+else
+  rm -f "$SHIM_DST"
+  ln -s "$SHIM_SRC_REAL" "$SHIM_DST"
+  echo "omw-dispatch installed -> $SHIM_DST"
+fi
 echo "Add $SKILL_BIN to PATH to use outside Claude Code."
 
 # ---------- 4. Pytest verification (optional) ----------

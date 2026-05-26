@@ -20,6 +20,9 @@ include = ["scripts*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -q --strict-markers"
+markers = [
+    "integration: end-to-end tests that require tmux and fake backends",
+]
 
 [tool.ruff]
 line-length = 100

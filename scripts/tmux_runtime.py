@@ -224,7 +224,10 @@ def spawn_worker(
     if not _session_exists(session_id):
         # Create detached session with a keepalive window so the session
         # persists even if all worker windows exit quickly.
-        subprocess.run(
+        # Use check=False to handle TOCTOU race: parallel workers may
+        # simultaneously try to create the same session; the second caller
+        # will get a non-zero exit which we silently ignore if session now exists.
+        r_new = subprocess.run(
             [
                 "tmux", "new-session", "-d",
                 "-s", session_id,
@@ -232,29 +235,25 @@ def spawn_worker(
                 "-x", "220", "-y", "50",
                 "sleep 86400",
             ],
-            capture_output=True, text=True, timeout=10, check=True,
+            capture_output=True, text=True, timeout=10, check=False,
         )
-        # Add the worker window
-        subprocess.run(
-            [
-                "tmux", "new-window",
-                "-t", session_id,
-                "-n", worker_name,
-                shell_cmd,
-            ],
-            capture_output=True, text=True, timeout=10, check=True,
-        )
-    else:
-        # Add a new window running the worker script
-        subprocess.run(
-            [
-                "tmux", "new-window",
-                "-t", session_id,
-                "-n", worker_name,
-                shell_cmd,
-            ],
-            capture_output=True, text=True, timeout=10, check=True,
-        )
+        if r_new.returncode != 0 and not _session_exists(session_id):
+            # Session creation truly failed (not a race); raise to caller.
+            raise TmuxError(
+                f"Failed to create tmux session {session_id!r}: "
+                f"{r_new.stderr.strip()}"
+            )
+
+    # Add the worker window to the (now-existing) session
+    subprocess.run(
+        [
+            "tmux", "new-window",
+            "-t", session_id,
+            "-n", worker_name,
+            shell_cmd,
+        ],
+        capture_output=True, text=True, timeout=10, check=True,
+    )
 
     return {
         "session_id": session_id,

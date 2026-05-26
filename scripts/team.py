@@ -324,6 +324,9 @@ def _run_mixed(
     for stage_def in stages:
         stage_results: list[DispatchResult] = []
 
+        # stage_pairs: list of (persona_name, DispatchResult) for this stage
+        stage_pairs: list[tuple[str, DispatchResult]] = []
+
         if "parallel" in stage_def:
             personas = stage_def["parallel"]
             workers_in_stage = [worker_map[p] for p in personas]
@@ -338,6 +341,8 @@ def _run_mixed(
                                         template.timeout_seconds)
                     fmap[pool.submit(dispatch_one, req, session_dir)] = w.persona
                 for f in as_completed(fmap):
+                    persona_name = fmap[f]
+                    stage_pairs.append((persona_name, f.result()))
                     stage_results.append(f.result())
 
         elif "sequential" in stage_def:
@@ -350,14 +355,14 @@ def _run_mixed(
                                     model_overrides, skip_permissions,
                                     template.timeout_seconds)
                 r = dispatch_one(req, session_dir)
+                stage_pairs.append((p, r))
                 stage_results.append(r)
                 if r.result_path:
                     stage_source = r.result_path
 
-        for r in stage_results:
-            # Derive persona from worker_id (strip "worker-" prefix)
-            persona_key = r.worker_id.split("-", 1)[1] if "-" in r.worker_id else r.worker_id
-            results_by_persona[persona_key] = r
+        # Record results keyed by persona name (not derived from worker_id)
+        for persona_name, r in stage_pairs:
+            results_by_persona[persona_name] = r
         # Update last_result_path to the last result for the next stage
         if stage_results:
             last_result_path = stage_results[-1].result_path
@@ -404,7 +409,10 @@ def aggregate_results(
     workers_summary = []
     for r in results:
         # Derive persona from worker_id (strip "worker-" prefix)
-        persona = r.worker_id.split("-", 1)[1] if "-" in r.worker_id else r.worker_id
+        # worker_id format: "worker-<persona>-<6hexchars>"
+        # Derive persona by stripping the leading "worker-" and trailing "-<6hexchars>"
+        raw = r.worker_id[len("worker-"):] if r.worker_id.startswith("worker-") else r.worker_id
+        persona = raw[:-7] if len(raw) > 7 and raw[-7] == "-" else raw
         workers_summary.append({
             "worker_id": r.worker_id,
             "persona": persona,
