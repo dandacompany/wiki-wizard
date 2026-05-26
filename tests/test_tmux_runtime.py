@@ -1,0 +1,213 @@
+"""Tests for scripts.tmux_runtime — requires real tmux >= 3.0 in PATH.
+
+Tests create uniquely-named tmux sessions and tear them down in finally blocks.
+Each session name includes the test name + a short random suffix to avoid
+collisions in parallel runs.
+"""
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import time
+import uuid
+from pathlib import Path
+
+import pytest
+
+from scripts import tmux_runtime
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _unique_id(prefix: str = "omw-test") -> str:
+    return f"{prefix}-{uuid.uuid4().hex[:8]}"
+
+
+def _kill_session(session_id: str) -> None:
+    """Best-effort session teardown; ignore errors."""
+    try:
+        subprocess.run(
+            ["tmux", "kill-session", "-t", session_id],
+            capture_output=True, timeout=5,
+        )
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# tmux availability guard
+# ---------------------------------------------------------------------------
+
+def test_require_tmux_version():
+    """tmux >= 3.0 must be present; this test documents the requirement."""
+    result = tmux_runtime.check_tmux_version()
+    assert result["ok"] is True, (
+        f"tmux version check failed: {result['message']}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# spawn_worker
+# ---------------------------------------------------------------------------
+
+def test_spawn_worker_creates_session(tmp_path):
+    session_id = _unique_id("spawn-creates")
+    try:
+        info = tmux_runtime.spawn_worker(
+            session_id=session_id,
+            worker_name="test-worker",
+            command=["echo", "hello"],
+            session_dir=tmp_path,
+        )
+        assert info["session_id"] == session_id
+        assert info["window_name"] == "test-worker"
+        # session exists in tmux
+        r = subprocess.run(
+            ["tmux", "has-session", "-t", session_id],
+            capture_output=True, timeout=5,
+        )
+        assert r.returncode == 0, "tmux session was not created"
+    finally:
+        _kill_session(session_id)
+
+
+def test_spawn_worker_writes_done_json(tmp_path):
+    session_id = _unique_id("spawn-done")
+    try:
+        info = tmux_runtime.spawn_worker(
+            session_id=session_id,
+            worker_name="echo-worker",
+            command=["echo", "done"],
+            session_dir=tmp_path,
+        )
+        done_path = Path(info["done_json_path"])
+        # Poll for done.json up to 10s
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            if done_path.exists():
+                break
+            time.sleep(0.25)
+        assert done_path.exists(), f"done.json not written within 10s at {done_path}"
+        payload = json.loads(done_path.read_text(encoding="utf-8"))
+        assert "exit_code" in payload
+        assert payload["exit_code"] == 0
+    finally:
+        _kill_session(session_id)
+
+
+def test_spawn_worker_done_json_contains_required_fields(tmp_path):
+    session_id = _unique_id("spawn-fields")
+    try:
+        info = tmux_runtime.spawn_worker(
+            session_id=session_id,
+            worker_name="fields-worker",
+            command=["echo", "fields"],
+            session_dir=tmp_path,
+        )
+        done_path = Path(info["done_json_path"])
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            if done_path.exists():
+                break
+            time.sleep(0.25)
+        assert done_path.exists()
+        payload = json.loads(done_path.read_text(encoding="utf-8"))
+        # Required fields per spec §3 decision 8 + T7 expectation:
+        # {status, exit_code, result_path, model, duration_seconds, timestamp}
+        # Plus worker identity fields for T6 tests:
+        for key in ("status", "exit_code", "result_path", "model",
+                    "duration_seconds", "timestamp",
+                    "worker_name", "session_id", "finished_at"):
+            assert key in payload, f"done.json missing key: {key!r}"
+    finally:
+        _kill_session(session_id)
+
+
+def test_spawn_worker_nonzero_exit_recorded(tmp_path):
+    session_id = _unique_id("spawn-fail")
+    try:
+        info = tmux_runtime.spawn_worker(
+            session_id=session_id,
+            worker_name="fail-worker",
+            command=["bash", "-c", "exit 42"],
+            session_dir=tmp_path,
+        )
+        done_path = Path(info["done_json_path"])
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            if done_path.exists():
+                break
+            time.sleep(0.25)
+        assert done_path.exists()
+        payload = json.loads(done_path.read_text(encoding="utf-8"))
+        assert payload["exit_code"] == 42
+        assert payload["status"] == "failed"
+    finally:
+        _kill_session(session_id)
+
+
+def test_spawn_multiple_workers_same_session(tmp_path):
+    session_id = _unique_id("multi-worker")
+    try:
+        infos = []
+        for i in range(3):
+            info = tmux_runtime.spawn_worker(
+                session_id=session_id,
+                worker_name=f"worker-{i}",
+                command=["echo", f"worker-{i}"],
+                session_dir=tmp_path,
+            )
+            infos.append(info)
+        # All should share the same session
+        assert all(i["session_id"] == session_id for i in infos)
+        # Windows should be distinct
+        window_names = [i["window_name"] for i in infos]
+        assert len(set(window_names)) == 3
+    finally:
+        _kill_session(session_id)
+
+
+# ---------------------------------------------------------------------------
+# shutdown_session
+# ---------------------------------------------------------------------------
+
+def test_shutdown_session_kills_session(tmp_path):
+    session_id = _unique_id("shutdown")
+    try:
+        tmux_runtime.spawn_worker(
+            session_id=session_id,
+            worker_name="w",
+            command=["sleep", "60"],
+            session_dir=tmp_path,
+        )
+        tmux_runtime.shutdown_session(session_id)
+        r = subprocess.run(
+            ["tmux", "has-session", "-t", session_id],
+            capture_output=True, timeout=5,
+        )
+        assert r.returncode != 0, "session should be gone after shutdown"
+    finally:
+        _kill_session(session_id)
+
+
+def test_shutdown_session_is_idempotent(tmp_path):
+    session_id = _unique_id("shutdown-idem")
+    try:
+        tmux_runtime.spawn_worker(
+            session_id=session_id,
+            worker_name="w",
+            command=["echo", "x"],
+            session_dir=tmp_path,
+        )
+        tmux_runtime.shutdown_session(session_id)
+        # Second shutdown should not raise
+        tmux_runtime.shutdown_session(session_id)
+    finally:
+        _kill_session(session_id)
+
+
+def test_shutdown_nonexistent_session_does_not_raise():
+    tmux_runtime.shutdown_session("omw-test-nonexistent-9999xxxx")
