@@ -127,3 +127,57 @@ def should_stop(session_dir: Path) -> tuple[bool, str]:
     if len(round_files) >= max_rounds:
         return (True, "max_rounds")
     return (False, "in_progress")
+
+
+def file_back(
+    db_path: Path,
+    *,
+    vault_id: int,
+    session_dir: Path,
+    title: str,
+    body: str,
+    citations: list[str],
+    tags: list[str],
+    date_str: str,
+) -> str:
+    """Write synthesis page + update index + append log + mark session filed.
+    Idempotent: if filed.json already exists, returns the previously-filed relpath
+    without doing any further writes.
+    """
+    session_dir = Path(session_dir)
+    filed_path = session_dir / "filed.json"
+    if filed_path.exists():
+        existing = json.loads(filed_path.read_text(encoding="utf-8"))
+        return existing["synthesis_relpath"]
+
+    relpath = query.write_synthesis(
+        db_path,
+        vault_id=vault_id,
+        title=title,
+        body=body,
+        citations=citations,
+        tags=tags,
+        date_str=date_str,
+    )
+    slug = relpath.removeprefix("wiki/syntheses/").removesuffix(".md")
+    ingest.update_index(
+        db_path,
+        vault_id=vault_id,
+        entries=[("syntheses", slug, title)],
+    )
+    ingest.append_log(
+        db_path,
+        vault_id=vault_id,
+        op="autoresearch",
+        title=title,
+        date_str=date_str,
+    )
+    filed = {
+        "synthesis_relpath": relpath,
+        "filed_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    filed_path.write_text(
+        json.dumps(filed, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return relpath

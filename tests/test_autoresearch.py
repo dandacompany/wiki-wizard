@@ -174,3 +174,64 @@ def test_should_stop_in_progress_when_gaps_remain_and_under_cap(wiki_vault):
     stop, reason = autoresearch.should_stop(session_dir)
     assert stop is False
     assert reason == "in_progress"
+
+
+def test_file_back_writes_synthesis_and_marks_filed(wiki_vault):
+    db, vault, root = wiki_vault
+    info = autoresearch.init_session(db, vault_id=vault["id"], query="attention vs RNN")
+    session_dir = Path(info["session_dir"])
+    autoresearch.record_round(
+        session_dir, round_num=1,
+        claims=[{"claim": "attention parallelizes", "confidence": "high", "sources": ["src1"]}],
+        gaps_remaining=[],
+    )
+    relpath = autoresearch.file_back(
+        db, vault_id=vault["id"],
+        session_dir=session_dir,
+        title="Why Attention Beats RNN",
+        body="Attention parallelizes computation across all token pairs.\n\nSource: src1.",
+        citations=["src1"],
+        tags=["attention", "transformer"],
+        date_str="2026-05-26",
+    )
+    assert relpath == "wiki/syntheses/why-attention-beats-rnn.md"
+    page = (root / relpath).read_text(encoding="utf-8")
+    assert "type: synthesis" in page
+    assert "Attention parallelizes" in page
+
+    # filed marker exists
+    filed_path = session_dir / "filed.json"
+    assert filed_path.exists()
+    import json
+    filed = json.loads(filed_path.read_text(encoding="utf-8"))
+    assert filed["synthesis_relpath"] == "wiki/syntheses/why-attention-beats-rnn.md"
+
+    # index + log updated
+    index_text = (root / "wiki" / "index.md").read_text(encoding="utf-8")
+    assert "why-attention-beats-rnn" in index_text
+    log_text = (root / "wiki" / "log.md").read_text(encoding="utf-8")
+    assert "autoresearch" in log_text
+    assert "Why Attention Beats RNN" in log_text
+
+
+def test_file_back_is_idempotent(wiki_vault):
+    db, vault, root = wiki_vault
+    info = autoresearch.init_session(db, vault_id=vault["id"], query="q")
+    session_dir = Path(info["session_dir"])
+    autoresearch.record_round(
+        session_dir, round_num=1, claims=[], gaps_remaining=[]
+    )
+    first = autoresearch.file_back(
+        db, vault_id=vault["id"], session_dir=session_dir,
+        title="First Title", body="body", citations=[], tags=[],
+        date_str="2026-05-26",
+    )
+    second = autoresearch.file_back(
+        db, vault_id=vault["id"], session_dir=session_dir,
+        title="DIFFERENT Title (should be ignored)",
+        body="body", citations=[], tags=[],
+        date_str="2026-05-26",
+    )
+    # Same relpath returned both times
+    assert first == second
+    assert "first-title" in first
