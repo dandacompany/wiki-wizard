@@ -44,6 +44,21 @@ status: meta
 
 _LOG_TEMPLATE = "# Operation Log\n"
 
+_PERSONAL_INDEX_TEMPLATE = """---
+title: Personal Index
+type: meta
+status: meta
+---
+
+## Journal
+
+## Goals
+
+## People
+
+## Health
+"""
+
 
 class MarkdownAdapter:
     """Plain-markdown adapter — works with any editor (VS Code, Cursor, etc.)."""
@@ -63,21 +78,36 @@ class MarkdownAdapter:
         root.mkdir(parents=True, exist_ok=True)
         (root / ".trash").mkdir(exist_ok=True)
         if mode == "memo":
-            (root / "inbox").mkdir(exist_ok=True)
+            self._init_memo(root)
         elif mode == "wiki":
-            (root / "raw").mkdir(exist_ok=True)
-            wiki = root / "wiki"
-            wiki.mkdir(exist_ok=True)
-            for sub in ("summaries", "entities", "concepts", "comparisons", "syntheses"):
-                (wiki / sub).mkdir(exist_ok=True)
-            index_path = wiki / "index.md"
-            log_path = wiki / "log.md"
-            if not index_path.exists():
-                index_path.write_text(_INDEX_TEMPLATE, encoding="utf-8")
-            if not log_path.exists():
-                log_path.write_text(_LOG_TEMPLATE, encoding="utf-8")
+            self._init_wiki(root)
+        elif mode == "personal":
+            self._init_personal(root)
         else:
             raise AdapterError(f"unknown mode: {mode!r}")
+
+    def _init_memo(self, root: Path) -> None:
+        (root / "inbox").mkdir(exist_ok=True)
+
+    def _init_wiki(self, root: Path) -> None:
+        (root / "raw").mkdir(exist_ok=True)
+        wiki = root / "wiki"
+        wiki.mkdir(exist_ok=True)
+        for sub in ("summaries", "entities", "concepts", "comparisons", "syntheses"):
+            (wiki / sub).mkdir(exist_ok=True)
+        index_path = wiki / "index.md"
+        log_path = wiki / "log.md"
+        if not index_path.exists():
+            index_path.write_text(_INDEX_TEMPLATE, encoding="utf-8")
+        if not log_path.exists():
+            log_path.write_text(_LOG_TEMPLATE, encoding="utf-8")
+
+    def _init_personal(self, root: Path) -> None:
+        for sub in ("journal", "goals", "people", "health"):
+            (root / sub).mkdir(exist_ok=True)
+        index_path = root / "index.md"
+        if not index_path.exists():
+            index_path.write_text(_PERSONAL_INDEX_TEMPLATE, encoding="utf-8")
 
     def is_valid(self, root: Path) -> bool:
         return Path(root).is_dir()
