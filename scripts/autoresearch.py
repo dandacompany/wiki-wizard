@@ -106,3 +106,24 @@ def record_round(
         encoding="utf-8",
     )
     return target
+
+
+def should_stop(session_dir: Path) -> tuple[bool, str]:
+    """Return (stop, reason). reason ∈ {max_rounds, no_gaps, in_progress}."""
+    session_dir = Path(session_dir)
+    mission_path = session_dir / "mission.json"
+    if not mission_path.exists():
+        raise FileNotFoundError(f"no mission.json in {session_dir}")
+    mission = json.loads(mission_path.read_text(encoding="utf-8"))
+    max_rounds = mission["max_rounds"]
+
+    round_files = sorted(session_dir.glob("round-*.json"))
+    if not round_files:
+        return (False, "in_progress")
+
+    last = json.loads(round_files[-1].read_text(encoding="utf-8"))
+    if not last["gaps_remaining"]:
+        return (True, "no_gaps")
+    if len(round_files) >= max_rounds:
+        return (True, "max_rounds")
+    return (False, "in_progress")

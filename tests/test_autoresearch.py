@@ -122,3 +122,55 @@ def test_record_round_validates_round_num_bounds(wiki_vault):
         autoresearch.record_round(session_dir, round_num=0, claims=[], gaps_remaining=[])
     with pytest.raises(ValueError, match="round_num"):
         autoresearch.record_round(session_dir, round_num=4, claims=[], gaps_remaining=[])
+
+
+def test_should_stop_in_progress_when_no_rounds(wiki_vault):
+    db, vault, root = wiki_vault
+    info = autoresearch.init_session(db, vault_id=vault["id"], query="q")
+    session_dir = Path(info["session_dir"])
+    stop, reason = autoresearch.should_stop(session_dir)
+    assert stop is False
+    assert reason == "in_progress"
+
+
+def test_should_stop_no_gaps_after_round(wiki_vault):
+    db, vault, root = wiki_vault
+    info = autoresearch.init_session(db, vault_id=vault["id"], query="q")
+    session_dir = Path(info["session_dir"])
+    autoresearch.record_round(
+        session_dir, round_num=1, claims=[], gaps_remaining=[]
+    )
+    stop, reason = autoresearch.should_stop(session_dir)
+    assert stop is True
+    assert reason == "no_gaps"
+
+
+def test_should_stop_max_rounds_reached(wiki_vault):
+    db, vault, root = wiki_vault
+    info = autoresearch.init_session(
+        db, vault_id=vault["id"], query="q", max_rounds=2
+    )
+    session_dir = Path(info["session_dir"])
+    autoresearch.record_round(
+        session_dir, round_num=1, claims=[], gaps_remaining=["still need X"]
+    )
+    autoresearch.record_round(
+        session_dir, round_num=2, claims=[], gaps_remaining=["still need X"]
+    )
+    stop, reason = autoresearch.should_stop(session_dir)
+    assert stop is True
+    assert reason == "max_rounds"
+
+
+def test_should_stop_in_progress_when_gaps_remain_and_under_cap(wiki_vault):
+    db, vault, root = wiki_vault
+    info = autoresearch.init_session(
+        db, vault_id=vault["id"], query="q", max_rounds=3
+    )
+    session_dir = Path(info["session_dir"])
+    autoresearch.record_round(
+        session_dir, round_num=1, claims=[], gaps_remaining=["gap1"]
+    )
+    stop, reason = autoresearch.should_stop(session_dir)
+    assert stop is False
+    assert reason == "in_progress"
