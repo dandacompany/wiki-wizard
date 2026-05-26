@@ -102,3 +102,15 @@ def test_sibling_suffix_cli_end_to_end(tmp_path, monkeypatch):
         assert produced.read_text(encoding="utf-8") == "# Fact-check report\n"
     finally:
         stub.unlink(missing_ok=True)
+
+
+def test_fact_checker_persona_loads():
+    persona = personas.load_persona("fact-checker")
+    assert persona["name"] == "fact-checker"
+    assert persona["output_kind"] == "sibling_suffix"
+    assert "vault_page" in persona["input_kinds"]
+    assert "file" in persona["input_kinds"]
+    assert "mcp__brightdata__search_engine" in persona["tools"]
+    assert len(persona["body"]) > 500  # substantive prompt
+    assert "atomic claim" in persona["body"].lower()
+    assert "confidence" in persona["body"].lower()
