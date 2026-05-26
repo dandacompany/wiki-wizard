@@ -18,7 +18,7 @@ from scripts import frontmatter
 
 PERSONAS_ROOT = Path(__file__).resolve().parents[1] / "personas"
 
-VALID_OUTPUT_KINDS = {"sibling_file", "inplace", "new_page", "stdout"}
+VALID_OUTPUT_KINDS = {"sibling_file", "sibling_suffix", "inplace", "new_page", "stdout"}
 VALID_MODEL_HINTS = {"fast", "standard", "most_capable"}
 REQUIRED_FRONTMATTER_KEYS = (
     "name", "description", "capabilities", "tools",
@@ -142,6 +142,7 @@ def resolve_output_path(
     vault_id: int | None = None,
     lang: str | None = None,
     title: str | None = None,
+    suffix: str | None = None,
 ) -> Path | None:
     """Compute where this persona's output should be filed.
     Returns None for stdout kind."""
@@ -160,6 +161,16 @@ def resolve_output_path(
         origin = Path(origin)
         stem = origin.stem
         return origin.with_name(f"{stem}.{lang}{origin.suffix}")
+
+    if kind == "sibling_suffix":
+        if not suffix:
+            raise PersonaError("sibling_suffix output requires suffix= argument")
+        origin = source_meta.get("origin")
+        if origin is None:
+            raise PersonaError("sibling_suffix output requires source with origin path")
+        origin = Path(origin)
+        stem = origin.stem
+        return origin.with_name(f"{stem}.{suffix}{origin.suffix}")
 
     if kind == "inplace":
         origin = source_meta.get("origin")
@@ -243,6 +254,8 @@ def main(argv: list[str] | None = None) -> int:
     grp_in.add_argument("--file", dest="file_path")
     grp_in.add_argument("--vault-relpath")
     p_run.add_argument("--lang", help="target language for sibling_file (e.g. ko)")
+    p_run.add_argument("--suffix",
+                       help="suffix for sibling_suffix output kind (e.g. factcheck)")
     p_run.add_argument("--title", help="title for new_page output kind")
     p_run.add_argument("--output-file", required=True,
                        help="path to file containing the LLM-produced output")
@@ -298,6 +311,7 @@ def main(argv: list[str] | None = None) -> int:
                 vault_id=args.vault_id,
                 lang=args.lang,
                 title=args.title,
+                suffix=args.suffix,
             )
         except PersonaError as exc:
             print(str(exc), file=_sys.stderr)
