@@ -117,8 +117,8 @@ class TestV23ManifestOps:
     )
 
     def test_version_is_2_3_0(self):
-        assert self.PLUGIN["version"] == "2.3.0", \
-            f"Expected 2.3.0, got {self.PLUGIN['version']}"
+        assert self.PLUGIN["version"] == "2.3.1", \
+            f"Expected 2.3.1, got {self.PLUGIN['version']}"
 
     def test_ops_include_dispatch(self):
         ops = [op["name"] if isinstance(op, dict) else op for op in self.PLUGIN.get("ops", [])]
