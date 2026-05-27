@@ -174,6 +174,12 @@ class TestParallelTeam:
         )
         assert agg["template"] == "review-pipeline"
 
+        # Fix 1: persona field must be correct (not derived from worker_id string parsing)
+        personas_in_summary = {w["persona"] for w in agg["workers"]}
+        assert personas_in_summary == {"fact-checker", "consistency-checker", "terminology-manager"}, (
+            f"Unexpected personas in summary: {personas_in_summary}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # (c) Sequential team with inputs_from: previous — translation-pipeline
@@ -318,4 +324,69 @@ class TestMixedModeTeam:
         statuses = [w["status"] for w in agg["workers"]]
         assert all(s == "ok" for s in statuses), (
             f"Not all workers ok in summary: {statuses}"
+        )
+
+        # Fix 1: persona field must be correct for all 4 workers in mixed mode
+        personas_in_summary = {w["persona"] for w in agg["workers"]}
+        assert personas_in_summary == {"scaffolder", "polisher", "fact-checker", "consistency-checker"}, (
+            f"Unexpected personas in summary: {personas_in_summary}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Fix 4: Negative-path integration test
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+class TestNegativePath:
+    """Negative-path: failed worker has correct status and persona in summary.json."""
+
+    def test_failed_worker_shows_failed_status_in_summary(self, tmp_path, src, monkeypatch):
+        """When OMW_FAKE_FAIL=1, the worker exits non-zero.
+
+        Pins that:
+          - summary.json records status == "failed" for the failed worker
+          - summary.json records the correct persona name (not derived from worker_id parsing)
+        """
+        monkeypatch.setenv("OMW_FAKE_FAIL", "1")
+
+        session_dir = _unique_session_dir(tmp_path, "neg-path")
+        req = DispatchRequest(
+            persona="fact-checker",
+            backend="claude",
+            model="claude-sonnet-4-6",
+            source_path=src,
+            skip_permissions=False,
+        )
+        result = dispatch_one(req, session_dir=session_dir)
+
+        # DispatchResult itself must reflect failure
+        assert result.status == "failed", (
+            f"Expected status 'failed', got {result.status!r}"
+        )
+        assert result.persona == "fact-checker", (
+            f"Expected persona 'fact-checker', got {result.persona!r}"
+        )
+
+        # aggregate_results must persist both fields correctly
+        import time as _time
+        started_at = _time.monotonic()
+        summary = aggregate_results(
+            [result],
+            session_dir=session_dir,
+            template_name="negative-path-test",
+            started_at=started_at,
+        )
+
+        summary_path = session_dir / "summary.json"
+        assert summary_path.exists(), "summary.json not written"
+
+        agg = json.loads(summary_path.read_text(encoding="utf-8"))
+        assert len(agg["workers"]) == 1
+        worker_entry = agg["workers"][0]
+        assert worker_entry["status"] == "failed", (
+            f"summary.json status should be 'failed', got {worker_entry['status']!r}"
+        )
+        assert worker_entry["persona"] == "fact-checker", (
+            f"summary.json persona should be 'fact-checker', got {worker_entry['persona']!r}"
         )

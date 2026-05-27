@@ -70,6 +70,7 @@ class DispatchResult:
     duration_seconds: float
     model: str
     session_dir: Path
+    persona: str = ""     # persona slug name (e.g. "fact-checker")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -268,4 +269,5 @@ def dispatch_one(req: DispatchRequest, session_dir: Path) -> DispatchResult:
         duration_seconds=float(duration),
         model=payload.get("model", req.model),
         session_dir=session_dir,
+        persona=req.persona,
     )

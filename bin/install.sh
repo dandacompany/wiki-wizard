@@ -114,7 +114,7 @@ link_one "omw"        "${REPO_ROOT}/omw"
 SHIM_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/omw-dispatch"
 # Resolve physical location of SHIM_SRC to detect self-symlink scenarios
 SHIM_SRC_REAL="$(realpath "$SHIM_SRC" 2>/dev/null || readlink -f "$SHIM_SRC" 2>/dev/null || echo "$SHIM_SRC")"
-chmod +x "$SHIM_SRC_REAL"
+chmod +x "$SHIM_SRC_REAL" || { echo "ERROR: chmod failed on $SHIM_SRC_REAL — install aborted" >&2; exit 1; }
 
 SKILL_BIN="$HOME/.claude/skills/oh-my-wiki/bin"
 mkdir -p "$SKILL_BIN"

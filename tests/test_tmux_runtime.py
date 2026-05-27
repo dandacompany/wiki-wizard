@@ -321,6 +321,62 @@ class TestWaitForWorkers:
 # shutdown_session idempotence — T7 verification (T6 already added the function)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Fix 2: duplicate worker_name and new-window error handling
+# ---------------------------------------------------------------------------
+
+class TestSpawnWorkerErrorHandling:
+    """Tests for Fix 2: TmuxError raised for duplicate worker_name and new-window failure."""
+
+    def test_duplicate_worker_name_raises_tmux_error(self, tmp_path):
+        """Spawning a second worker with the same name in the same session raises TmuxError."""
+        session_id = _unique_id("dup-worker")
+        try:
+            tmux_runtime.spawn_worker(
+                session_id=session_id,
+                worker_name="same-name",
+                command=["sleep", "60"],
+                session_dir=tmp_path,
+            )
+            with pytest.raises(tmux_runtime.TmuxError, match="duplicate worker_name"):
+                tmux_runtime.spawn_worker(
+                    session_id=session_id,
+                    worker_name="same-name",
+                    command=["echo", "duplicate"],
+                    session_dir=tmp_path,
+                )
+        finally:
+            _kill_session(session_id)
+
+    def test_new_window_failure_raises_tmux_error_not_called_process_error(self, tmp_path, monkeypatch):
+        """A new-window CalledProcessError surfaces as TmuxError (not re-raised raw)."""
+        session_id = _unique_id("badwin")
+        try:
+            # Patch subprocess.run to fail only when 'new-window' is the tmux sub-command
+            original_run = subprocess.run
+
+            def patched_run(args, **kwargs):
+                if isinstance(args, list) and len(args) >= 2 and args[0] == "tmux" and args[1] == "new-window":
+                    raise subprocess.CalledProcessError(1, args, output=b"", stderr=b"forced failure")
+                return original_run(args, **kwargs)
+
+            monkeypatch.setattr(subprocess, "run", patched_run)
+
+            with pytest.raises(tmux_runtime.TmuxError, match="new-window failed"):
+                tmux_runtime.spawn_worker(
+                    session_id=session_id,
+                    worker_name="w",
+                    command=["echo", "hi"],
+                    session_dir=tmp_path,
+                )
+        finally:
+            _kill_session(session_id)
+
+
+# ---------------------------------------------------------------------------
+# shutdown_session idempotence — T7 verification (T6 already added the function)
+# ---------------------------------------------------------------------------
+
 class TestShutdownSessionIdempotence:
     """Verify shutdown_session idempotence; complements T6 basic tests."""
 

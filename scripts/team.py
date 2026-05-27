@@ -371,7 +371,7 @@ def _run_mixed(
     return [
         results_by_persona.get(
             w.persona,
-            DispatchResult(f"worker-{w.persona}", "skipped", None, 0, "", session_dir),
+            DispatchResult(f"worker-{w.persona}", "skipped", None, 0, "", session_dir, w.persona),
         )
         for w in template.workers
     ]
@@ -408,14 +408,9 @@ def aggregate_results(
 
     workers_summary = []
     for r in results:
-        # Derive persona from worker_id (strip "worker-" prefix)
-        # worker_id format: "worker-<persona>-<6hexchars>"
-        # Derive persona by stripping the leading "worker-" and trailing "-<6hexchars>"
-        raw = r.worker_id[len("worker-"):] if r.worker_id.startswith("worker-") else r.worker_id
-        persona = raw[:-7] if len(raw) > 7 and raw[-7] == "-" else raw
         workers_summary.append({
             "worker_id": r.worker_id,
-            "persona": persona,
+            "persona": r.persona,
             "status": r.status,
             "result_path": str(r.result_path) if r.result_path else "",
             "duration_seconds": r.duration_seconds,

@@ -175,6 +175,23 @@ exit $_EXIT
     return script_path
 
 
+def _list_window_names(session_id: str) -> list[str]:
+    """Return the list of existing window names in a tmux session.
+
+    Returns an empty list if the session doesn't exist or tmux fails.
+    """
+    try:
+        r = subprocess.run(
+            ["tmux", "list-windows", "-t", session_id, "-F", "#{window_name}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode != 0:
+            return []
+        return [line for line in r.stdout.splitlines() if line]
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+
+
 def spawn_worker(
     *,
     session_id: str,
@@ -190,9 +207,13 @@ def spawn_worker(
     The script is passed directly as the window command (not via send-keys) to
     avoid shell quoting / line-wrap issues.
 
+    Caller must guarantee ``worker_name`` uniqueness within ``session_id``.
+    A duplicate name raises :class:`TmuxError` before any tmux call is made.
+
     Args:
         session_id:   tmux session name (e.g. "omw-dispatch-abc123").
         worker_name:  window name + label in done.json (e.g. "fact-checker").
+                      Must be unique within the session.
         command:      argv list to execute (NOT a shell string).
         session_dir:  directory for done.json + pane.log.
                       Typically <vault>/.oh-my-wiki/dispatch-sessions/<ts>-<slug>/
@@ -202,6 +223,10 @@ def spawn_worker(
 
     Returns:
         {session_id, window_name, done_json_path, pane_log_path}
+
+    Raises:
+        TmuxError: if tmux is unavailable, session creation fails, a duplicate
+                   worker_name is detected, or new-window fails.
     """
     _require_tmux()
 
@@ -244,16 +269,24 @@ def spawn_worker(
                 f"{r_new.stderr.strip()}"
             )
 
+    # Guard against duplicate worker_name within the same session
+    existing_names = _list_window_names(session_id)
+    if worker_name in existing_names:
+        raise TmuxError(f"duplicate worker_name: {worker_name!r} already exists in session {session_id!r}")
+
     # Add the worker window to the (now-existing) session
-    subprocess.run(
-        [
-            "tmux", "new-window",
-            "-t", session_id,
-            "-n", worker_name,
-            shell_cmd,
-        ],
-        capture_output=True, text=True, timeout=10, check=True,
-    )
+    try:
+        subprocess.run(
+            [
+                "tmux", "new-window",
+                "-t", session_id,
+                "-n", worker_name,
+                shell_cmd,
+            ],
+            capture_output=True, text=True, timeout=10, check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise TmuxError(f"new-window failed: {e}") from e
 
     return {
         "session_id": session_id,

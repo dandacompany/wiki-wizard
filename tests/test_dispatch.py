@@ -41,6 +41,7 @@ class TestDispatchOne:
         assert isinstance(result, DispatchResult)
         assert result.status == "ok"
         assert result.worker_id.startswith("worker-")
+        assert result.persona == "fact-checker"
 
     def test_result_path_matches_persona_output_kind(self, fake_env):
         """fact-checker output_kind=sibling_suffix → source.factcheck.md."""
@@ -54,6 +55,7 @@ class TestDispatchOne:
         result = dispatch_one(req, session_dir=fake_env / "s")
         assert result.result_path is not None
         assert result.result_path.name == "doc.factcheck.md"
+        assert result.persona == "fact-checker"
 
     def test_worker_prompt_has_persona_and_task_sections(self, fake_env, tmp_path):
         """input.md written for the worker must contain both section headers."""
