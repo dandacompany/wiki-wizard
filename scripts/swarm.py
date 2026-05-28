@@ -288,6 +288,12 @@ def cmd_send(ctx: SwarmContext, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_publish(ctx: SwarmContext, args: argparse.Namespace) -> int:
+    """Publish = broadcast with a mandatory --topic."""
+    # Delegate entirely to cmd_broadcast — args.topic is already set by argparse
+    return cmd_broadcast(ctx, args)
+
+
 def cmd_broadcast(ctx: SwarmContext, args: argparse.Namespace) -> int:
     chash = _content_hash(args.body, "*")
     if _is_duplicate(ctx, chash):
@@ -311,6 +317,35 @@ def cmd_broadcast(ctx: SwarmContext, args: argparse.Namespace) -> int:
         inbox_path = ctx.inbox_dir(peer) / f"{msg_id}.json"
         _atomic_write(inbox_path, envelope)
     print(json.dumps({"msg_id": msg_id, "recipients": ctx.peers}))
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# cmd: subscribe
+# ---------------------------------------------------------------------------
+
+def cmd_subscribe(ctx: SwarmContext, args: argparse.Namespace) -> int:
+    """Record topic subscription in subscriptions.json (advisory only)."""
+    subs_path = ctx.subscriptions_path()
+    # Read existing or start fresh
+    if subs_path.exists():
+        try:
+            existing = json.loads(subs_path.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+    else:
+        existing = {}
+
+    topics: list[str] = existing.get("topics", [])
+    if args.topic not in topics:
+        topics.append(args.topic)
+
+    _atomic_write(subs_path, {
+        "worker_id": ctx.worker_id,
+        "topics": topics,
+        "updated_at": _now_iso(),
+    })
+    print(json.dumps({"subscribed": args.topic, "all_topics": topics}))
     return 0
 
 
@@ -346,9 +381,18 @@ def _build_parser() -> argparse.ArgumentParser:
     bc_p.add_argument("--body", required=True, help="Message body")
     bc_p.add_argument("--topic", default="", help="Optional topic tag")
 
+    # publish
+    pub_p = sub.add_parser("publish", help="Broadcast with a mandatory topic tag (alias for broadcast --topic)")
+    pub_p.add_argument("--topic", required=True, help="Topic name (required)")
+    pub_p.add_argument("--body", required=True, help="Message body")
+
+    # subscribe
+    sub_p = sub.add_parser("subscribe", help="Record topic subscription (advisory)")
+    sub_p.add_argument("--topic", required=True, help="Topic to subscribe to")
+
     # Placeholders for subcommands added in later tasks (argparse must know them
     # to avoid exit-code 2 on unknown subcommand)
-    for name in ("publish", "subscribe", "heartbeat", "monitor",
+    for name in ("heartbeat", "monitor",
                  "rpc", "rpc-respond", "vote-create", "vote", "vote-result"):
         sub.add_parser(name, add_help=False)
 
@@ -375,6 +419,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_send(ctx, args)
     elif args.subcommand == "broadcast":
         return cmd_broadcast(ctx, args)
+    elif args.subcommand == "publish":
+        return cmd_publish(ctx, args)
+    elif args.subcommand == "subscribe":
+        return cmd_subscribe(ctx, args)
 
     # Subcommands implemented in later tasks — placeholder exit
     print(

@@ -280,3 +280,64 @@ class TestBroadcast:
         if self_inbox.exists():
             self_msgs = list(self_inbox.glob("*.json"))
             assert len(self_msgs) == 0, "self received its own broadcast"
+
+
+# ============================================================
+# T3 — publish + subscribe
+# ============================================================
+
+class TestPublish:
+    def test_publish_is_alias_for_broadcast_with_topic(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(
+            ["publish", "--topic", "claim", "--body", '{"claim": "Python 1991"}'],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        result = json.loads(r.stdout)
+        assert "msg_id" in result
+        # Both peers should have received it
+        msg_id = result["msg_id"]
+        for peer in ("worker-test-2", "worker-test-3"):
+            inbox_copy = tmp_path / peer / "inbox" / f"{msg_id}.json"
+            assert inbox_copy.exists(), f"{peer} inbox missing published message"
+
+    def test_publish_sets_topic_in_envelope(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(
+            ["publish", "--topic", "status", "--body", "processing"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0
+        result = json.loads(r.stdout)
+        msg_id = result["msg_id"]
+        canonical = list((tmp_path / "messages").glob(f"{msg_id}*.json"))
+        assert canonical
+        envelope = json.loads(canonical[0].read_text(encoding="utf-8"))
+        assert envelope.get("topic") == "status"
+
+    def test_publish_without_topic_exits_error(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(["publish", "--body", "no topic"], env, cwd=tmp_path)
+        # --topic is required for publish
+        assert r.returncode != 0
+
+
+class TestSubscribe:
+    def test_subscribe_writes_subscriptions_json(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(["subscribe", "--topic", "claim"], env, cwd=tmp_path)
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        subs_path = tmp_path / "worker-test-1" / "subscriptions.json"
+        assert subs_path.exists(), "subscriptions.json not created"
+        subs = json.loads(subs_path.read_text(encoding="utf-8"))
+        assert "claim" in subs.get("topics", [])
+
+    def test_subscribe_multiple_topics_accumulates(self, tmp_path):
+        env = _base_env(tmp_path)
+        _swarm(["subscribe", "--topic", "claim"], env, cwd=tmp_path)
+        _swarm(["subscribe", "--topic", "status"], env, cwd=tmp_path)
+        subs_path = tmp_path / "worker-test-1" / "subscriptions.json"
+        subs = json.loads(subs_path.read_text(encoding="utf-8"))
+        assert "claim" in subs["topics"]
+        assert "status" in subs["topics"]
