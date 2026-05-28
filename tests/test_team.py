@@ -11,7 +11,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-from scripts.team import load_template, TeamTemplate, TeamValidationError
+from scripts.team import (
+    load_template, TeamTemplate, TeamValidationError,
+    WorkerConfig, _peer_list, SwarmContext,
+)
 
 
 TEAMS_DIR = Path(__file__).parent.parent / "teams"
@@ -387,3 +390,173 @@ class TestShippedTemplates:
         for name in ("review-pipeline", "translation-pipeline", "draft-to-publish"):
             t = load_template(name)
             assert len(t.body.strip()) > 0, f"{name} body is empty"
+
+
+# ── T7 tests ─────────────────────────────────────────────────────────────────
+
+def _swarm_template_yaml(swarm: bool = True, max_iterations: int = 1,
+                          swarm_instructions: str | None = None) -> str:
+    instr_block = (
+        f"    swarm_instructions: |\n      {swarm_instructions}\n"
+        if swarm_instructions else ""
+    )
+    return f"""\
+---
+name: test-swarm-team
+description: Unit test swarm template
+mode: parallel
+swarm: {str(swarm).lower()}
+max_iterations: {max_iterations}
+timeout_seconds: 600
+workers:
+  - persona: fact-checker
+    backend_default: claude
+    model_hint: most_capable
+{instr_block}  - persona: summarizer
+    backend_default: claude
+    model_hint: most_capable
+---
+Test swarm template body.
+"""
+
+
+def test_load_template_swarm_flag_true(tmp_path):
+    """swarm: true parsed correctly into TeamTemplate.swarm."""
+    f = tmp_path / "team.md"
+    f.write_text(_swarm_template_yaml(swarm=True))
+    tmpl = load_template(f)
+    assert tmpl.swarm is True
+
+
+def test_load_template_swarm_flag_false_default(tmp_path):
+    """swarm omitted defaults to False (backwards compat)."""
+    yaml_body = """\
+---
+name: old-team
+description: no swarm field at all
+mode: parallel
+workers:
+  - persona: fact-checker
+    backend_default: claude
+---
+Old team body.
+"""
+    f = tmp_path / "team.md"
+    f.write_text(yaml_body)
+    tmpl = load_template(f)
+    assert tmpl.swarm is False
+
+
+def test_load_template_swarm_instructions_parsed(tmp_path):
+    """swarm_instructions on worker spec is stored correctly."""
+    f = tmp_path / "team.md"
+    f.write_text(_swarm_template_yaml(swarm=True,
+                                       swarm_instructions="publish to topic claim"))
+    tmpl = load_template(f)
+    worker_with_instr = tmpl.workers[0]
+    assert worker_with_instr.swarm_instructions is not None
+    assert "claim" in worker_with_instr.swarm_instructions
+
+
+def test_load_template_max_iterations_parsed(tmp_path):
+    """max_iterations field is parsed as integer."""
+    f = tmp_path / "team.md"
+    f.write_text(_swarm_template_yaml(swarm=True, max_iterations=3))
+    tmpl = load_template(f)
+    assert tmpl.max_iterations == 3
+
+
+def test_peer_list_excludes_self():
+    """_peer_list() returns all worker IDs except the one at self_index."""
+    workers = [
+        WorkerConfig(persona="fact-checker", backend_default="claude"),
+        WorkerConfig(persona="fact-checker", backend_default="codex"),
+        WorkerConfig(persona="moderator",    backend_default="claude"),
+    ]
+    peers_for_0 = _peer_list(workers, 0)
+    assert "worker-1-fact-checker" not in peers_for_0
+    assert "worker-2-fact-checker" in peers_for_0
+    assert "worker-3-moderator"    in peers_for_0
+    assert len(peers_for_0) == 2
+
+
+def test_swarm_context_dataclass():
+    """SwarmContext holds session_dir, worker_id, peers, swarm_instructions."""
+    ctx = SwarmContext(
+        session_dir="/tmp/session",
+        worker_id="worker-1-fact-checker",
+        peers=["worker-2-moderator"],
+        swarm_instructions="publish claim",
+    )
+    assert ctx.session_dir == "/tmp/session"
+    assert ctx.worker_id == "worker-1-fact-checker"
+    assert "worker-2-moderator" in ctx.peers
+    assert ctx.swarm_instructions == "publish claim"
+
+
+def test_swarm_context_default_instructions():
+    """SwarmContext swarm_instructions defaults to None."""
+    ctx = SwarmContext(
+        session_dir="/tmp/s",
+        worker_id="worker-1-x",
+        peers=[],
+    )
+    assert ctx.swarm_instructions is None
+
+
+def test_max_iterations_default_is_one(tmp_path):
+    """When max_iterations not set, TeamTemplate.max_iterations defaults to 1."""
+    yaml_body = """\
+---
+name: no-iters
+description: test
+mode: parallel
+workers:
+  - persona: fact-checker
+    backend_default: claude
+---
+body
+"""
+    f = tmp_path / "team.md"
+    f.write_text(yaml_body)
+    tmpl = load_template(f)
+    assert tmpl.max_iterations == 1
+
+
+def test_swarm_true_requires_at_least_one_worker(tmp_path):
+    """swarm=true with no workers raises TeamValidationError."""
+    yaml_body = """\
+---
+name: empty-swarm
+description: test
+mode: parallel
+swarm: true
+workers: []
+---
+body
+"""
+    f = tmp_path / "team.md"
+    f.write_text(yaml_body)
+    with pytest.raises((TeamValidationError, ValueError)):
+        load_template(f)
+
+
+def test_max_iterations_less_than_one_raises(tmp_path):
+    """max_iterations=0 raises TeamValidationError."""
+    yaml_body = """\
+---
+name: bad-iters
+description: test
+mode: parallel
+swarm: true
+max_iterations: 0
+workers:
+  - persona: fact-checker
+    backend_default: claude
+---
+body
+"""
+    f = tmp_path / "team.md"
+    f.write_text(yaml_body)
+    with pytest.raises((TeamValidationError, ValueError)):
+        load_template(f)

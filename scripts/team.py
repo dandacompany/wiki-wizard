@@ -48,6 +48,7 @@ class WorkerConfig:
     inputs_from: str | None = None   # "previous" or a worker name
     args: dict[str, Any] = field(default_factory=dict)
     when: str = "always"
+    swarm_instructions: str | None = None   # NEW v2.4 — per-worker swarm behaviour
 
 
 @dataclass
@@ -59,6 +60,17 @@ class TeamTemplate:
     stages: list[dict] | None = None   # only for mode=mixed
     timeout_seconds: int = 600
     body: str = ""                     # markdown body below frontmatter
+    swarm: bool = False                # NEW v2.4 — enables swarm bus injection
+    max_iterations: int = 1            # NEW v2.4 — for loop templates
+
+
+@dataclass
+class SwarmContext:
+    """Swarm context passed to dispatch_one() when template.swarm is True (v2.4)."""
+    session_dir: str
+    worker_id: str
+    peers: list[str]
+    swarm_instructions: str | None = None
 
 
 class TeamValidationError(ValueError):
@@ -75,7 +87,14 @@ def _parse_worker(raw: dict) -> WorkerConfig:
         inputs_from=raw.get("inputs_from"),
         args=raw.get("args", {}),
         when=raw.get("when", "always"),
+        swarm_instructions=raw.get("swarm_instructions"),  # NEW v2.4
     )
+
+
+def _peer_list(workers: list[WorkerConfig], self_index: int) -> list[str]:
+    """Return worker IDs of all workers except the one at self_index (v2.4)."""
+    ids = [f"worker-{i + 1}-{w.persona}" for i, w in enumerate(workers)]
+    return [wid for j, wid in enumerate(ids) if j != self_index]
 
 
 def load_template(name_or_path: str | Path) -> TeamTemplate:
@@ -119,6 +138,8 @@ def load_template(name_or_path: str | Path) -> TeamTemplate:
     mode = fm.get("mode", "parallel")
     raw_workers: list[dict] = fm.get("workers", [])
     stages = fm.get("stages")
+    swarm = bool(fm.get("swarm", False))
+    max_iterations = int(fm.get("max_iterations", 1))
 
     workers = [_parse_worker(w) for w in raw_workers]
 
@@ -142,6 +163,16 @@ def load_template(name_or_path: str | Path) -> TeamTemplate:
             "mode=mixed requires a 'stages:' list in frontmatter"
         )
 
+    # ── v2.4 swarm validation ─────────────────────────────────────────────────
+    if swarm and not workers:
+        raise TeamValidationError(
+            f"Template '{name}': swarm=true requires at least 1 worker"
+        )
+    if max_iterations < 1:
+        raise TeamValidationError(
+            f"Template '{name}': max_iterations must be >= 1"
+        )
+
     return TeamTemplate(
         name=name,
         description=fm.get("description", ""),
@@ -150,6 +181,8 @@ def load_template(name_or_path: str | Path) -> TeamTemplate:
         stages=stages,
         timeout_seconds=int(fm.get("timeout_seconds", 600)),
         body=body,
+        swarm=swarm,
+        max_iterations=max_iterations,
     )
 
 
