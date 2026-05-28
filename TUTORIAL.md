@@ -801,3 +801,68 @@ No. Docker is an optional reference form factor for users who want complete
 backend isolation or a reproducible environment. The default in-skill form
 factor requires only tmux (>= 3.0) on your host plus whichever backend CLIs
 you want to use. See `docker/README.md` for the Docker setup.
+
+### Q. How do workers talk to each other?
+
+Workers in a swarm team (`swarm: true`) share a file-based message bus.
+Each worker gets a unique ID (`OMW_SWARM_WORKER_ID`) and a session directory
+(`OMW_SWARM_SESSION_DIR`). They exchange messages using the swarm CLI:
+
+```bash
+python3 -m scripts.swarm send --to worker-2-fact-checker --body "done"
+python3 -m scripts.swarm broadcast --body "all facts verified"
+python3 -m scripts.swarm inbox --unread-only --mark-delivered
+```
+
+Messages are plain JSON files on disk — no sockets, no MCP required.
+Any backend (claude / codex / gemini) that can run a shell command can participate.
+
+### Q. What does the moderator do?
+
+The `moderator` persona reads contributions from peer workers via the swarm
+inbox — claims, findings, drafted sections — and synthesises them into a
+single unified output. It can also initiate votes when peers disagree:
+
+```bash
+python3 -m scripts.swarm vote-create --proposal "verdict for: Python year"
+# ... wait for peers to vote ...
+python3 -m scripts.swarm vote-result --proposal-id prop-001
+```
+
+The moderator always runs AFTER the parallel workers finish (second stage in
+a mixed-mode team). It does NOT produce its own independent research — it
+organises and synthesises what the other workers produced.
+
+### Q. Can I write the same article from 3 perspectives at once?
+
+Yes. Use `perspective-synthesis-team`:
+
+```
+omw team-run perspective-synthesis-team on my-topic.md
+```
+
+Three `perspective-writer` workers (beginner / expert / skeptic) run in
+parallel. Each drafts the topic from its assigned viewpoint and publishes to
+`topic: perspective-draft`. A `moderator` then weaves the three drafts into
+one layered document, annotating audience-specific sections with
+`[for: beginner]`, `[for: expert]`, or `[for: skeptic]`.
+
+Useful for tutorials that must serve novices and experts in the same document,
+or product write-ups that acknowledge sceptics without alienating enthusiasts.
+
+### Q. How do I see live progress while a swarm team is running?
+
+Run `omw swarm-monitor` from your leader session. It detects the active
+dispatch session, queries each worker's latest heartbeat, and renders a
+status table showing worker name, current status, progress percentage, alive
+flag, and inbox queue depth.
+
+To watch continuously (refreshed every few seconds, up to a cap):
+
+```bash
+python3 -m scripts.swarm monitor --session .oh-my-wiki/dispatch-sessions/<dir>
+```
+
+Workers should call `python3 -m scripts.swarm heartbeat --status "..." --progress 0.5`
+periodically so the dashboard stays current. Workers silent for more than 30 s
+are flagged as `alive: false`.

@@ -117,8 +117,8 @@ class TestV23ManifestOps:
     )
 
     def test_version_is_2_3_0(self):
-        assert self.PLUGIN["version"] == "2.3.1", \
-            f"Expected 2.3.1, got {self.PLUGIN['version']}"
+        assert self.PLUGIN["version"] == "2.4.0", \
+            f"Expected 2.4.0, got {self.PLUGIN['version']}"
 
     def test_ops_include_dispatch(self):
         ops = [op["name"] if isinstance(op, dict) else op for op in self.PLUGIN.get("ops", [])]
@@ -141,3 +141,42 @@ class TestV23ManifestOps:
         keywords = self.PLUGIN.get("trigger_keywords", [])
         for kw in ("디스패치", "팀 실행", "병렬 검토"):
             assert kw in keywords, f"KO trigger keyword missing: {kw!r}"
+
+
+# ---------------------------------------------------------------------------
+# T18: plugin.json assertions for v2.4.0
+# ---------------------------------------------------------------------------
+
+class TestPluginManifestV24:
+    """Assert plugin.json is correctly updated for v2.4.0."""
+
+    PLUGIN_FILE = Path(__file__).resolve().parents[1] / ".claude-plugin" / "plugin.json"
+
+    def _load(self):
+        return json.loads(self.PLUGIN_FILE.read_text())
+
+    def test_version_is_2_4_0(self):
+        data = self._load()
+        assert data["version"] == "2.4.0", (
+            f"plugin.json version must be '2.4.0', got '{data.get('version')}'"
+        )
+
+    def test_swarm_monitor_op_present(self):
+        data = self._load()
+        ops = [op["name"] if isinstance(op, dict) else op
+               for op in data.get("ops", [])]
+        assert "swarm-monitor" in ops, (
+            f"'swarm-monitor' must be in plugin.json ops; found: {ops}"
+        )
+
+    def test_en_and_ko_triggers_present(self):
+        data = self._load()
+        # Triggers may be at top level or nested under ops
+        # Check trigger keywords exist somewhere in the manifest
+        manifest_text = json.dumps(data, ensure_ascii=False)
+        en_triggers = ["monitor the swarm", "show worker status"]
+        ko_triggers = ["스웜 모니터", "워커 상태 보여줘"]
+        for trigger in en_triggers + ko_triggers:
+            assert trigger in manifest_text, (
+                f"Trigger '{trigger}' not found in plugin.json"
+            )

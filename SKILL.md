@@ -71,34 +71,35 @@ These hold across all commands. Each `commands/<op>.md` repeats the relevant one
 
 If the user input matches an op keyword, prefer that op over the wizard:
 
-| Keyword (EN / KO)                                 | Op                                                              |
-| ------------------------------------------------- | --------------------------------------------------------------- |
-| "ingest", "정리", "흡수"                          | `ingest`                                                        |
-| "query", "물어봐", "찾아봐"                       | `query`                                                         |
-| "find", "검색", "찾아줘"                          | `find`                                                          |
-| "open", "열어줘"                                  | `open`                                                          |
-| "edit", "수정", "편집"                            | `edit`                                                          |
-| "move", "이동", "옮겨"                            | `move`                                                          |
-| "delete", "삭제", "지워"                          | `delete`                                                        |
-| "lint", "점검", "정리하기"                        | `lint`                                                          |
-| "setup", "새 vault", "vault 만들기"               | `vault-setup`                                                   |
-| "use", "vault 전환", "vault 바꿔"                 | `vault-use`                                                     |
-| "list", "vault 목록"                              | `vault-list`                                                    |
-| "forget", "vault 제거"                            | `vault-forget`                                                  |
-| "import memo", "memo 가져오기"                    | `vault-import-memo`                                             |
-| "autoresearch", "research this", "리서치", "조사" | `autoresearch`                                                  |
-| "translate", "번역"                               | `persona-translate`                                             |
-| "polish", "윤문", "다듬어줘"                      | `persona-polish`                                                |
-| "summarize", "요약"                               | `persona-summarize`                                             |
-| "scaffold", "초안", "outline"                     | `persona-scaffold`                                              |
-| "fact-check this" / "팩트체크해줘"                | `persona-factcheck`                                             |
-| "check for contradictions" / "모순 봐줘"          | `persona-consistency`                                           |
-| "build a glossary" / "용어집 만들어줘"            | `persona-terminology`                                           |
-| "omw", "OMW", "/omw", "오엠더블유"                | (alias for `oh-my-wiki`; routes through Step 1 wizard normally) |
-| "hot-cache", "session cache", "캐시 상태"         | `hot-cache`                                                     |
-| dispatch / 디스패치 / dispatch this               | `commands/dispatch.md`                                          |
-| team / 팀 실행 / run a team                       | `commands/team.md`                                              |
-| team-run / 병렬 검토 / team template              | `commands/team-run.md`                                          |
+| Keyword (EN / KO)                                                               | Op                                                              |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| "ingest", "정리", "흡수"                                                        | `ingest`                                                        |
+| "query", "물어봐", "찾아봐"                                                     | `query`                                                         |
+| "find", "검색", "찾아줘"                                                        | `find`                                                          |
+| "open", "열어줘"                                                                | `open`                                                          |
+| "edit", "수정", "편집"                                                          | `edit`                                                          |
+| "move", "이동", "옮겨"                                                          | `move`                                                          |
+| "delete", "삭제", "지워"                                                        | `delete`                                                        |
+| "lint", "점검", "정리하기"                                                      | `lint`                                                          |
+| "setup", "새 vault", "vault 만들기"                                             | `vault-setup`                                                   |
+| "use", "vault 전환", "vault 바꿔"                                               | `vault-use`                                                     |
+| "list", "vault 목록"                                                            | `vault-list`                                                    |
+| "forget", "vault 제거"                                                          | `vault-forget`                                                  |
+| "import memo", "memo 가져오기"                                                  | `vault-import-memo`                                             |
+| "autoresearch", "research this", "리서치", "조사"                               | `autoresearch`                                                  |
+| "translate", "번역"                                                             | `persona-translate`                                             |
+| "polish", "윤문", "다듬어줘"                                                    | `persona-polish`                                                |
+| "summarize", "요약"                                                             | `persona-summarize`                                             |
+| "scaffold", "초안", "outline"                                                   | `persona-scaffold`                                              |
+| "fact-check this" / "팩트체크해줘"                                              | `persona-factcheck`                                             |
+| "check for contradictions" / "모순 봐줘"                                        | `persona-consistency`                                           |
+| "build a glossary" / "용어집 만들어줘"                                          | `persona-terminology`                                           |
+| "omw", "OMW", "/omw", "오엠더블유"                                              | (alias for `oh-my-wiki`; routes through Step 1 wizard normally) |
+| "hot-cache", "session cache", "캐시 상태"                                       | `hot-cache`                                                     |
+| dispatch / 디스패치 / dispatch this                                             | `commands/dispatch.md`                                          |
+| team / 팀 실행 / run a team                                                     | `commands/team.md`                                              |
+| team-run / 병렬 검토 / team template                                            | `commands/team-run.md`                                          |
+| "monitor the swarm" / "show worker status" / "스웜 모니터" / "워커 상태 보여줘" | `commands/swarm-monitor.md`                                     |
 
 ## Pasted content heuristic
 

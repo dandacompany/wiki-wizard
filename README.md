@@ -297,6 +297,74 @@ reports output paths and durations.
 | `translation-pipeline` | sequential | translator (claude) -> polisher (gemini)                                                    |
 | `draft-to-publish`     | mixed      | scaffolder (codex) -> polisher (claude) -> [fact-checker + consistency-checker] in parallel |
 
+## Swarm protocol (v2.4)
+
+Workers can now talk to each other during execution via a file-based message
+bus (`scripts/swarm.py`). No sockets, no MCP — pure file I/O accessible from
+any backend CLI.
+
+### Invocation examples
+
+**Triple fact-check with moderator consensus**
+
+```
+omw team-run triple-factcheck-moderator on my-draft.md
+```
+
+Three fact-checker workers (claude / codex / gemini) each verify the document
+independently and publish their findings to `topic: claim`. A moderator worker
+reads all three, initiates a vote on contested claims, and writes a consensus
+report with a dissent table.
+
+**Polish + fact-check loop**
+
+```
+omw team-run polish-factcheck-loop on my-draft.md
+```
+
+A scaffolder produces an initial draft; a polisher refines it and sends it to
+a fact-checker via swarm RPC. The fact-checker responds "OK" or "issues found:
+...". The polisher iterates up to `max_iterations` (default: 3) times before
+finalizing.
+
+**Multi-perspective synthesis**
+
+```
+omw team-run perspective-synthesis-team on my-topic.md
+```
+
+Three perspective-writers draft the same topic from beginner, expert, and
+skeptic viewpoints in parallel. A moderator weaves the three drafts into a
+single layered document with `[for: audience]` annotations.
+
+**Live swarm dashboard**
+
+```
+omw swarm-monitor
+```
+
+Or during any swarm-team dispatch, from your leader session, call
+`omw swarm-monitor` to see a real-time table of worker heartbeats, inbox
+depths, alive status, and session-wide message/vote/RPC counters.
+
+### Swarm primitives
+
+Workers coordinate via `python3 -m scripts.swarm <op>`:
+
+| Op                                     | Purpose                                         |
+| -------------------------------------- | ----------------------------------------------- |
+| `send`                                 | Direct message to one peer                      |
+| `broadcast`                            | Message all peers                               |
+| `publish`                              | Tagged broadcast (alias with `--topic`)         |
+| `inbox`                                | Read messages (filter by topic / unread)        |
+| `heartbeat`                            | Update worker status (visible to `monitor`)     |
+| `monitor`                              | Dashboard: all worker states + session counters |
+| `rpc` / `rpc-respond`                  | Synchronous request–response with timeout       |
+| `vote-create` / `vote` / `vote-result` | Majority-vote consensus                         |
+
+Swarm activates only for teams with `swarm: true` in their manifest.
+Existing teams (`swarm: false` default) are unaffected.
+
 ## Storage
 
 - The vault registry lives at `data/registry.db` as a per-user sqlite database (gitignored).

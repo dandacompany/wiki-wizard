@@ -1,6 +1,6 @@
 {
   "name": "oh-my-wiki",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "description": "Karpathy-style LLM Wiki skill with multi-vault sqlite registry. Capture sources, build a structured wiki, query it with cited answers. Also addressable as 'omw'.",
   "author": "dandacompany",
   "license": "MIT",
@@ -47,7 +47,21 @@
     "병렬 검토",
     "team template",
     "omw team",
-    "omw dispatch"
+    "omw dispatch",
+    "병렬 컨센서스",
+    "perspective team",
+    "퍼스펙티브 팀",
+    "monitor the swarm",
+    "show worker status",
+    "swarm dashboard",
+    "check swarm progress",
+    "what are the workers doing",
+    "show swarm heartbeats",
+    "스웜 모니터",
+    "워커 상태 보여줘",
+    "스웜 대시보드",
+    "워커 진행 상황",
+    "스웜 모니터링"
   ],
   "ops": [
     "vault-setup",
@@ -75,7 +89,8 @@
     "hot-cache",
     "dispatch",
     "team",
-    "team-run"
+    "team-run",
+    "swarm-monitor"
   ],
   "skill_path": "./SKILL.md",
   "commands_path": "./commands",
