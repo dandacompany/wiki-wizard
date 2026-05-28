@@ -227,6 +227,94 @@ def cmd_inbox(ctx: SwarmContext, args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Internal: write message + deliver to inbox(es)
+# ---------------------------------------------------------------------------
+
+def _write_message(
+    ctx: SwarmContext,
+    to: str,
+    body: str,
+    *,
+    topic: str = "",
+    correlation_id: str = "",
+) -> dict[str, Any]:
+    """Write canonical message envelope + copy to recipient inbox.
+
+    Returns the envelope dict (includes msg_id, sent_at).
+    """
+    msg_id = _new_msg_id()
+    envelope: dict[str, Any] = {
+        "msg_id": msg_id,
+        "from": ctx.worker_id,
+        "to": to,
+        "body": body,
+        "sent_at": _now_iso(),
+    }
+    if topic:
+        envelope["topic"] = topic
+    if correlation_id:
+        envelope["correlation_id"] = correlation_id
+
+    # 1. Canonical store
+    canonical_path = ctx.messages_dir() / f"{msg_id}.json"
+    _atomic_write(canonical_path, envelope)
+
+    # 2. Inbox copy (only for point-to-point)
+    if to != "*":
+        inbox_path = ctx.inbox_dir(to) / f"{msg_id}.json"
+        _atomic_write(inbox_path, envelope)
+
+    return envelope
+
+
+def cmd_send(ctx: SwarmContext, args: argparse.Namespace) -> int:
+    if not args.to or args.to == "*":
+        print(
+            "error: --to must specify a single worker id. "
+            "Use 'broadcast' to send to all peers.",
+            file=sys.stderr,
+        )
+        return 1
+    chash = _content_hash(args.body, args.to)
+    if _is_duplicate(ctx, chash):
+        print(json.dumps({"msg_id": None, "skipped": "duplicate", "hash": chash}))
+        return 0
+    envelope = _write_message(
+        ctx, args.to, args.body,
+        topic=args.topic or "",
+        correlation_id=args.correlation_id or "",
+    )
+    print(json.dumps({"msg_id": envelope["msg_id"], "delivered_at": envelope["sent_at"]}))
+    return 0
+
+
+def cmd_broadcast(ctx: SwarmContext, args: argparse.Namespace) -> int:
+    chash = _content_hash(args.body, "*")
+    if _is_duplicate(ctx, chash):
+        print(json.dumps({"msg_id": None, "skipped": "duplicate", "recipients": []}))
+        return 0
+    # Write canonical envelope with to="*"
+    msg_id = _new_msg_id()
+    envelope: dict[str, Any] = {
+        "msg_id": msg_id,
+        "from": ctx.worker_id,
+        "to": "*",
+        "body": args.body,
+        "sent_at": _now_iso(),
+    }
+    if args.topic:
+        envelope["topic"] = args.topic
+    canonical_path = ctx.messages_dir() / f"{msg_id}.json"
+    _atomic_write(canonical_path, envelope)
+    # Deliver to each peer's inbox (ctx.peers already excludes self)
+    for peer in ctx.peers:
+        inbox_path = ctx.inbox_dir(peer) / f"{msg_id}.json"
+        _atomic_write(inbox_path, envelope)
+    print(json.dumps({"msg_id": msg_id, "recipients": ctx.peers}))
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
 
@@ -245,11 +333,23 @@ def _build_parser() -> argparse.ArgumentParser:
     inbox_p.add_argument("--mark-delivered", action="store_true", dest="mark_delivered",
                          help="Move returned messages to .delivered/ after reading")
 
+    # send
+    send_p = sub.add_parser("send", help="Send a message to a specific peer")
+    send_p.add_argument("--to", required=True, help="Recipient worker id")
+    send_p.add_argument("--body", required=True, help="Message body (text or JSON string)")
+    send_p.add_argument("--topic", default="", help="Optional topic tag")
+    send_p.add_argument("--correlation-id", default="", dest="correlation_id",
+                        help="Correlation id for RPC pairing")
+
+    # broadcast
+    bc_p = sub.add_parser("broadcast", help="Send a message to all peers")
+    bc_p.add_argument("--body", required=True, help="Message body")
+    bc_p.add_argument("--topic", default="", help="Optional topic tag")
+
     # Placeholders for subcommands added in later tasks (argparse must know them
     # to avoid exit-code 2 on unknown subcommand)
-    for name in ("send", "broadcast", "publish", "subscribe",
-                 "heartbeat", "monitor", "rpc", "rpc-respond",
-                 "vote-create", "vote", "vote-result"):
+    for name in ("publish", "subscribe", "heartbeat", "monitor",
+                 "rpc", "rpc-respond", "vote-create", "vote", "vote-result"):
         sub.add_parser(name, add_help=False)
 
     return p
@@ -271,6 +371,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.subcommand == "inbox":
         return cmd_inbox(ctx, args)
+    elif args.subcommand == "send":
+        return cmd_send(ctx, args)
+    elif args.subcommand == "broadcast":
+        return cmd_broadcast(ctx, args)
 
     # Subcommands implemented in later tasks — placeholder exit
     print(

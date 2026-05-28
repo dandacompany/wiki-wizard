@@ -177,3 +177,106 @@ class TestInbox:
         env = _base_env(tmp_path)
         r = _swarm(["nonexistent-op"], env, cwd=tmp_path)
         assert r.returncode == 2
+
+
+# ============================================================
+# T2 — send + broadcast
+# ============================================================
+
+class TestSend:
+    def test_send_creates_canonical_message(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(
+            ["send", "--to", "worker-test-2", "--body", "hello peer"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        result = json.loads(r.stdout)
+        assert "msg_id" in result
+        # Canonical message must exist in messages/
+        messages_dir = tmp_path / "messages"
+        assert messages_dir.exists()
+        msg_files = list(messages_dir.glob("*.json"))
+        assert len(msg_files) == 1
+
+    def test_send_links_to_recipient_inbox(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(
+            ["send", "--to", "worker-test-2", "--body", "hello peer"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0
+        result = json.loads(r.stdout)
+        msg_id = result["msg_id"]
+        inbox_copy = tmp_path / "worker-test-2" / "inbox" / f"{msg_id}.json"
+        assert inbox_copy.exists(), f"inbox copy not found: {inbox_copy}"
+
+    def test_send_envelope_has_required_fields(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(
+            ["send", "--to", "worker-test-2", "--body", "test body",
+             "--topic", "claim"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0
+        result = json.loads(r.stdout)
+        msg_id = result["msg_id"]
+        canonical = list((tmp_path / "messages").glob(f"{msg_id}*.json"))
+        assert canonical, "canonical message file not found"
+        envelope = json.loads(canonical[0].read_text(encoding="utf-8"))
+        for field in ("msg_id", "from", "to", "body", "sent_at"):
+            assert field in envelope, f"envelope missing field: {field}"
+        assert envelope["topic"] == "claim"
+        assert envelope["from"] == "worker-test-1"
+        assert envelope["to"] == "worker-test-2"
+
+    def test_send_wildcard_to_rejected(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(
+            ["send", "--to", "*", "--body", "should fail"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode in (1, 2), f"expected error exit, got {r.returncode}"
+
+    def test_send_with_correlation_id(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(
+            ["send", "--to", "worker-test-2", "--body", "linked msg",
+             "--correlation-id", "rpc-001"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0
+        result = json.loads(r.stdout)
+        msg_id = result["msg_id"]
+        canonical = list((tmp_path / "messages").glob(f"{msg_id}*.json"))
+        envelope = json.loads(canonical[0].read_text(encoding="utf-8"))
+        assert envelope.get("correlation_id") == "rpc-001"
+
+
+class TestBroadcast:
+    def test_broadcast_delivers_to_all_peers(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(
+            ["broadcast", "--body", "hello everyone"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        result = json.loads(r.stdout)
+        assert "msg_id" in result
+        assert "recipients" in result
+        # Both peers should have received it
+        msg_id = result["msg_id"]
+        for peer in ("worker-test-2", "worker-test-3"):
+            inbox_copy = tmp_path / peer / "inbox" / f"{msg_id}.json"
+            assert inbox_copy.exists(), f"{peer} inbox missing broadcast message"
+
+    def test_broadcast_excludes_self(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(["broadcast", "--body", "no self-mail"], env, cwd=tmp_path)
+        assert r.returncode == 0
+        result = json.loads(r.stdout)
+        assert "worker-test-1" not in result["recipients"], "self must be excluded from broadcast"
+        self_inbox = tmp_path / "worker-test-1" / "inbox"
+        if self_inbox.exists():
+            self_msgs = list(self_inbox.glob("*.json"))
+            assert len(self_msgs) == 0, "self received its own broadcast"
