@@ -397,3 +397,61 @@ class TestShutdownSessionIdempotence:
 
     def test_shutdown_nonexistent_does_not_raise(self):
         tmux_runtime.shutdown_session("omw-t7-ghost-session-99zz")
+
+
+# ---------------------------------------------------------------------------
+# T9 — extra_env propagation for OMW_SWARM_* vars
+# ---------------------------------------------------------------------------
+
+def test_spawn_worker_swarm_env_appears_in_worker_script(tmp_path):
+    """OMW_SWARM_* env vars passed via extra_env appear in generated worker.sh."""
+    session_id = _unique_id("t9-swarm-env")
+    swarm_env = {
+        "OMW_SWARM_SESSION_DIR": str(tmp_path),
+        "OMW_SWARM_WORKER_ID":   "worker-1-fact-checker",
+        "OMW_SWARM_PEERS":       "worker-2-moderator",
+    }
+    try:
+        info = tmux_runtime.spawn_worker(
+            session_id=session_id,
+            worker_name="fact-checker",
+            command=["echo", "hello"],
+            session_dir=tmp_path,
+            extra_env=swarm_env,
+        )
+        # The worker script is at <session_dir>/<worker_name>/worker.sh
+        worker_script = Path(tmp_path) / "fact-checker" / "worker.sh"
+        assert worker_script.exists(), "worker.sh was not created"
+        script_text = worker_script.read_text(encoding="utf-8")
+        assert "OMW_SWARM_SESSION_DIR" in script_text, (
+            "OMW_SWARM_SESSION_DIR missing from worker.sh"
+        )
+        assert "OMW_SWARM_WORKER_ID" in script_text, (
+            "OMW_SWARM_WORKER_ID missing from worker.sh"
+        )
+        assert "OMW_SWARM_PEERS" in script_text, (
+            "OMW_SWARM_PEERS missing from worker.sh"
+        )
+    finally:
+        _kill_session(session_id)
+
+
+def test_spawn_worker_no_extra_env_no_swarm_vars_in_script(tmp_path):
+    """When extra_env is empty, no OMW_SWARM_* vars appear in worker.sh."""
+    session_id = _unique_id("t9-no-swarm")
+    try:
+        tmux_runtime.spawn_worker(
+            session_id=session_id,
+            worker_name="no-env-worker",
+            command=["echo", "hello"],
+            session_dir=tmp_path,
+            extra_env={},
+        )
+        worker_script = Path(tmp_path) / "no-env-worker" / "worker.sh"
+        assert worker_script.exists(), "worker.sh was not created"
+        script_text = worker_script.read_text(encoding="utf-8")
+        assert "OMW_SWARM_SESSION_DIR" not in script_text
+        assert "OMW_SWARM_WORKER_ID" not in script_text
+        assert "OMW_SWARM_PEERS" not in script_text
+    finally:
+        _kill_session(session_id)
