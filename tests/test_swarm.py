@@ -341,3 +341,143 @@ class TestSubscribe:
         subs = json.loads(subs_path.read_text(encoding="utf-8"))
         assert "claim" in subs["topics"]
         assert "status" in subs["topics"]
+
+
+# ============================================================
+# T4 — heartbeat + monitor
+# ============================================================
+
+import signal
+
+
+class TestHeartbeat:
+    def test_heartbeat_writes_heartbeat_json(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(
+            ["heartbeat", "--status", "processing claim 3 of 7"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        hb_path = tmp_path / "worker-test-1" / "heartbeat.json"
+        assert hb_path.exists(), "heartbeat.json not created"
+        hb = json.loads(hb_path.read_text(encoding="utf-8"))
+        assert hb["worker_id"] == "worker-test-1"
+        assert hb["status"] == "processing claim 3 of 7"
+
+    def test_heartbeat_with_progress(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(
+            ["heartbeat", "--status", "half done", "--progress", "0.5"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0
+        hb = json.loads(
+            (tmp_path / "worker-test-1" / "heartbeat.json").read_text(encoding="utf-8")
+        )
+        assert abs(hb.get("progress", -1) - 0.5) < 0.001
+
+    def test_heartbeat_overwrites_previous(self, tmp_path):
+        env = _base_env(tmp_path)
+        _swarm(["heartbeat", "--status", "first"], env, cwd=tmp_path)
+        _swarm(["heartbeat", "--status", "second"], env, cwd=tmp_path)
+        hb = json.loads(
+            (tmp_path / "worker-test-1" / "heartbeat.json").read_text(encoding="utf-8")
+        )
+        assert hb["status"] == "second", "heartbeat must overwrite, not append"
+
+
+class TestMonitor:
+    def _setup_workers(self, tmp_path: Path) -> None:
+        """Pre-create heartbeats + inbox messages for 2 workers."""
+        for wid in ("worker-test-1", "worker-test-2"):
+            hb = {
+                "worker_id": wid,
+                "ts": "2026-05-27T09:00:00Z",
+                "status": f"{wid} running",
+                "progress": 0.5,
+            }
+            _atomic_write_direct(tmp_path / wid / "heartbeat.json", hb)
+        # Plant 2 unread messages in worker-test-1's inbox
+        for i in range(2):
+            _plant_message(tmp_path, "worker-test-1", f"monitor-msg-{i:03d}", {
+                "msg_id": f"monitor-msg-{i:03d}", "from": "worker-test-2",
+                "to": "worker-test-1", "body": f"msg {i}",
+                "sent_at": "2026-05-27T09:00:00Z",
+            })
+
+    def test_monitor_returns_dashboard_json(self, tmp_path):
+        self._setup_workers(tmp_path)
+        env = _base_env(tmp_path)
+        r = _swarm(["monitor"], env, cwd=tmp_path)
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        data = json.loads(r.stdout)
+        assert "workers" in data
+        assert "polled_at" in data
+        assert "session" in data
+
+    def test_monitor_includes_all_workers(self, tmp_path):
+        self._setup_workers(tmp_path)
+        env = _base_env(tmp_path)
+        r = _swarm(["monitor"], env, cwd=tmp_path)
+        assert r.returncode == 0
+        data = json.loads(r.stdout)
+        worker_ids = {w["worker_id"] for w in data["workers"]}
+        assert "worker-test-1" in worker_ids
+        assert "worker-test-2" in worker_ids
+
+    def test_monitor_counts_inbox_unread(self, tmp_path):
+        self._setup_workers(tmp_path)
+        env = _base_env(tmp_path)
+        r = _swarm(["monitor"], env, cwd=tmp_path)
+        assert r.returncode == 0
+        data = json.loads(r.stdout)
+        w1 = next(w for w in data["workers"] if w["worker_id"] == "worker-test-1")
+        assert w1["inbox_unread"] == 2
+
+    def test_monitor_watch_produces_multiple_snapshots(self, tmp_path):
+        env = _base_env(tmp_path)
+        # --interval 0.2 → should produce ≥2 snapshots in ~1s before we kill it
+        proc = subprocess.Popen(
+            [PYTHON, "-m", "scripts.swarm", "monitor", "--watch", "--interval", "0.2"],
+            env={**os.environ, **env},
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        time.sleep(0.8)
+        proc.terminate()
+        proc.wait(timeout=3)
+        output = proc.stdout.read() if proc.stdout else ""
+        # Should have at least 2 JSON objects in the output (newline-separated)
+        snapshots = [line for line in output.splitlines() if line.strip().startswith("{")]
+        assert len(snapshots) >= 2, f"expected ≥2 snapshots, got {len(snapshots)}: {output!r}"
+
+    def test_monitor_reports_alive_status(self, tmp_path):
+        """Worker whose heartbeat ts is < 30s old is marked alive=True."""
+        self._setup_workers(tmp_path)
+        # Overwrite heartbeat with current time so it's definitely alive
+        hb = {
+            "worker_id": "worker-test-1",
+            "ts": _now_iso_direct(),
+            "status": "active",
+            "progress": 0.1,
+        }
+        _atomic_write_direct(tmp_path / "worker-test-1" / "heartbeat.json", hb)
+        env = _base_env(tmp_path)
+        r = _swarm(["monitor"], env, cwd=tmp_path)
+        assert r.returncode == 0
+        data = json.loads(r.stdout)
+        w1 = next(w for w in data["workers"] if w["worker_id"] == "worker-test-1")
+        assert w1["alive"] is True
+
+
+# Test-level helpers (avoid importing swarm internals; replicate tiny pieces)
+def _atomic_write_direct(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp-test")
+    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+def _now_iso_direct() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"

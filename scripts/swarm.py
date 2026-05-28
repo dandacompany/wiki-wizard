@@ -350,6 +350,131 @@ def cmd_subscribe(ctx: SwarmContext, args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# cmd: heartbeat
+# ---------------------------------------------------------------------------
+
+def cmd_heartbeat(ctx: SwarmContext, args: argparse.Namespace) -> int:
+    hb_path = ctx.heartbeat_path()
+    _atomic_write(hb_path, {
+        "worker_id": ctx.worker_id,
+        "ts": _now_iso(),
+        "status": args.status,
+        "progress": float(args.progress) if args.progress is not None else None,
+    })
+    print(json.dumps({"updated": True, "worker_id": ctx.worker_id}))
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# cmd: monitor
+# ---------------------------------------------------------------------------
+
+_ALIVE_THRESHOLD_SEC = 30
+
+
+def _count_inbox_unread(ctx: SwarmContext, worker_id: str) -> int:
+    inbox = ctx.inbox_dir(worker_id)
+    if not inbox.exists():
+        return 0
+    return sum(
+        1 for f in inbox.iterdir()
+        if f.suffix == ".json" and not f.is_dir()
+    )
+
+
+def _is_alive(ts_iso: str) -> bool:
+    """Return True if ts_iso is within the last 30 seconds."""
+    try:
+        # Parse ISO timestamp (with trailing Z or microseconds+Z)
+        ts_iso_clean = ts_iso.rstrip("Z").replace("T", " ")
+        dt = datetime.fromisoformat(ts_iso_clean).replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - dt).total_seconds()
+        return age < _ALIVE_THRESHOLD_SEC
+    except Exception:
+        return False
+
+
+def _build_dashboard(ctx: SwarmContext) -> dict[str, Any]:
+    """Aggregate all workers' heartbeats + inbox counts into a dashboard dict."""
+    workers: list[dict] = []
+    session_dir = ctx.session_dir
+
+    # Discover worker dirs (any subdir matching "worker-*")
+    if session_dir.exists():
+        for child in sorted(session_dir.iterdir()):
+            if not child.is_dir():
+                continue
+            if not child.name.startswith("worker-"):
+                continue
+            wid = child.name
+            hb_path = child / "heartbeat.json"
+            hb: dict | None = None
+            if hb_path.exists():
+                try:
+                    hb = json.loads(hb_path.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+
+            alive = _is_alive(hb["ts"]) if hb and "ts" in hb else False
+            workers.append({
+                "worker_id": wid,
+                "heartbeat": hb,
+                "inbox_unread": _count_inbox_unread(ctx, wid),
+                "alive": alive,
+            })
+
+    # Count canonical messages
+    messages_dir = ctx.messages_dir()
+    messages_total = (
+        sum(1 for f in messages_dir.glob("*.json")) if messages_dir.exists() else 0
+    )
+
+    # Count active proposals
+    proposals_dir = ctx.proposals_dir()
+    active_proposals = 0
+    if proposals_dir.exists():
+        for prop in proposals_dir.iterdir():
+            if prop.is_dir():
+                active_proposals += 1
+
+    # Count pending RPCs (request.json exists, response.json does not)
+    rpc_dir = ctx.rpc_dir()
+    pending_rpcs = 0
+    if rpc_dir.exists():
+        for rpc in rpc_dir.iterdir():
+            if rpc.is_dir():
+                if (rpc / "request.json").exists() and not (rpc / "response.json").exists():
+                    pending_rpcs += 1
+
+    return {
+        "session": str(ctx.session_dir),
+        "polled_at": _now_iso(),
+        "workers": workers,
+        "messages_total": messages_total,
+        "active_proposals": active_proposals,
+        "pending_rpcs": pending_rpcs,
+    }
+
+
+def cmd_monitor(ctx: SwarmContext, args: argparse.Namespace) -> int:
+    if args.watch:
+        interval = float(getattr(args, "interval", 2))
+        try:
+            while True:
+                dashboard = _build_dashboard(ctx)
+                print(json.dumps(dashboard))
+                sys.stdout.flush()
+                time.sleep(interval)
+        except KeyboardInterrupt:
+            pass
+        return 0
+
+    dashboard = _build_dashboard(ctx)
+    print(json.dumps(dashboard, indent=2))
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
 
@@ -390,10 +515,21 @@ def _build_parser() -> argparse.ArgumentParser:
     sub_p = sub.add_parser("subscribe", help="Record topic subscription (advisory)")
     sub_p.add_argument("--topic", required=True, help="Topic to subscribe to")
 
+    # heartbeat
+    hb_p = sub.add_parser("heartbeat", help="Update this worker's heartbeat status")
+    hb_p.add_argument("--status", required=True, help="Status text")
+    hb_p.add_argument("--progress", default=None, type=float,
+                      help="Progress fraction 0.0–1.0 (optional)")
+
+    # monitor
+    mon_p = sub.add_parser("monitor", help="Aggregate dashboard of all worker states")
+    mon_p.add_argument("--watch", action="store_true", help="Poll continuously")
+    mon_p.add_argument("--interval", type=float, default=2.0,
+                       help="Poll interval in seconds (with --watch)")
+
     # Placeholders for subcommands added in later tasks (argparse must know them
     # to avoid exit-code 2 on unknown subcommand)
-    for name in ("heartbeat", "monitor",
-                 "rpc", "rpc-respond", "vote-create", "vote", "vote-result"):
+    for name in ("rpc", "rpc-respond", "vote-create", "vote", "vote-result"):
         sub.add_parser(name, add_help=False)
 
     return p
@@ -423,6 +559,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_publish(ctx, args)
     elif args.subcommand == "subscribe":
         return cmd_subscribe(ctx, args)
+    elif args.subcommand == "heartbeat":
+        return cmd_heartbeat(ctx, args)
+    elif args.subcommand == "monitor":
+        return cmd_monitor(ctx, args)
 
     # Subcommands implemented in later tasks — placeholder exit
     print(
