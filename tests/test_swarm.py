@@ -481,3 +481,178 @@ def _atomic_write_direct(path: Path, data: dict) -> None:
 def _now_iso_direct() -> str:
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+
+
+# ============================================================
+# T5 — rpc + rpc-respond
+# ============================================================
+
+import threading
+
+
+class TestRpc:
+    def _write_response_after_delay(
+        self, session_dir: Path, rpc_id: str, body: str, delay: float
+    ) -> threading.Thread:
+        """Background thread that writes response.json after `delay` seconds."""
+        rpc_resp_path = session_dir / "rpc" / rpc_id / "response.json"
+
+        def writer():
+            time.sleep(delay)
+            rpc_resp_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = rpc_resp_path.with_suffix(".tmp")
+            tmp.write_text(json.dumps({"body": body, "rpc_id": rpc_id}), encoding="utf-8")
+            tmp.replace(rpc_resp_path)
+
+        t = threading.Thread(target=writer, daemon=True)
+        t.start()
+        return t
+
+    def _pre_write_request(self, session_dir: Path, rpc_id: str, to_worker: str) -> None:
+        """Pre-write a request.json so rpc-respond can validate it."""
+        req_path = session_dir / "rpc" / rpc_id / "request.json"
+        req_path.parent.mkdir(parents=True, exist_ok=True)
+        req_path.write_text(json.dumps({
+            "rpc_id": rpc_id,
+            "from": "worker-test-1",
+            "to": to_worker,
+            "body": "test request",
+            "sent_at": "2026-05-27T09:00:00Z",
+        }), encoding="utf-8")
+
+    def test_rpc_sends_request_to_recipient_inbox(self, tmp_path):
+        env = _base_env(tmp_path)
+        # Pre-stage a response so rpc doesn't time out
+        # We need the rpc-id first — use a side effect: start rpc in background
+        # and capture the rpc-id via the request.json it writes.
+        proc = subprocess.Popen(
+            [PYTHON, "-m", "scripts.swarm", "rpc",
+             "--to", "worker-test-2", "--body", "check this", "--timeout", "3"],
+            env={**os.environ, **env},
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        # Wait a moment for request.json to appear
+        rpc_dir = tmp_path / "rpc"
+        deadline = time.monotonic() + 3.0
+        rpc_id = None
+        while time.monotonic() < deadline:
+            if rpc_dir.exists():
+                children = list(rpc_dir.iterdir())
+                if children:
+                    rpc_id = children[0].name
+                    break
+            time.sleep(0.05)
+
+        assert rpc_id is not None, "rpc-id directory not created within 3s"
+        # Write response to unblock rpc
+        resp_path = rpc_dir / rpc_id / "response.json"
+        resp_path.parent.mkdir(parents=True, exist_ok=True)
+        resp_path.write_text(json.dumps({"body": "ok", "rpc_id": rpc_id}), encoding="utf-8")
+
+        proc.wait(timeout=5)
+        # Recipient's inbox must have a message with correlation_id = rpc_id
+        peer_inbox = tmp_path / "worker-test-2" / "inbox"
+        assert peer_inbox.exists(), "recipient inbox not created"
+        msgs = list(peer_inbox.glob("*.json"))
+        assert len(msgs) >= 1, "no message delivered to recipient inbox"
+        envelope = json.loads(msgs[0].read_text(encoding="utf-8"))
+        assert envelope.get("correlation_id") == rpc_id
+
+    def test_rpc_returns_response_body(self, tmp_path):
+        env = _base_env(tmp_path)
+        rpc_id_holder: list[str] = []
+
+        def stage_response():
+            rpc_dir = tmp_path / "rpc"
+            deadline = time.monotonic() + 3.0
+            while time.monotonic() < deadline:
+                if rpc_dir.exists():
+                    children = list(rpc_dir.iterdir())
+                    if children:
+                        rid = children[0].name
+                        rpc_id_holder.append(rid)
+                        resp = rpc_dir / rid / "response.json"
+                        resp.parent.mkdir(parents=True, exist_ok=True)
+                        resp.write_text(json.dumps({"body": "pong", "rpc_id": rid}), encoding="utf-8")
+                        return
+                time.sleep(0.05)
+
+        t = threading.Thread(target=stage_response, daemon=True)
+        t.start()
+        r = _swarm(
+            ["rpc", "--to", "worker-test-2", "--body", "ping", "--timeout", "5"],
+            env, cwd=tmp_path,
+        )
+        t.join(timeout=2)
+        assert r.returncode == 0, f"rpc failed: {r.stderr}"
+        result = json.loads(r.stdout)
+        assert result.get("body") == "pong"
+
+    def test_rpc_exits_124_on_timeout(self, tmp_path):
+        env = _base_env(tmp_path)
+        # No responder — should time out
+        r = _swarm(
+            ["rpc", "--to", "worker-test-2", "--body", "ping", "--timeout", "0.3"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 124, f"expected 124, got {r.returncode}: {r.stderr}"
+
+    def test_rpc_creates_request_json(self, tmp_path):
+        env = _base_env(tmp_path)
+        proc = subprocess.Popen(
+            [PYTHON, "-m", "scripts.swarm", "rpc",
+             "--to", "worker-test-2", "--body", "hello", "--timeout", "2"],
+            env={**os.environ, **env},
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        rpc_dir = tmp_path / "rpc"
+        deadline = time.monotonic() + 2.0
+        found = False
+        while time.monotonic() < deadline:
+            if rpc_dir.exists() and any(rpc_dir.iterdir()):
+                found = True
+                break
+            time.sleep(0.05)
+        proc.terminate()
+        proc.wait(timeout=3)
+        assert found, "rpc/<rpc-id>/request.json not created"
+
+
+class TestRpcRespond:
+    def test_rpc_respond_writes_response_json(self, tmp_path):
+        env = {**_base_env(tmp_path), "OMW_SWARM_WORKER_ID": "worker-test-2"}
+        rpc_id = "rpc-test-001"
+        # Pre-write request.json with to=worker-test-2
+        req_path = tmp_path / "rpc" / rpc_id / "request.json"
+        req_path.parent.mkdir(parents=True, exist_ok=True)
+        req_path.write_text(json.dumps({
+            "rpc_id": rpc_id, "from": "worker-test-1",
+            "to": "worker-test-2", "body": "question",
+            "sent_at": "2026-05-27T09:00:00Z",
+        }), encoding="utf-8")
+        r = _swarm(
+            ["rpc-respond", "--rpc-id", rpc_id, "--body", "the answer"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        resp_path = tmp_path / "rpc" / rpc_id / "response.json"
+        assert resp_path.exists(), "response.json not created"
+        resp = json.loads(resp_path.read_text(encoding="utf-8"))
+        assert resp["body"] == "the answer"
+
+    def test_rpc_respond_rejects_to_mismatch(self, tmp_path):
+        # Worker-test-1 tries to respond to an RPC addressed to worker-test-2
+        env = _base_env(tmp_path)  # worker_id = worker-test-1
+        rpc_id = "rpc-test-002"
+        req_path = tmp_path / "rpc" / rpc_id / "request.json"
+        req_path.parent.mkdir(parents=True, exist_ok=True)
+        req_path.write_text(json.dumps({
+            "rpc_id": rpc_id, "from": "worker-test-3",
+            "to": "worker-test-2",  # addressed to someone else
+            "body": "Q", "sent_at": "2026-05-27T09:00:00Z",
+        }), encoding="utf-8")
+        r = _swarm(
+            ["rpc-respond", "--rpc-id", rpc_id, "--body", "unauthorized"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode != 0, "rpc-respond must reject to-mismatch"

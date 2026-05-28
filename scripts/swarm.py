@@ -475,6 +475,106 @@ def cmd_monitor(ctx: SwarmContext, args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# cmd: rpc
+# ---------------------------------------------------------------------------
+
+_RPC_POLL_INTERVAL = 0.5  # seconds
+
+
+def _new_rpc_id() -> str:
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
+    short = uuid.uuid4().hex[:6]
+    return f"rpc-{ts}-{short}"
+
+
+def cmd_rpc(ctx: SwarmContext, args: argparse.Namespace) -> int:
+    rpc_id = _new_rpc_id()
+    timeout = float(getattr(args, "timeout", 60))
+
+    # 1. Write request.json
+    rpc_dir = ctx.rpc_dir() / rpc_id
+    request_data: dict[str, Any] = {
+        "rpc_id": rpc_id,
+        "from": ctx.worker_id,
+        "to": args.to,
+        "body": args.body,
+        "sent_at": _now_iso(),
+    }
+    _atomic_write(rpc_dir / "request.json", request_data)
+
+    # 2. Deliver to recipient inbox with correlation_id
+    _write_message(
+        ctx, args.to, args.body,
+        topic="",
+        correlation_id=rpc_id,
+    )
+
+    # 3. Poll for response.json
+    response_path = rpc_dir / "response.json"
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if response_path.exists():
+            try:
+                resp = json.loads(response_path.read_text(encoding="utf-8"))
+                print(json.dumps(resp))
+                return 0
+            except Exception:
+                pass
+        time.sleep(_RPC_POLL_INTERVAL)
+
+    # Timeout
+    print(
+        f"error: rpc timeout after {timeout}s waiting for response to {rpc_id}",
+        file=sys.stderr,
+    )
+    return 124
+
+
+# ---------------------------------------------------------------------------
+# cmd: rpc-respond
+# ---------------------------------------------------------------------------
+
+def cmd_rpc_respond(ctx: SwarmContext, args: argparse.Namespace) -> int:
+    rpc_id = args.rpc_id
+    rpc_dir = ctx.rpc_dir() / rpc_id
+    request_path = rpc_dir / "request.json"
+
+    if not request_path.exists():
+        print(
+            f"error: rpc request not found: {request_path}",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        request = json.loads(request_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"error: could not read request.json: {exc}", file=sys.stderr)
+        return 1
+
+    # Validate that this RPC was addressed to us
+    expected_to = request.get("to", "")
+    if expected_to != ctx.worker_id:
+        print(
+            f"error: this RPC ({rpc_id}) is addressed to {expected_to!r}, "
+            f"but this worker is {ctx.worker_id!r}. Cannot respond to another worker's RPC.",
+            file=sys.stderr,
+        )
+        return 1
+
+    response_data = {
+        "rpc_id": rpc_id,
+        "from": ctx.worker_id,
+        "to": request.get("from", ""),
+        "body": args.body,
+        "responded_at": _now_iso(),
+    }
+    _atomic_write(rpc_dir / "response.json", response_data)
+    print(json.dumps({"responded": True, "rpc_id": rpc_id}))
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
 
@@ -527,9 +627,21 @@ def _build_parser() -> argparse.ArgumentParser:
     mon_p.add_argument("--interval", type=float, default=2.0,
                        help="Poll interval in seconds (with --watch)")
 
+    # rpc
+    rpc_p = sub.add_parser("rpc", help="Send a synchronous RPC request and wait for response")
+    rpc_p.add_argument("--to", required=True, help="Recipient worker id")
+    rpc_p.add_argument("--body", required=True, help="Request body")
+    rpc_p.add_argument("--timeout", type=float, default=60.0,
+                       help="Seconds to wait for response (default 60)")
+
+    # rpc-respond
+    rpcr_p = sub.add_parser("rpc-respond", help="Write a response to an incoming RPC request")
+    rpcr_p.add_argument("--rpc-id", required=True, dest="rpc_id", help="RPC id to respond to")
+    rpcr_p.add_argument("--body", required=True, help="Response body")
+
     # Placeholders for subcommands added in later tasks (argparse must know them
     # to avoid exit-code 2 on unknown subcommand)
-    for name in ("rpc", "rpc-respond", "vote-create", "vote", "vote-result"):
+    for name in ("vote-create", "vote", "vote-result"):
         sub.add_parser(name, add_help=False)
 
     return p
@@ -563,6 +675,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_heartbeat(ctx, args)
     elif args.subcommand == "monitor":
         return cmd_monitor(ctx, args)
+    elif args.subcommand == "rpc":
+        return cmd_rpc(ctx, args)
+    elif args.subcommand == "rpc-respond":
+        return cmd_rpc_respond(ctx, args)
 
     # Subcommands implemented in later tasks — placeholder exit
     print(
