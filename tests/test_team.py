@@ -560,3 +560,78 @@ body
     f.write_text(yaml_body)
     with pytest.raises((TeamValidationError, ValueError)):
         load_template(f)
+
+
+# ── T11 tests — triple-factcheck-moderator ──────────────────────────────────
+
+def _load_team(name: str):
+    from scripts.team import load_template
+    teams_dir = Path(__file__).parent.parent / "teams"
+    path = teams_dir / f"{name}.md"
+    assert path.exists(), f"Team template not found: {path}"
+    return load_template(path)
+
+
+def test_triple_factcheck_moderator_loads():
+    """triple-factcheck-moderator template loads without error."""
+    tmpl = _load_team("triple-factcheck-moderator")
+    assert tmpl.name == "triple-factcheck-moderator"
+
+
+def test_triple_factcheck_moderator_swarm_true():
+    """swarm flag is True."""
+    tmpl = _load_team("triple-factcheck-moderator")
+    assert tmpl.swarm is True
+
+
+def test_triple_factcheck_moderator_four_workers():
+    """Has exactly 4 workers: 3 fact-checkers + 1 moderator."""
+    tmpl = _load_team("triple-factcheck-moderator")
+    assert len(tmpl.workers) == 4
+    personas = [w.persona for w in tmpl.workers]
+    assert personas.count("fact-checker") == 3
+    assert personas.count("moderator") == 1
+
+
+def test_triple_factcheck_moderator_different_backends():
+    """The three fact-checkers target different backends."""
+    tmpl = _load_team("triple-factcheck-moderator")
+    fc_backends = [
+        w.backend_default for w in tmpl.workers if w.persona == "fact-checker"
+    ]
+    assert len(set(fc_backends)) == 3, (
+        f"Expected 3 distinct backends, got: {fc_backends}"
+    )
+
+
+def test_triple_factcheck_moderator_swarm_instructions_present():
+    """All 4 workers have swarm_instructions defined."""
+    tmpl = _load_team("triple-factcheck-moderator")
+    for w in tmpl.workers:
+        assert w.swarm_instructions, (
+            f"Worker {w.persona}/{w.backend_default} missing swarm_instructions"
+        )
+
+
+def test_triple_factcheck_moderator_claim_topic_in_instructions():
+    """Fact-checker swarm_instructions reference the 'claim' topic."""
+    tmpl = _load_team("triple-factcheck-moderator")
+    for w in tmpl.workers:
+        if w.persona == "fact-checker":
+            assert "claim" in (w.swarm_instructions or ""), (
+                f"fact-checker on {w.backend_default} missing 'claim' topic reference"
+            )
+
+
+def test_triple_factcheck_moderator_moderator_references_vote_create():
+    """Moderator swarm_instructions reference vote-create."""
+    tmpl = _load_team("triple-factcheck-moderator")
+    mod = next(w for w in tmpl.workers if w.persona == "moderator")
+    assert "vote-create" in (mod.swarm_instructions or "")
+
+
+def test_triple_factcheck_moderator_timeout():
+    """timeout_seconds is a positive integer."""
+    tmpl = _load_team("triple-factcheck-moderator")
+    assert isinstance(tmpl.timeout_seconds, int)
+    assert tmpl.timeout_seconds > 0
