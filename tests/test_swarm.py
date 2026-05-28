@@ -779,3 +779,84 @@ class TestVote:
         assert len(dissenters) == 1
         assert dissenters[0]["worker_id"] == "worker-test-3"
         assert dissenters[0]["choice"] == "no"
+
+
+# ---------------------------------------------------------------------------
+# T15: Fake backend swarm behavior dispatch
+# ---------------------------------------------------------------------------
+
+class TestFakeSwarmBehaviorDispatch:
+    """Verify that fake backends dispatch correctly on OMW_FAKE_SWARM_BEHAVIOR."""
+
+    FAKES_DIR = Path("tests/fakes")
+
+    def _run_fake(self, script: str, behavior: str, env_extras: dict,
+                  session_dir: Path) -> subprocess.CompletedProcess:
+        env = os.environ.copy()
+        env["OMW_SWARM_SESSION_DIR"] = str(session_dir)
+        env["OMW_SWARM_WORKER_ID"] = "worker-test-1"
+        env["OMW_SWARM_PEERS"] = "worker-test-2"
+        env["OMW_FAKE_SWARM_BEHAVIOR"] = behavior
+        env.update(env_extras)
+        # set up peer inbox dir so broadcast/send can write
+        (session_dir / "worker-test-2" / "inbox").mkdir(parents=True, exist_ok=True)
+        (session_dir / "worker-test-1" / "inbox").mkdir(parents=True, exist_ok=True)
+        (session_dir / "messages").mkdir(parents=True, exist_ok=True)
+        return subprocess.run(
+            ["bash", str(self.FAKES_DIR / script)],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+
+    def test_helper_sh_exists(self):
+        assert (self.FAKES_DIR / "swarm-helper.sh").exists()
+
+    def test_publish_claim_creates_message(self, tmp_path):
+        result = self._run_fake("claude-fake.sh", "publish-claim", {}, tmp_path)
+        assert result.returncode == 0, result.stderr
+        msgs = list((tmp_path / "messages").glob("*.json"))
+        assert len(msgs) >= 1, "publish-claim should write at least one message"
+        content = json.loads(msgs[0].read_text())
+        assert content.get("topic") == "claim"
+
+    def test_rpc_respond_writes_response(self, tmp_path):
+        # set up an RPC request first
+        rpc_dir = tmp_path / "rpc" / "rpc-test-001"
+        rpc_dir.mkdir(parents=True)
+        request = {
+            "from": "worker-test-2",
+            "to": "worker-test-1",
+            "body": "review draft at /tmp/draft.md",
+            "sent_at": "2026-05-27T00:00:00Z",
+        }
+        (rpc_dir / "request.json").write_text(json.dumps(request))
+        result = self._run_fake(
+            "gemini-fake.sh", "rpc-respond",
+            {"OMW_FAKE_RPC_ID": "rpc-test-001"}, tmp_path,
+        )
+        assert result.returncode == 0, result.stderr
+        response_file = rpc_dir / "response.json"
+        assert response_file.exists(), "rpc-respond must write response.json"
+
+    def test_perspective_publish_writes_to_topic(self, tmp_path):
+        result = self._run_fake("codex-fake.sh", "perspective-publish", {}, tmp_path)
+        assert result.returncode == 0, result.stderr
+        msgs = list((tmp_path / "messages").glob("*.json"))
+        topics = [json.loads(m.read_text()).get("topic") for m in msgs]
+        assert "perspective-draft" in topics
+
+    def test_no_behavior_env_exits_cleanly(self, tmp_path):
+        """When OMW_FAKE_SWARM_BEHAVIOR is unset, fakes use legacy path."""
+        env = os.environ.copy()
+        env.pop("OMW_FAKE_SWARM_BEHAVIOR", None)
+        env.pop("OMW_SWARM_SESSION_DIR", None)
+        result = subprocess.run(
+            ["bash", str(self.FAKES_DIR / "claude-fake.sh")],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0, result.stderr

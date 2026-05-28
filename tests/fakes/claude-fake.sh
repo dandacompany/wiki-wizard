@@ -13,6 +13,15 @@
 
 set -euo pipefail
 
+# ─── Swarm behavior dispatch (for hermetic swarm testing) ───────────────────
+if [[ -n "${OMW_FAKE_SWARM_BEHAVIOR:-}" ]]; then
+  # shellcheck source=swarm-helper.sh
+  source "$(dirname "$0")/swarm-helper.sh"
+  swarm_dispatch "$OMW_FAKE_SWARM_BEHAVIOR"
+  exit $?
+fi
+# ────────────────────────────────────────────────────────────────────────────
+
 MODEL=""
 PERSONA_BODY=""
 TASK_PROMPT=""
