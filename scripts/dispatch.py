@@ -34,11 +34,14 @@ import os
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from scripts.backends import build_invocation, BackendError
 from scripts.tmux_runtime import spawn_worker, wait_for_workers, shutdown_session
 from scripts.personas import load_persona, PersonaError
+
+if TYPE_CHECKING:
+    from scripts.team import SwarmContext
 
 
 # ── Suffix map for sibling_suffix personas ─────────────────────────────────
@@ -71,6 +74,53 @@ class DispatchResult:
     model: str
     session_dir: Path
     persona: str = ""     # persona slug name (e.g. "fact-checker")
+
+
+# ── Swarm prompt helpers (v2.4, §4.8) ────────────────────────────────────────
+
+_SWARM_SECTION_TEMPLATE = """\
+=== SWARM ===
+You are worker `{worker_id}` in a team of {peer_count} peers.
+Peers: {peers_str}
+Session dir: {session_dir}
+
+You can coordinate with peers via shell:
+
+  python3 -m scripts.swarm inbox                          # read pending messages
+  python3 -m scripts.swarm send --to <id> --body "..."    # message a peer
+  python3 -m scripts.swarm broadcast --body "..."         # message all peers
+  python3 -m scripts.swarm publish --topic X --body "..." # tagged broadcast
+  python3 -m scripts.swarm rpc --to <id> --body "..."     # sync request, wait for reply
+  python3 -m scripts.swarm vote-create --proposal "..."   # start a vote
+  python3 -m scripts.swarm vote --proposal-id X --choice Y # cast your vote
+  python3 -m scripts.swarm vote-result --proposal-id X    # read tally
+  python3 -m scripts.swarm heartbeat --status "..."       # update your status
+
+Use these sparingly — only when persona-specific instructions tell you to.
+Most personas do NOT need swarm; if your persona body doesn't mention swarm,
+ignore this section.
+"""
+
+_SWARM_INSTRUCTIONS_TEMPLATE = """\
+=== SWARM INSTRUCTIONS FOR YOUR ROLE ===
+{swarm_instructions}
+"""
+
+
+def _build_swarm_prompt_section(ctx: SwarmContext) -> str:
+    """Return the full === SWARM === block to append to the worker prompt."""
+    peers_str = ", ".join(ctx.peers) if ctx.peers else "(none — you are the only worker)"
+    base = _SWARM_SECTION_TEMPLATE.format(
+        worker_id=ctx.worker_id,
+        peer_count=len(ctx.peers),
+        peers_str=peers_str,
+        session_dir=ctx.session_dir,
+    )
+    if ctx.swarm_instructions:
+        base += _SWARM_INSTRUCTIONS_TEMPLATE.format(
+            swarm_instructions=ctx.swarm_instructions.strip()
+        )
+    return base
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -152,7 +202,12 @@ def _build_worker_prompt(
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def dispatch_one(req: DispatchRequest, session_dir: Path) -> DispatchResult:
+def dispatch_one(
+    req: DispatchRequest,
+    session_dir: Path,
+    *,
+    swarm_context: SwarmContext | None = None,
+) -> DispatchResult:
     """
     Dispatch a single persona × backend worker into a tmux pane.
 
@@ -194,6 +249,9 @@ def dispatch_one(req: DispatchRequest, session_dir: Path) -> DispatchResult:
         worker_dir=worker_dir,
         model=req.model,
     )
+    # v2.4: append === SWARM === block when swarm_context is provided
+    if swarm_context is not None:
+        prompt_text += "\n" + _build_swarm_prompt_section(swarm_context)
     (worker_dir / "input.md").write_text(prompt_text, encoding="utf-8")
 
     # 4. Build CLI argv
@@ -229,6 +287,14 @@ def dispatch_one(req: DispatchRequest, session_dir: Path) -> DispatchResult:
     for k, v in os.environ.items():
         if k.startswith("OMW_FAKE_"):
             extra_env[k] = v
+
+    # v2.4: inject swarm env vars when swarm_context is provided
+    if swarm_context is not None:
+        extra_env.update({
+            "OMW_SWARM_SESSION_DIR": swarm_context.session_dir,
+            "OMW_SWARM_WORKER_ID":   swarm_context.worker_id,
+            "OMW_SWARM_PEERS":       ",".join(swarm_context.peers),
+        })
 
     info = spawn_worker(
         session_id=session_id,

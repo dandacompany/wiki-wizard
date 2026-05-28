@@ -141,3 +141,76 @@ class TestDispatchOne:
         # If real claude is absent but fakes exist, this must not raise
         result = dispatch_one(req, session_dir=fake_env / "smoke-sess")
         assert result.status in ("ok", "failed")  # fakes may or may not set up output
+
+
+# ── T8 tests ────────────────────────────────────────────────────────────────
+
+from scripts.team import SwarmContext
+from scripts.dispatch import _build_swarm_prompt_section
+
+
+def _make_swarm_ctx(peers=None, swarm_instructions=None, session_dir="/tmp/sess"):
+    return SwarmContext(
+        session_dir=session_dir,
+        worker_id="worker-1-fact-checker",
+        peers=peers if peers is not None else ["worker-2-moderator"],
+        swarm_instructions=swarm_instructions,
+    )
+
+
+def test_swarm_prompt_section_contains_worker_id():
+    """`=== SWARM ===` block names the worker's own ID."""
+    ctx = _make_swarm_ctx()
+    section = _build_swarm_prompt_section(ctx)
+    assert "worker-1-fact-checker" in section
+
+
+def test_swarm_prompt_section_lists_peers():
+    """Peer IDs appear in the prompt section."""
+    ctx = _make_swarm_ctx(peers=["worker-2-moderator", "worker-3-fact-checker"])
+    section = _build_swarm_prompt_section(ctx)
+    assert "worker-2-moderator" in section
+    assert "worker-3-fact-checker" in section
+
+
+def test_swarm_prompt_section_no_peers_says_only_worker():
+    """If no peers, prompt says '(none — you are the only worker)'."""
+    ctx = _make_swarm_ctx(peers=[])
+    section = _build_swarm_prompt_section(ctx)
+    assert "none" in section.lower()
+
+
+def test_swarm_prompt_section_includes_swarm_instructions():
+    """swarm_instructions appended after base section."""
+    ctx = _make_swarm_ctx(swarm_instructions="publish to topic claim after done")
+    section = _build_swarm_prompt_section(ctx)
+    assert "publish to topic claim after done" in section
+    assert "SWARM INSTRUCTIONS FOR YOUR ROLE" in section
+
+
+def test_swarm_prompt_section_omits_instructions_block_when_none():
+    """When swarm_instructions is None, instructions block is absent."""
+    ctx = _make_swarm_ctx(swarm_instructions=None)
+    section = _build_swarm_prompt_section(ctx)
+    assert "SWARM INSTRUCTIONS FOR YOUR ROLE" not in section
+
+
+def test_dispatch_one_no_swarm_context_no_swarm_section(tmp_path, monkeypatch):
+    """When swarm_context=None, no `=== SWARM ===` appears in written prompt."""
+    monkeypatch.setenv("OMW_BACKEND_OVERRIDE_PATH", str(Path(__file__).parent / "fakes"))
+    monkeypatch.setenv("OMW_VAULT_ROOT", str(tmp_path))
+    session_dir = tmp_path / "sess"
+    session_dir.mkdir()
+    src = tmp_path / "source.md"
+    src.write_text("# Draft\nSome claims here.")
+    req = DispatchRequest(
+        persona="fact-checker",
+        backend="claude",
+        model="claude-sonnet-4-6",
+        source_path=src,
+        skip_permissions=False,
+    )
+    result = dispatch_one(req, session_dir=session_dir, swarm_context=None)
+    input_files = list(session_dir.rglob("input.md"))
+    for f in input_files:
+        assert "=== SWARM ===" not in f.read_text()
