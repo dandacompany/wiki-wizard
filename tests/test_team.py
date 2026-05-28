@@ -694,3 +694,126 @@ def test_polish_factcheck_loop_polisher_inputs_from_previous():
     tmpl = _load_team("polish-factcheck-loop")
     polisher = next(w for w in tmpl.workers if w.persona == "polisher")
     assert polisher.inputs_from == "previous"
+
+
+# ---------------------------------------------------------------------------
+# T13: teams/perspective-synthesis-team.md + teams/live-monitor.md
+# ---------------------------------------------------------------------------
+
+class TestPerspectiveSynthesisTeamManifest:
+    """Load tests for teams/perspective-synthesis-team.md."""
+
+    TEAM_FILE = Path("teams/perspective-synthesis-team.md")
+
+    def _load(self):
+        import re
+        text = self.TEAM_FILE.read_text()
+        # extract YAML front-matter between first --- fences
+        m = re.search(r"^---\n(.*?)\n---", text, re.DOTALL | re.MULTILINE)
+        assert m, "No YAML front-matter found"
+        import yaml
+        return yaml.safe_load(m.group(1))
+
+    def test_file_exists(self):
+        assert self.TEAM_FILE.exists(), f"{self.TEAM_FILE} not found"
+
+    def test_mode_is_mixed(self):
+        data = self._load()
+        assert data.get("mode") == "mixed", "mode must be 'mixed'"
+
+    def test_swarm_is_true(self):
+        data = self._load()
+        assert data.get("swarm") is True, "swarm must be true"
+
+    def test_has_two_stages(self):
+        data = self._load()
+        stages = data.get("stages", [])
+        assert len(stages) == 2, f"expected 2 stages, got {len(stages)}"
+
+    def test_first_stage_is_parallel_with_three_perspective_writers(self):
+        data = self._load()
+        parallel_stage = data["stages"][0]
+        assert "parallel" in parallel_stage
+        entries = parallel_stage["parallel"]
+        assert len(entries) == 3
+        assert all(e == "perspective-writer" for e in entries)
+
+    def test_second_stage_is_sequential_moderator(self):
+        data = self._load()
+        seq_stage = data["stages"][1]
+        assert "sequential" in seq_stage
+        entries = seq_stage["sequential"]
+        assert entries == ["moderator"]
+
+    def test_four_workers_defined(self):
+        data = self._load()
+        workers = data.get("workers", [])
+        assert len(workers) == 4
+
+    def test_first_three_workers_are_perspective_writers(self):
+        data = self._load()
+        workers = data["workers"][:3]
+        for w in workers:
+            assert w.get("persona") == "perspective-writer"
+
+    def test_perspective_args_cover_beginner_expert_skeptic(self):
+        data = self._load()
+        perspectives = {
+            w.get("args", {}).get("perspective")
+            for w in data["workers"][:3]
+        }
+        assert perspectives == {"beginner", "expert", "skeptic"}
+
+    def test_fourth_worker_is_moderator(self):
+        data = self._load()
+        assert data["workers"][3].get("persona") == "moderator"
+
+    def test_moderator_has_swarm_instructions(self):
+        data = self._load()
+        moderator = data["workers"][3]
+        instructions = moderator.get("swarm_instructions", "")
+        assert "perspective-draft" in instructions
+
+    def test_moderator_backend_is_most_capable(self):
+        data = self._load()
+        moderator = data["workers"][3]
+        assert moderator.get("model_hint") == "most_capable"
+
+    def test_timeout_seconds_positive(self):
+        data = self._load()
+        t = data.get("timeout_seconds", 0)
+        assert t > 0, "timeout_seconds must be positive"
+
+    def test_perspective_writers_use_standard_model_hint(self):
+        data = self._load()
+        for w in data["workers"][:3]:
+            assert w.get("model_hint") == "standard"
+
+
+class TestLiveMonitorTeamManifest:
+    """Load tests for teams/live-monitor.md (doc-only template)."""
+
+    TEAM_FILE = Path("teams/live-monitor.md")
+
+    def test_file_exists(self):
+        assert self.TEAM_FILE.exists(), f"{self.TEAM_FILE} not found"
+
+    def test_mentions_swarm_monitor_command(self):
+        text = self.TEAM_FILE.read_text()
+        assert "swarm-monitor" in text, "live-monitor.md must reference commands/swarm-monitor.md"
+
+    def test_mentions_heartbeat(self):
+        text = self.TEAM_FILE.read_text()
+        assert "heartbeat" in text.lower()
+
+    def test_no_workers_section(self):
+        """live-monitor is doc-only: no workers: block in YAML."""
+        import re
+        text = self.TEAM_FILE.read_text()
+        m = re.search(r"^---\n(.*?)\n---", text, re.DOTALL | re.MULTILINE)
+        if m:
+            import yaml
+            data = yaml.safe_load(m.group(1))
+            # either no workers key, or empty list — it's doc-only
+            workers = data.get("workers", [])
+            assert workers == [], "live-monitor is doc-only; workers must be empty or absent"
