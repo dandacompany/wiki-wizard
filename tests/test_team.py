@@ -635,3 +635,62 @@ def test_triple_factcheck_moderator_timeout():
     tmpl = _load_team("triple-factcheck-moderator")
     assert isinstance(tmpl.timeout_seconds, int)
     assert tmpl.timeout_seconds > 0
+
+
+# ── T12 tests — polish-factcheck-loop ───────────────────────────────────────
+
+def test_polish_factcheck_loop_loads():
+    """polish-factcheck-loop template loads without error."""
+    tmpl = _load_team("polish-factcheck-loop")
+    assert tmpl.name == "polish-factcheck-loop"
+
+
+def test_polish_factcheck_loop_swarm_true():
+    """swarm flag is True."""
+    tmpl = _load_team("polish-factcheck-loop")
+    assert tmpl.swarm is True
+
+
+def test_polish_factcheck_loop_max_iterations():
+    """max_iterations is parsed as 3."""
+    tmpl = _load_team("polish-factcheck-loop")
+    assert tmpl.max_iterations == 3
+
+
+def test_polish_factcheck_loop_three_workers():
+    """Has exactly 3 workers: scaffolder, polisher, fact-checker."""
+    tmpl = _load_team("polish-factcheck-loop")
+    assert len(tmpl.workers) == 3
+    personas = [w.persona for w in tmpl.workers]
+    assert "scaffolder"   in personas
+    assert "polisher"     in personas
+    assert "fact-checker" in personas
+
+
+def test_polish_factcheck_loop_sequential_mode():
+    """Mode is sequential (loop pattern requires sequential ordering)."""
+    tmpl = _load_team("polish-factcheck-loop")
+    assert tmpl.mode == "sequential"
+
+
+def test_polish_factcheck_loop_polisher_rpc_instruction():
+    """Polisher swarm_instructions reference swarm rpc command."""
+    tmpl = _load_team("polish-factcheck-loop")
+    polisher = next(w for w in tmpl.workers if w.persona == "polisher")
+    instr = polisher.swarm_instructions or ""
+    assert "rpc" in instr
+
+
+def test_polish_factcheck_loop_factchecker_rpc_respond_instruction():
+    """Fact-checker swarm_instructions reference rpc-respond command."""
+    tmpl = _load_team("polish-factcheck-loop")
+    fc = next(w for w in tmpl.workers if w.persona == "fact-checker")
+    instr = fc.swarm_instructions or ""
+    assert "rpc-respond" in instr
+
+
+def test_polish_factcheck_loop_polisher_inputs_from_previous():
+    """Polisher declares inputs_from: previous for chained input."""
+    tmpl = _load_team("polish-factcheck-loop")
+    polisher = next(w for w in tmpl.workers if w.persona == "polisher")
+    assert polisher.inputs_from == "previous"
