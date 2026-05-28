@@ -656,3 +656,126 @@ class TestRpcRespond:
             env, cwd=tmp_path,
         )
         assert r.returncode != 0, "rpc-respond must reject to-mismatch"
+
+
+# ============================================================
+# T6 — vote-create + vote + vote-result
+# ============================================================
+
+class TestVote:
+    def _create_proposal(self, tmp_path: Path, env: dict, proposal: str,
+                         choices: str = "", quorum: int = 0) -> str:
+        """Helper: call vote-create, return proposal_id."""
+        args = ["vote-create", "--proposal", proposal]
+        if choices:
+            args += ["--choices", choices]
+        if quorum:
+            args += ["--quorum", str(quorum)]
+        r = _swarm(args, env, cwd=tmp_path)
+        assert r.returncode == 0, f"vote-create failed: {r.stderr}"
+        result = json.loads(r.stdout)
+        return result["proposal_id"]
+
+    def _cast_vote(self, tmp_path: Path, worker_id: str, proposal_id: str, choice: str) -> None:
+        """Helper: cast a vote as a specific worker."""
+        env = {
+            "OMW_SWARM_SESSION_DIR": str(tmp_path),
+            "OMW_SWARM_WORKER_ID": worker_id,
+            "OMW_SWARM_PEERS": ",".join(
+                w for w in ("worker-test-1", "worker-test-2", "worker-test-3")
+                if w != worker_id
+            ),
+        }
+        r = _swarm(["vote", "--proposal-id", proposal_id, "--choice", choice], env, cwd=tmp_path)
+        assert r.returncode == 0, f"vote failed for {worker_id}: {r.stderr}"
+
+    def test_vote_create_returns_proposal_id(self, tmp_path):
+        env = _base_env(tmp_path)
+        r = _swarm(
+            ["vote-create", "--proposal", "claim: Python year"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        result = json.loads(r.stdout)
+        assert "proposal_id" in result
+        assert result["proposal_id"]
+
+    def test_vote_create_writes_proposal_json(self, tmp_path):
+        env = _base_env(tmp_path)
+        proposal_id = self._create_proposal(tmp_path, env, "claim: Python year")
+        prop_path = tmp_path / "proposals" / proposal_id / "proposal.json"
+        assert prop_path.exists(), "proposal.json not created"
+        prop = json.loads(prop_path.read_text(encoding="utf-8"))
+        assert prop["proposal_text"] == "claim: Python year"
+
+    def test_vote_records_choice(self, tmp_path):
+        env = _base_env(tmp_path)
+        proposal_id = self._create_proposal(tmp_path, env, "year vote")
+        r = _swarm(
+            ["vote", "--proposal-id", proposal_id, "--choice", "1991"],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        vote_file = tmp_path / "proposals" / proposal_id / "vote-worker-test-1.json"
+        assert vote_file.exists()
+        vote_data = json.loads(vote_file.read_text(encoding="utf-8"))
+        assert vote_data["choice"] == "1991"
+
+    def test_vote_revote_overwrites(self, tmp_path):
+        env = _base_env(tmp_path)
+        proposal_id = self._create_proposal(tmp_path, env, "revote test")
+        _swarm(["vote", "--proposal-id", proposal_id, "--choice", "A"], env, cwd=tmp_path)
+        _swarm(["vote", "--proposal-id", proposal_id, "--choice", "B"], env, cwd=tmp_path)
+        vote_file = tmp_path / "proposals" / proposal_id / "vote-worker-test-1.json"
+        vote_data = json.loads(vote_file.read_text(encoding="utf-8"))
+        assert vote_data["choice"] == "B", "re-vote must overwrite previous (last-write-wins)"
+
+    def test_vote_result_simple_majority(self, tmp_path):
+        env = _base_env(tmp_path)
+        proposal_id = self._create_proposal(tmp_path, env, "majority test", quorum=3)
+        self._cast_vote(tmp_path, "worker-test-1", proposal_id, "1991")
+        self._cast_vote(tmp_path, "worker-test-2", proposal_id, "1991")
+        self._cast_vote(tmp_path, "worker-test-3", proposal_id, "1989")
+        r = _swarm(
+            ["vote-result", "--proposal-id", proposal_id],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0, f"stderr: {r.stderr}"
+        result = json.loads(r.stdout)
+        assert result["winner"] == "1991"
+        assert result["tally"]["1991"] == 2
+        assert result["tally"]["1989"] == 1
+
+    def test_vote_result_tie_broken_by_lex_order(self, tmp_path):
+        env = _base_env(tmp_path)
+        # 1 vote each for "apple" and "banana" → "apple" wins (lex first)
+        proposal_id = self._create_proposal(tmp_path, env, "tie test", quorum=2)
+        self._cast_vote(tmp_path, "worker-test-1", proposal_id, "banana")
+        self._cast_vote(tmp_path, "worker-test-2", proposal_id, "apple")
+        r = _swarm(
+            ["vote-result", "--proposal-id", proposal_id],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0
+        result = json.loads(r.stdout)
+        assert result["winner"] == "apple", (
+            f"tie must be broken by lex order; expected 'apple', got {result['winner']!r}"
+        )
+
+    def test_vote_result_dissenters_listed(self, tmp_path):
+        env = _base_env(tmp_path)
+        proposal_id = self._create_proposal(tmp_path, env, "dissent test", quorum=3)
+        self._cast_vote(tmp_path, "worker-test-1", proposal_id, "yes")
+        self._cast_vote(tmp_path, "worker-test-2", proposal_id, "yes")
+        self._cast_vote(tmp_path, "worker-test-3", proposal_id, "no")
+        r = _swarm(
+            ["vote-result", "--proposal-id", proposal_id],
+            env, cwd=tmp_path,
+        )
+        assert r.returncode == 0
+        result = json.loads(r.stdout)
+        winner = result["winner"]
+        dissenters = result.get("dissenters", [])
+        assert len(dissenters) == 1
+        assert dissenters[0]["worker_id"] == "worker-test-3"
+        assert dissenters[0]["choice"] == "no"

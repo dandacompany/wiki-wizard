@@ -575,6 +575,151 @@ def cmd_rpc_respond(ctx: SwarmContext, args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# cmd: vote-create
+# ---------------------------------------------------------------------------
+
+def _new_prop_id() -> str:
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
+    short = uuid.uuid4().hex[:6]
+    return f"prop-{ts}-{short}"
+
+
+def cmd_vote_create(ctx: SwarmContext, args: argparse.Namespace) -> int:
+    prop_id = _new_prop_id()
+    choices_raw = getattr(args, "choices", "") or ""
+    choices = [c.strip() for c in choices_raw.split(",") if c.strip()] if choices_raw else []
+
+    # Quorum default = number of peers (all workers except initiator)
+    quorum = int(getattr(args, "quorum", 0) or 0)
+    if quorum <= 0:
+        quorum = len(ctx.peers)
+
+    proposal_data: dict[str, Any] = {
+        "proposal_id": prop_id,
+        "proposal_text": args.proposal,
+        "choices": choices,  # empty = free-form
+        "quorum": quorum,
+        "created_by": ctx.worker_id,
+        "created_at": _now_iso(),
+    }
+    prop_dir = ctx.proposals_dir() / prop_id
+    _atomic_write(prop_dir / "proposal.json", proposal_data)
+    print(json.dumps({"proposal_id": prop_id, "quorum": quorum}))
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# cmd: vote
+# ---------------------------------------------------------------------------
+
+def cmd_vote(ctx: SwarmContext, args: argparse.Namespace) -> int:
+    prop_id = args.proposal_id
+    prop_dir = ctx.proposals_dir() / prop_id
+    proposal_path = prop_dir / "proposal.json"
+
+    if not proposal_path.exists():
+        print(f"error: proposal not found: {prop_id}", file=sys.stderr)
+        return 1
+
+    vote_data = {
+        "worker_id": ctx.worker_id,
+        "choice": args.choice,
+        "voted_at": _now_iso(),
+    }
+    vote_file = prop_dir / f"vote-{ctx.worker_id}.json"
+    _atomic_write(vote_file, vote_data)
+    print(json.dumps({"voted": True, "proposal_id": prop_id, "choice": args.choice}))
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# cmd: vote-result
+# ---------------------------------------------------------------------------
+
+_VOTE_POLL_INTERVAL = 0.5  # seconds
+
+
+def _tally_votes(prop_dir: Path, proposal_data: dict) -> dict[str, Any]:
+    """Read all vote-*.json files, compute tally, winner, dissenters."""
+    tally: dict[str, int] = {}
+    all_votes: list[dict] = []
+
+    for vote_file in prop_dir.glob("vote-*.json"):
+        try:
+            vd = json.loads(vote_file.read_text(encoding="utf-8"))
+            choice = vd.get("choice", "")
+            tally[choice] = tally.get(choice, 0) + 1
+            all_votes.append(vd)
+        except Exception:
+            pass
+
+    # Determine winner: simple majority; tie-break by lexicographic order
+    winner = ""
+    if tally:
+        max_votes = max(tally.values())
+        candidates = sorted(
+            (choice for choice, count in tally.items() if count == max_votes)
+        )
+        winner = candidates[0]  # lex-first among tied leaders
+
+    # Dissenters = workers whose choice != winner
+    dissenters = [
+        {"worker_id": v["worker_id"], "choice": v["choice"]}
+        for v in all_votes
+        if v.get("choice") != winner
+    ]
+
+    quorum = proposal_data.get("quorum", 0)
+    votes_received = len(all_votes)
+
+    return {
+        "proposal_id": proposal_data["proposal_id"],
+        "proposal_text": proposal_data.get("proposal_text", ""),
+        "tally": tally,
+        "winner": winner,
+        "dissenters": dissenters,
+        "quorum": quorum,
+        "votes_received": votes_received,
+        "quorum_reached": votes_received >= quorum,
+    }
+
+
+def cmd_vote_result(ctx: SwarmContext, args: argparse.Namespace) -> int:
+    prop_id = args.proposal_id
+    prop_dir = ctx.proposals_dir() / prop_id
+    proposal_path = prop_dir / "proposal.json"
+
+    if not proposal_path.exists():
+        print(f"error: proposal not found: {prop_id}", file=sys.stderr)
+        return 1
+
+    proposal_data = json.loads(proposal_path.read_text(encoding="utf-8"))
+    wait = getattr(args, "wait", False)
+    timeout = float(getattr(args, "timeout", 60))
+
+    if wait:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            result = _tally_votes(prop_dir, proposal_data)
+            if result["quorum_reached"]:
+                print(json.dumps(result, indent=2))
+                return 0
+            time.sleep(_VOTE_POLL_INTERVAL)
+        # Timeout while waiting for quorum
+        result = _tally_votes(prop_dir, proposal_data)
+        print(json.dumps(result, indent=2))
+        return 124
+
+    result = _tally_votes(prop_dir, proposal_data)
+    if not result["quorum_reached"]:
+        print(json.dumps(result, indent=2))
+        return 3
+
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
 
@@ -639,10 +784,26 @@ def _build_parser() -> argparse.ArgumentParser:
     rpcr_p.add_argument("--rpc-id", required=True, dest="rpc_id", help="RPC id to respond to")
     rpcr_p.add_argument("--body", required=True, help="Response body")
 
-    # Placeholders for subcommands added in later tasks (argparse must know them
-    # to avoid exit-code 2 on unknown subcommand)
-    for name in ("vote-create", "vote", "vote-result"):
-        sub.add_parser(name, add_help=False)
+    # vote-create
+    vc_p = sub.add_parser("vote-create", help="Create a new vote proposal")
+    vc_p.add_argument("--proposal", required=True, help="Proposal text")
+    vc_p.add_argument("--choices", default="",
+                      help="Comma-separated list of allowed choices (empty = free-form)")
+    vc_p.add_argument("--quorum", type=int, default=0,
+                      help="Min votes needed (default = peer count)")
+
+    # vote
+    v_p = sub.add_parser("vote", help="Cast a vote on a proposal")
+    v_p.add_argument("--proposal-id", required=True, dest="proposal_id")
+    v_p.add_argument("--choice", required=True)
+
+    # vote-result
+    vr_p = sub.add_parser("vote-result", help="Get the current tally for a proposal")
+    vr_p.add_argument("--proposal-id", required=True, dest="proposal_id")
+    vr_p.add_argument("--wait", action="store_true",
+                      help="Block until quorum is reached")
+    vr_p.add_argument("--timeout", type=float, default=60.0,
+                      help="Max seconds to wait with --wait (default 60)")
 
     return p
 
@@ -679,6 +840,12 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_rpc(ctx, args)
     elif args.subcommand == "rpc-respond":
         return cmd_rpc_respond(ctx, args)
+    elif args.subcommand == "vote-create":
+        return cmd_vote_create(ctx, args)
+    elif args.subcommand == "vote":
+        return cmd_vote(ctx, args)
+    elif args.subcommand == "vote-result":
+        return cmd_vote_result(ctx, args)
 
     # Subcommands implemented in later tasks — placeholder exit
     print(
