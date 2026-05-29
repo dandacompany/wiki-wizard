@@ -123,8 +123,11 @@ class TestV23ManifestOps:
     )
 
     def test_version_is_2_3_0(self):
-        assert self.PLUGIN["version"] == "2.4.0", \
-            f"Expected 2.4.0, got {self.PLUGIN['version']}"
+        # Durable: defer to the installed package version (pyproject is the
+        # source of truth). Auto-tracks releases — no manual bump.
+        # See test_plugin_version_matches_installed_package_version.
+        assert self.PLUGIN["version"] == version("oh-my-wiki"), \
+            f"plugin.json {self.PLUGIN['version']} != installed {version('oh-my-wiki')}"
 
     def test_ops_include_dispatch(self):
         ops = [op["name"] if isinstance(op, dict) else op for op in self.PLUGIN.get("ops", [])]
@@ -163,8 +166,9 @@ class TestPluginManifestV24:
 
     def test_version_is_2_4_0(self):
         data = self._load()
-        assert data["version"] == "2.4.0", (
-            f"plugin.json version must be '2.4.0', got '{data.get('version')}'"
+        # Durable: defer to the installed package version (no manual bump).
+        assert data["version"] == version("oh-my-wiki"), (
+            f"plugin.json {data['version']!r} != installed {version('oh-my-wiki')!r}"
         )
 
     def test_swarm_monitor_op_present(self):
