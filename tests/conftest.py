@@ -26,3 +26,9 @@ def obsidian_vault_path():
 @pytest.fixture
 def db_connect():
     return registry.connect
+
+
+@pytest.fixture(autouse=True)
+def _isolate_omw_home(monkeypatch, tmp_path):
+    """Every test gets an isolated OMW_HOME so the real ~/.omw is never touched."""
+    monkeypatch.setenv("OMW_HOME", str(tmp_path / ".omw-test"))
