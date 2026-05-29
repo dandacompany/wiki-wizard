@@ -46,9 +46,9 @@ The Python entrypoint takes the body via stdin (long content is unsafe on CLI):
 ```bash
 echo "<body>" | python3 -c "
 import sys
-from pathlib import Path
+from scripts.paths import registry_path
 from scripts import memo_ops, registry
-db = Path('data/registry.db')
+db = registry_path()
 vault = registry.get_active(db)
 relpath = memo_ops.write(
     db,

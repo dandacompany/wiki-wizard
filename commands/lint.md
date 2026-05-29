@@ -13,9 +13,9 @@ Active vault must exist.
 
    ```bash
    python3 -c "
-   from pathlib import Path
+   from scripts.paths import registry_path
    from scripts import registry
-   db = Path('data/registry.db')
+   db = registry_path()
    vault = registry.get_active(db)
    print(vault['mode'], vault['id'])
    "
@@ -32,9 +32,9 @@ Active vault must exist.
    ```bash
    python3 -c "
    import json
-   from pathlib import Path
+   from scripts.paths import registry_path
    from scripts import wiki_lint
-   db = Path('data/registry.db')
+   db = registry_path()
    report = wiki_lint.check(db, vault_id=<id>)
    print(json.dumps(report, ensure_ascii=False, indent=2))
    "

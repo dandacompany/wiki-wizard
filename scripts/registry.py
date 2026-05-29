@@ -235,3 +235,41 @@ def get_tags_for_note(db_path: Path, note_id: int) -> list[str]:
         ]
     finally:
         conn.close()
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    import json
+    import sys
+
+    from scripts.paths import registry_path
+
+    p = argparse.ArgumentParser(prog="registry")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    pv = sub.add_parser("vaults", help="List registered vaults as JSON.")
+    pv.add_argument("--db", default=None)
+    args = p.parse_args(argv)
+
+    if args.cmd == "vaults":
+        db = Path(args.db) if args.db else registry_path()
+        rows = list_vaults(db) if db.exists() else []
+        out = [
+            {
+                "id": v["id"],
+                "name": v["name"],
+                "path": v["path"],
+                "mode": v["mode"],
+                "type": v["type"],
+                "is_active": bool(v["is_active"]),
+            }
+            for v in rows
+        ]
+        json.dump(out, sys.stdout, ensure_ascii=False, indent=2)
+        print()
+        return 0
+    return 1
+
+
+if __name__ == "__main__":
+    import sys as _sys
+    _sys.exit(main())

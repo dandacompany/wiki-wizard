@@ -28,9 +28,9 @@ For paste/md/txt, use `ingest.save_raw` with `ext` = `md` or `txt`. For pdf, use
 
    ```bash
    python3 -c "
-   from pathlib import Path
+   from scripts.paths import registry_path
    from scripts import ingest, registry
-   db = Path('data/registry.db')
+   db = registry_path()
    vault = registry.get_active(db)
    rel = ingest.save_raw(
        db, vault_id=vault['id'],
@@ -47,8 +47,9 @@ For paste/md/txt, use `ingest.save_raw` with `ext` = `md` or `txt`. For pdf, use
    python3 -c "
    import sys
    from pathlib import Path
+   from scripts.paths import registry_path
    from scripts import ingest, registry
-   db = Path('data/registry.db')
+   db = registry_path()
    vault = registry.get_active(db)
    pdf_bytes = Path('<input.pdf>').read_bytes()
    rel, text = ingest.save_raw_pdf(
@@ -68,9 +69,9 @@ For paste/md/txt, use `ingest.save_raw` with `ext` = `md` or `txt`. For pdf, use
 
    ```bash
    python3 -c "
-   from pathlib import Path
+   from scripts.paths import registry_path
    from scripts import ingest, registry
-   db = Path('data/registry.db')
+   db = registry_path()
    vault = registry.get_active(db)
    rel = ingest.write_wiki_page(
        db, vault_id=vault['id'],
@@ -88,9 +89,9 @@ For paste/md/txt, use `ingest.save_raw` with `ext` = `md` or `txt`. For pdf, use
 
    ```bash
    python3 -c "
-   from pathlib import Path
+   from scripts.paths import registry_path
    from scripts import ingest, registry
-   db = Path('data/registry.db')
+   db = registry_path()
    vault = registry.get_active(db)
    rel = ingest.write_wiki_page(
        db, vault_id=vault['id'],
@@ -110,9 +111,9 @@ For paste/md/txt, use `ingest.save_raw` with `ext` = `md` or `txt`. For pdf, use
 
    ```bash
    python3 -c "
-   from pathlib import Path
+   from scripts.paths import registry_path
    from scripts import ingest, registry
-   db = Path('data/registry.db')
+   db = registry_path()
    vault = registry.get_active(db)
    ingest.update_index(
        db, vault_id=vault['id'],
@@ -129,9 +130,9 @@ For paste/md/txt, use `ingest.save_raw` with `ext` = `md` or `txt`. For pdf, use
 
    ```bash
    python3 -c "
-   from pathlib import Path
+   from scripts.paths import registry_path
    from scripts import ingest, registry
-   db = Path('data/registry.db')
+   db = registry_path()
    vault = registry.get_active(db)
    ingest.append_log(
        db, vault_id=vault['id'],
@@ -144,9 +145,9 @@ For paste/md/txt, use `ingest.save_raw` with `ext` = `md` or `txt`. For pdf, use
 
    ```bash
    python3 -c "
-   from pathlib import Path
+   from scripts.paths import registry_path
    from scripts import reindex, registry
-   db = Path('data/registry.db')
+   db = registry_path()
    vault = registry.get_active(db)
    reindex.incremental(db, vault_id=vault['id'])
    "

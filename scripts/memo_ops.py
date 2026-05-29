@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from scripts import frontmatter, registry, reindex, slugify
+from scripts.paths import registry_path
 
 
 def _vault_root(db_path: Path, vault_id: int) -> Path:
@@ -147,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     pw = sub.add_parser("write", help="Create a memo (body from stdin)")
-    pw.add_argument("--db", default="data/registry.db")
+    pw.add_argument("--db", default=None)
     pw.add_argument("--vault-id", type=int)
     pw.add_argument("--title", required=True)
     pw.add_argument("--folder", default="inbox")
@@ -157,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = p.parse_args(argv)
 
-    db_path = Path(args.db)
+    db_path = Path(args.db) if args.db else registry_path()
     if args.vault_id is None:
         active = registry.get_active(db_path)
         if active is None:

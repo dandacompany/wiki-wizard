@@ -15,8 +15,9 @@ Active vault must exist.
 ```bash
 python3 -c "
 from pathlib import Path
+from scripts.paths import registry_path
 from scripts import adapters, registry
-db = Path('data/registry.db')
+db = registry_path()
 vault = registry.get_active(db)
 a = adapters.get_adapter(vault['type'], vault_name=vault['name'])
 a.open(Path(vault['path']) / '<relpath>')

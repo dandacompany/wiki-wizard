@@ -6,29 +6,39 @@
 
 1. Ask the user for:
    - **name** (unique short identifier, e.g. `daily`, `research`)
-   - **path** (absolute path; offer to create the directory if missing)
+   - **location** (AskUserQuestion, 3 options):
+     - **Global default (recommended)** — stored at `~/.omw/vaults/<name>`,
+       reachable from any working directory. Resolve with
+       `scripts.paths.default_vault_root(name)`.
+     - **Project-local** — stored at `<cwd>/.omw/<name>`. Resolve with
+       `scripts.paths.project_vault_root(name)`. Still registered in the global
+       registry, so it remains visible everywhere.
+     - **Custom path** — prompt for an absolute path (legacy behavior).
    - **mode**: `memo` or `wiki` (AskUserQuestion 2 options)
    - **type**: `markdown` or `obsidian` (AskUserQuestion 2 options)
+
+   If **Project-local** is chosen and `<cwd>` is inside a git repo
+   (`git rev-parse --is-inside-work-tree` succeeds), offer to append `.omw/`
+   to the repo's `.gitignore` so vault content is not accidentally committed.
 
 2. Show a summary and confirm.
 
 3. On confirm, run:
 
-```bash
-python3 -c "
+```python
 from pathlib import Path
 from scripts import registry, adapters, reindex
-db = Path('data/registry.db')
-root = Path('<path>')
+from scripts.paths import registry_path, ensure_home, default_vault_root, project_vault_root
+ensure_home()
+db = registry_path()
+# root is one of: default_vault_root('<name>') | project_vault_root('<name>') | Path('<custom-abs-path>')
+root = Path('<resolved-location>')
 root.mkdir(parents=True, exist_ok=True)
 adapters.get_adapter('<type>', vault_name='<name>').init_vault(root, '<mode>')
-vault = registry.add_vault(
-    db, name='<name>', path=root, type_='<type>', mode='<mode>',
-)
+vault = registry.add_vault(db, name='<name>', path=root, type_='<type>', mode='<mode>')
 registry.set_active(db, '<name>')
 reindex.full(db, vault_id=vault['id'])
 print(dict(vault))
-"
 ```
 
 4. Confirm to the user: vault registered, set active, indexed N notes.

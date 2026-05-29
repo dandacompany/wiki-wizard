@@ -62,6 +62,6 @@ else
 fi
 
 log ""
-log "   Uninstalled. Your vaults and data/registry.db are untouched."
+log "   Uninstalled. Your vaults and the registry at ~/.omw/registry.db are untouched."
 log "   To fully remove the project: rm -rf ${REPO_ROOT}"
 log "   To reinstall: bash ${REPO_ROOT}/bin/install.sh"

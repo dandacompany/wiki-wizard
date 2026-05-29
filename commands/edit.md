@@ -23,9 +23,9 @@ Active vault must be memo-mode. Run `python3 -m scripts.wizard status` first.
 
 ```bash
 python3 -c "
-from pathlib import Path
+from scripts.paths import registry_path
 from scripts import memo_ops, registry
-db = Path('data/registry.db')
+db = registry_path()
 vault = registry.get_active(db)
 memo_ops.edit_meta(
     db, vault_id=vault['id'],
@@ -42,8 +42,9 @@ memo_ops.edit_meta(
 ```bash
 python3 -c "
 from pathlib import Path
+from scripts.paths import registry_path
 from scripts import adapters, registry
-db = Path('data/registry.db')
+db = registry_path()
 vault = registry.get_active(db)
 a = adapters.get_adapter(vault['type'], vault_name=vault['name'])
 a.open(Path(vault['path']) / '<relpath>')
@@ -54,9 +55,9 @@ a.open(Path(vault['path']) / '<relpath>')
 
 ```bash
 python3 -c "
-from pathlib import Path
+from scripts.paths import registry_path
 from scripts import reindex, registry
-db = Path('data/registry.db')
+db = registry_path()
 vault = registry.get_active(db)
 reindex.incremental(db, vault_id=vault['id'])
 "

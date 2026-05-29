@@ -33,6 +33,7 @@ data/*.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
+data/*.migrated
 !data/.gitkeep
 
 # Virtualenv

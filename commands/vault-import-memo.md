@@ -14,8 +14,9 @@
 ```bash
 python3 -c "
 from pathlib import Path
+from scripts.paths import registry_path
 from scripts import registry, reindex
-db = Path('data/registry.db')
+db = registry_path()
 vault = registry.add_vault(
     db, name='<name>', path=Path('<path>'),
     type_='markdown', mode='memo',
@@ -36,9 +37,9 @@ If Yes:
 ```bash
 python3 -c "
 import json
-from pathlib import Path
+from scripts.paths import registry_path
 from scripts import import_memo
-db = Path('data/registry.db')
+db = registry_path()
 plan = import_memo.dry_run(db, vault_id=<id>)
 print(json.dumps(plan['summary']))
 print(json.dumps([{'relpath': f['relpath'], 'changes': len(f['changes'])} for f in plan['files'] if f['changes']], indent=2))
@@ -57,9 +58,9 @@ On confirm:
 
 ```bash
 python3 -c "
-from pathlib import Path
+from scripts.paths import registry_path
 from scripts import import_memo
-db = Path('data/registry.db')
+db = registry_path()
 plan = import_memo.dry_run(db, vault_id=<id>)
 result = import_memo.apply(db, vault_id=<id>, plan=plan)
 print(result)

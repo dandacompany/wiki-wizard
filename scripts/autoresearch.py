@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from scripts import ingest, query, registry, slugify
+from scripts.paths import registry_path
 
 MAX_ROUNDS_HARD_CAP = 5
 DEFAULT_MAX_ROUNDS = 3
@@ -210,7 +211,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     p_init = sub.add_parser("init")
-    p_init.add_argument("--db", default="data/registry.db")
+    p_init.add_argument("--db", default=None)
     p_init.add_argument("--vault-id", type=int)
     p_init.add_argument("--query", required=True)
     p_init.add_argument("--max-rounds", type=int, default=DEFAULT_MAX_ROUNDS)
@@ -229,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
     p_stat.add_argument("--session-dir", required=True)
 
     p_file = sub.add_parser("file-back")
-    p_file.add_argument("--db", default="data/registry.db")
+    p_file.add_argument("--db", default=None)
     p_file.add_argument("--vault-id", type=int)
     p_file.add_argument("--session-dir", required=True)
     p_file.add_argument("--title", required=True)
@@ -242,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     # db only needed for init / file-back; safe-default otherwise
-    db_path = Path(getattr(args, "db", "data/registry.db"))
+    db_path = Path(args.db) if getattr(args, "db", None) else registry_path()
 
     def _resolve_vault_id(default_id: int | None) -> int:
         if default_id is not None:

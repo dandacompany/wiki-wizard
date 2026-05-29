@@ -45,7 +45,6 @@ SCAFFOLD
 
 ```bash
 python3 -m scripts.personas run scaffolder \
-  --db data/registry.db \
   --vault-id <id> \
   --text "<topic description>" \
   --title "<page title>" \
@@ -58,9 +57,9 @@ The script writes to `wiki/syntheses/<slug>.md` where `<slug>` comes from the ti
 
 ```bash
 python3 -c "
-from pathlib import Path
+from scripts.paths import registry_path
 from scripts import reindex, registry
-db = Path('data/registry.db')
+db = registry_path()
 vault = registry.get_active(db)
 reindex.incremental(db, vault_id=vault['id'])
 "
