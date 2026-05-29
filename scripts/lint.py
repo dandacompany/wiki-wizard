@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from scripts import frontmatter, registry
+from scripts.paths import registry_path
 
 REQUIRED_FIELDS = ("title", "date", "type", "tags")
 VALID_TYPES = {
@@ -121,10 +122,11 @@ def main(argv: list[str] | None = None) -> int:
     import sys
 
     p = argparse.ArgumentParser(description="Lint a registered vault.")
-    p.add_argument("--db", default="data/registry.db")
+    p.add_argument("--db", default=None)
     p.add_argument("--vault-id", type=int, required=True)
     args = p.parse_args(argv)
-    report = check(Path(args.db), vault_id=args.vault_id)
+    db = Path(args.db) if args.db else registry_path()
+    report = check(db, vault_id=args.vault_id)
     json.dump(report, sys.stdout, ensure_ascii=False, indent=2)
     print()
     return 0

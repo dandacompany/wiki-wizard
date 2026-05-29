@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from scripts import registry
+from scripts.paths import registry_path
 
 CACHE_CAP = 2000  # chars
 RECENT_LIMIT = 10  # most-recently-touched pages
@@ -167,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
     import sys as _sys
 
     p = argparse.ArgumentParser(prog="scripts.hot_cache")
-    p.add_argument("--db", default="data/registry.db")
+    p.add_argument("--db", default=None)
     p.add_argument("--data-dir", default=None,
                    help="Override fallback dir when no active vault")
     g = p.add_mutually_exclusive_group(required=True)
@@ -179,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="Manual refresh equivalent to --on-session-stop without stdin")
     args = p.parse_args(argv)
 
-    db_path = Path(args.db)
+    db_path = Path(args.db) if args.db else registry_path()
     data_dir = Path(args.data_dir) if args.data_dir else None
 
     if args.on_session_start:

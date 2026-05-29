@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from scripts import frontmatter
+from scripts.paths import registry_path
 
 PERSONAS_ROOT = Path(__file__).resolve().parents[1] / "personas"
 
@@ -247,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_run = sub.add_parser("run", help="File pre-written LLM output per persona contract")
     p_run.add_argument("name")
-    p_run.add_argument("--db", default="data/registry.db")
+    p_run.add_argument("--db", default=None)
     p_run.add_argument("--vault-id", type=int)
     grp_in = p_run.add_mutually_exclusive_group(required=True)
     grp_in.add_argument("--text")
@@ -284,7 +285,7 @@ def main(argv: list[str] | None = None) -> int:
             print(str(exc), file=_sys.stderr)
             return 2
 
-        db_path = Path(args.db)
+        db_path = Path(args.db) if args.db else registry_path()
         try:
             _, source_meta = resolve_input(
                 text=args.text,
