@@ -58,3 +58,26 @@ jobs:
           test ! -L "$TMP_SKILLS/oh-my-wiki"
           test ! -L "$TMP_SKILLS/omw"
           echo "✅ install + uninstall scripts verified"
+
+      - name: Smoke — CLI entrypoints, manifests, exec bits
+        run: |
+          # CLI modules respond to --help with exit 0
+          python -m scripts.wizard --help > /dev/null
+          python -m scripts.swarm --help > /dev/null
+          python -m scripts.personas --help > /dev/null
+          # personas list emits a non-empty JSON array (structural, no hardcoded count)
+          python - <<'PY'
+          import json, subprocess, sys
+          out = subprocess.check_output([sys.executable, "-m", "scripts.personas", "list"], text=True)
+          data = json.loads(out)
+          assert isinstance(data, list) and len(data) >= 1, "personas list must be a non-empty JSON array"
+          print(f"personas: {len(data)} entries")
+          PY
+          # both plugin manifests are valid JSON
+          python -c "import json; json.load(open('.claude-plugin/plugin.json'))"
+          python -c "import json; json.load(open('.claude-plugin/marketplace.json'))"
+          # install/uninstall scripts keep their executable bit
+          test -x bin/install.sh
+          test -x bin/uninstall.sh
+          echo "✅ smoke checks passed"
+        shell: bash
