@@ -11,7 +11,7 @@ By default the cache is read automatically at SessionStart and refreshed at Sess
 ### View the current cache
 
 ```bash
-python3 -m scripts.hot_cache --on-session-start --db data/registry.db
+python3 -m scripts.hot_cache --on-session-start
 ```
 
 Prints the cache text to stdout. Silent (exit 0) if no cache exists yet.
@@ -19,7 +19,7 @@ Prints the cache text to stdout. Silent (exit 0) if no cache exists yet.
 ### Force a refresh (no session summary)
 
 ```bash
-python3 -m scripts.hot_cache --refresh --db data/registry.db
+python3 -m scripts.hot_cache --refresh
 ```
 
 Rebuilds the cache from the current registry state (no last-session-summary, just vaults + recent activity).
@@ -28,7 +28,7 @@ Rebuilds the cache from the current registry state (no last-session-summary, jus
 
 ```bash
 echo "User worked on the research vault. Ingested 3 papers and ran lint." \
-  | python3 -m scripts.hot_cache --on-session-stop --db data/registry.db
+  | python3 -m scripts.hot_cache --on-session-stop
 ```
 
 Same as `--refresh` but pipes a summary in on stdin. The hooks call this form at SessionStop with a summary that Claude Code generates from the just-completed conversation.

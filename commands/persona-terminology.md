@@ -23,8 +23,10 @@ per-vault glossary and surface inconsistent surface forms.
 
 2. **Resolve vault root.** Look up via:
 
+   <!-- TODO: scripts.registry has no CLI; this call is a no-op — fix separately -->
+
    ```bash
-   python3 -m scripts.registry vaults --db data/registry.db
+   python3 -m scripts.registry vaults
    ```
 
    to map vault-id → vault path.

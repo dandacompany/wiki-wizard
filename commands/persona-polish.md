@@ -41,7 +41,6 @@ For a vault page (backup to vault's `.trash/`):
 
 ```bash
 python3 -m scripts.personas run polisher \
-  --db data/registry.db \
   --vault-id <id> \
   --vault-relpath <relpath> \
   --output-file "$tmp_out" \
@@ -61,9 +60,9 @@ python3 -m scripts.personas run polisher \
 
 ```bash
 python3 -c "
-from pathlib import Path
+from scripts.paths import registry_path
 from scripts import reindex, registry
-db = Path('data/registry.db')
+db = registry_path()
 vault = registry.get_active(db)
 if vault is not None:
     reindex.incremental(db, vault_id=vault['id'])

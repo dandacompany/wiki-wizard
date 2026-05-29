@@ -8,9 +8,9 @@
 
 ```bash
 python3 -c "
-from pathlib import Path
+from scripts.paths import registry_path
 from scripts import registry
-db = Path('data/registry.db')
+db = registry_path()
 vaults = registry.list_vaults(db)
 conn = registry.connect(db)
 try:

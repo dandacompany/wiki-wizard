@@ -16,9 +16,9 @@ Active vault must exist.
    ```bash
    python3 -c "
    import json
-   from pathlib import Path
+   from scripts.paths import registry_path
    from scripts import search, registry
-   db = Path('data/registry.db')
+   db = registry_path()
    vault = registry.get_active(db)
    hits = search.query(db, vault_id=vault['id'], query='<query>', limit=5)
    print(json.dumps(hits, ensure_ascii=False, indent=2))
@@ -33,9 +33,9 @@ Active vault must exist.
 
    ```bash
    python3 -c "
-   from pathlib import Path
+   from scripts.paths import registry_path
    from scripts import query, ingest, registry
-   db = Path('data/registry.db')
+   db = registry_path()
    vault = registry.get_active(db)
    rel = query.write_synthesis(
        db, vault_id=vault['id'],
@@ -61,9 +61,9 @@ Active vault must exist.
 
    ```bash
    python3 -c "
-   from pathlib import Path
+   from scripts.paths import registry_path
    from scripts import reindex, registry
-   db = Path('data/registry.db')
+   db = registry_path()
    vault = registry.get_active(db)
    reindex.incremental(db, vault_id=vault['id'])
    "

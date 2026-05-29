@@ -18,7 +18,6 @@ Get the user's research question. Then:
 
 ```bash
 python3 -m scripts.autoresearch init \
-  --db data/registry.db \
   --query "<the user's question>"
 ```
 
@@ -116,9 +115,9 @@ Run incremental reindex so search picks up the new page:
 
 ```bash
 python3 -c "
-from pathlib import Path
+from scripts.paths import registry_path
 from scripts import reindex, registry
-db = Path('data/registry.db')
+db = registry_path()
 vault = registry.get_active(db)
 reindex.incremental(db, vault_id=vault['id'])
 "

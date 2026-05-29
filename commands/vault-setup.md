@@ -17,8 +17,9 @@
 ```bash
 python3 -c "
 from pathlib import Path
+from scripts.paths import registry_path
 from scripts import registry, adapters, reindex
-db = Path('data/registry.db')
+db = registry_path()
 root = Path('<path>')
 root.mkdir(parents=True, exist_ok=True)
 adapters.get_adapter('<type>', vault_name='<name>').init_vault(root, '<mode>')

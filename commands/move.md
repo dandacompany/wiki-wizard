@@ -16,9 +16,9 @@ Active vault must be memo-mode.
 
 ```bash
 python3 -c "
-from pathlib import Path
+from scripts.paths import registry_path
 from scripts import memo_ops, registry
-db = Path('data/registry.db')
+db = registry_path()
 vault = registry.get_active(db)
 new_relpath = memo_ops.move(
     db, vault_id=vault['id'],

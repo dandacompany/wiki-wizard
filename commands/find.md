@@ -14,9 +14,9 @@ Active vault must exist. Run `python3 -m scripts.wizard status` first.
 
 ```bash
 python3 -c "
-from pathlib import Path
+from scripts.paths import registry_path
 from scripts import search, registry
-db = Path('data/registry.db')
+db = registry_path()
 vault = registry.get_active(db)
 hits = search.query(db, vault_id=vault['id'], query='<query>', limit=5)
 import json; print(json.dumps(hits, ensure_ascii=False, indent=2))
