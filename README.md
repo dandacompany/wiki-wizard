@@ -1,5 +1,10 @@
 # oh-my-wiki (OMW)
 
+[![CI](https://github.com/dandacompany/oh-my-wiki/actions/workflows/ci.yml/badge.svg)](https://github.com/dandacompany/oh-my-wiki/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-6C5CE7)](https://github.com/dandacompany/oh-my-wiki#install)
+[![skillsmp](https://img.shields.io/badge/skills.sh-oh--my--wiki-1abc9c)](https://skills.sh/)
+
 A Karpathy-style LLM Wiki skill that captures sources, builds a structured wiki out of them, and answers queries with proper citations.
 
 **Status:** v1 (Plans A + B + C) is complete. The skill is production-ready for single-user workflows. v2 is in progress — see [docs/superpowers/specs/2026-05-25-oh-my-wiki-v2-master-design.md](./docs/superpowers/specs/2026-05-25-oh-my-wiki-v2-master-design.md) for the phased roadmap.
