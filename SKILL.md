@@ -5,7 +5,7 @@ description: Karpathy-style LLM Wiki with multi-vault sqlite registry and Socrat
 
 # oh-my-wiki (OMW)
 
-A storage-agnostic LLM Wiki skill. Implements Andrej Karpathy's three-layer pattern (Raw / Wiki / Schema) with hybrid `memo-only` and `wiki-mode` per vault. Operations live in `commands/*.md`. Deterministic I/O lives in `scripts/*.py`. State lives in `data/registry.db`.
+A storage-agnostic LLM Wiki skill. Implements Andrej Karpathy's three-layer pattern (Raw / Wiki / Schema) with hybrid `memo-only` and `wiki-mode` per vault. Operations live in `commands/*.md`. Deterministic I/O lives in `scripts/*.py`. State lives in the global registry `~/.omw/registry.db` (override the root with `OMW_HOME`). Vault content lives at each vault's registered path.
 
 **Short alias:** `OMW` (lowercase `omw`). Both `oh-my-wiki` and `omw` resolve to this skill.
 
@@ -32,11 +32,12 @@ Parse the JSON output. Fields:
 
 ## Step 2 — Route by `needs`
 
-| `needs`    | Action                                                                                                                          |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `"setup"`  | Load `commands/vault-setup.md`.                                                                                                 |
-| `"select"` | Load `commands/vault-use.md`.                                                                                                   |
-| `"op"`     | Inspect the user's input. If it names an op explicitly, load that op's `commands/<op>.md`. Otherwise run the Op Wizard (below). |
+| `needs`     | Action                                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `"setup"`   | Load `commands/vault-setup.md`.                                                                                                 |
+| `"select"`  | Load `commands/vault-use.md`.                                                                                                   |
+| `"migrate"` | Load `commands/migrate.md`.                                                                                                     |
+| `"op"`      | Inspect the user's input. If it names an op explicitly, load that op's `commands/<op>.md`. Otherwise run the Op Wizard (below). |
 
 ## Step 3 — Op Wizard (when no op specified)
 
