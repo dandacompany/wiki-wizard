@@ -1,6 +1,6 @@
 # sqlite registry — schema notes
 
-File: `data/registry.db`. gitignored. Created on first `wizard.py status` call.
+File: `~/.omw/registry.db` (override the root with `OMW_HOME`). Created on first `wizard.py status` call.
 
 ## Tables
 

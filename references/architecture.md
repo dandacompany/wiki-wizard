@@ -21,7 +21,7 @@ SKILL.md          ← dispatcher (loaded every invocation)
         │
         └─ scripts/*.py         ← deterministic I/O
               │
-              └─ data/registry.db
+              └─ ~/.omw/registry.db
 ```
 
 Splitting per-op schemas into their own files is deliberate. It mirrors Karpathy's "schema document" principle and lets the LLM load only the workflow it needs.
