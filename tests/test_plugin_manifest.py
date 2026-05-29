@@ -1,10 +1,16 @@
 """Validate Claude Code plugin manifests."""
 import json
+import re
+import subprocess
+import sys
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def test_plugin_json_has_required_top_level_fields():
@@ -180,3 +186,72 @@ class TestPluginManifestV24:
             assert trigger in manifest_text, (
                 f"Trigger '{trigger}' not found in plugin.json"
             )
+
+
+# ---------------------------------------------------------------------------
+# Distribution hardening (2026-05-29): version source-of-truth + schema +
+# persona-list contract. See docs/superpowers/plans/2026-05-29-oh-my-wiki-
+# distribution.md. These supersede the hardcoded test_version_is_2_*_0 checks
+# above as the durable version guard (those are kept for history).
+# ---------------------------------------------------------------------------
+
+def test_plugin_version_matches_installed_package_version():
+    """plugin.json.version must equal the installed package version.
+
+    The installed version derives from pyproject.toml ([project].version),
+    so this makes plugin.json and pyproject structurally unable to drift.
+    importlib.metadata is used instead of tomllib because the CI floor is
+    Python 3.10 and tomllib is 3.11+.
+    """
+    p = REPO_ROOT / ".claude-plugin" / "plugin.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    pkg_version = version("oh-my-wiki")
+    assert data["version"] == pkg_version, (
+        f"plugin.json version {data['version']!r} != installed "
+        f"package version {pkg_version!r}. Bump them together."
+    )
+
+
+def test_plugin_version_is_semver():
+    p = REPO_ROOT / ".claude-plugin" / "plugin.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    assert SEMVER_RE.match(data["version"]), (
+        f"version {data['version']!r} is not MAJOR.MINOR.PATCH"
+    )
+
+
+def test_plugin_skill_and_path_fields_resolve():
+    """skill_path / commands_path / scripts_path must point at real paths."""
+    p = REPO_ROOT / ".claude-plugin" / "plugin.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    skill = REPO_ROOT / data["skill_path"].removeprefix("./")
+    commands = REPO_ROOT / data["commands_path"].removeprefix("./")
+    scripts = REPO_ROOT / data["scripts_path"].removeprefix("./")
+    assert skill.is_file(), f"skill_path {skill} is not a file"
+    assert commands.is_dir(), f"commands_path {commands} is not a dir"
+    assert scripts.is_dir(), f"scripts_path {scripts} is not a dir"
+
+
+def test_plugin_homepage_and_repository_are_canonical_github_urls():
+    p = REPO_ROOT / ".claude-plugin" / "plugin.json"
+    data = json.loads(p.read_text(encoding="utf-8"))
+    expected = "https://github.com/dandacompany/oh-my-wiki"
+    assert data["homepage"] == expected, f"homepage {data['homepage']!r}"
+    assert data["repository"] == expected, f"repository {data['repository']!r}"
+
+
+def test_personas_list_returns_nonempty_json_array():
+    """`python -m scripts.personas list` must emit a JSON list with >=1 entry.
+
+    Structural assertion only — never hardcode the count (it rots on every
+    persona add; today it is 9).
+    """
+    r = subprocess.run(
+        [sys.executable, "-m", "scripts.personas", "list"],
+        cwd=REPO_ROOT, capture_output=True, text=True,
+    )
+    assert r.returncode == 0, f"personas list failed: {r.stderr}"
+    data = json.loads(r.stdout)
+    assert isinstance(data, list), "personas list must emit a JSON array"
+    assert len(data) >= 1, "expected at least one persona"
+    assert all("name" in p for p in data), "each persona needs a name"
