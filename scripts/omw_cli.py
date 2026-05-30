@@ -135,6 +135,27 @@ def _cmd_search(args) -> int:
     return 0
 
 
+def _cmd_serve(args) -> int:
+    from scripts import config, paths, server
+    token = config.read_secret("OMW_SERVE_TOKEN")
+    if not token:
+        print(
+            "error: no OMW_SERVE_TOKEN configured.\n"
+            "Run `omw setup serve --generate-token` (or set OMW_SERVE_TOKEN) first.",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        server.serve(
+            host=args.host, port=args.port, token=token,
+            db_path=paths.registry_path(), default_vault=args.vault,
+            max_limit=args.limit,
+        )
+    except KeyboardInterrupt:
+        return 0
+    return 0
+
+
 def _cmd_setup(args) -> int:
     from scripts import setup_wizard
     if args.section == "search":
@@ -213,6 +234,13 @@ def build_parser() -> argparse.ArgumentParser:
     psr.add_argument("--provider", default=None)
     psr.add_argument("--limit", type=int, default=10)
     psr.set_defaults(func=_cmd_search)
+
+    pse = sub.add_parser("serve", help="Run the local query HTTP API (retrieve-only).")
+    pse.add_argument("--host", default="127.0.0.1", help="bind host (default: localhost)")
+    pse.add_argument("--port", type=int, default=8765)
+    pse.add_argument("--vault", default=None, help="pin a vault by name (default: active)")
+    pse.add_argument("--limit", type=int, default=10, help="max hits per response (cap)")
+    pse.set_defaults(func=_cmd_serve)
 
     pset = sub.add_parser("setup", help="Interactive setup wizard (run after install).")
     pset.add_argument(
