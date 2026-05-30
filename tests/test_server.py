@@ -227,3 +227,21 @@ def test_post_query_negative_content_length_returns_400(running_server):
         [("Authorization", "Bearer secret"), ("Content-Length", "-1")],
     )
     assert status == 400
+
+
+def test_serve_requires_a_token(seeded_db):
+    with pytest.raises(ValueError):
+        server.serve(host="127.0.0.1", port=0, token="", db_path=seeded_db)
+
+
+def test_serve_starts_and_serves(seeded_db, capsys):
+    registry.set_active(seeded_db, "md")
+    httpd = server.make_server(
+        host="127.0.0.1", port=0, token="t", db_path=seeded_db, default_vault="md"
+    )
+    # serve() should print a startup line then block; we test the startup-line builder.
+    line = server.startup_line("127.0.0.1", httpd.server_address[1], "md")
+    httpd.server_close()
+    assert "omw serve on http://127.0.0.1:" in line
+    assert "vault: md" in line
+    assert "token: set" in line

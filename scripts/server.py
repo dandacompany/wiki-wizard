@@ -151,3 +151,31 @@ def make_server(
     httpd.omw_default_vault = default_vault
     httpd.omw_max_limit = max_limit
     return httpd
+
+
+def startup_line(host: str, port: int, vault: str | None) -> str:
+    vault_label = vault if vault else "active"
+    return f"omw serve on http://{host}:{port} (vault: {vault_label}, token: set)"
+
+
+def serve(
+    *,
+    host: str,
+    port: int,
+    token: str,
+    db_path: Path,
+    default_vault: str | None = None,
+    max_limit: int = 10,
+) -> None:
+    """Construct the server, print a startup line, and serve until interrupted."""
+    if not token:
+        raise ValueError("a token is required to serve (set OMW_SERVE_TOKEN)")
+    httpd = make_server(
+        host=host, port=port, token=token,
+        db_path=db_path, default_vault=default_vault, max_limit=max_limit,
+    )
+    print(startup_line(host, httpd.server_address[1], default_vault), flush=True)
+    try:
+        httpd.serve_forever()
+    finally:
+        httpd.server_close()
