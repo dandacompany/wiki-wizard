@@ -1,0 +1,17 @@
+# Keep the Docker build context small + secret-free.
+.git
+.venv
+venv
+node_modules
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+*.egg-info
+data
+docs
+.DS_Store
+# never ship local env/secrets into an image
+.env
+**/*.env
