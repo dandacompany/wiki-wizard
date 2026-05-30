@@ -245,3 +245,13 @@ def test_serve_starts_and_serves(seeded_db, capsys):
     assert "omw serve on http://127.0.0.1:" in line
     assert "vault: md" in line
     assert "token: set" in line
+
+
+from pathlib import Path as _Path
+
+
+def test_messenger_doc_documents_contract():
+    doc = _Path(__file__).resolve().parent.parent / "references" / "messenger-api.md"
+    text = doc.read_text(encoding="utf-8")
+    for needle in ["POST /query", "OMW_SERVE_TOKEN", "GET /health", "curl"]:
+        assert needle in text, f"messenger-api.md must document {needle!r}"
