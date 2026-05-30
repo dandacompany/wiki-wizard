@@ -1,5 +1,7 @@
 """User-facing omw CLI."""
 import json
+import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -143,3 +145,12 @@ def test_agentic_op_bridges_to_claude(op, capsys):
     assert "Claude" in out and op in out
     db = registry_path()
     assert (not db.exists()) or registry.list_vaults(db) == []
+
+
+def test_installer_is_executable_and_valid():
+    p = Path(__file__).resolve().parents[1] / "bin" / "omw-install.sh"
+    assert p.is_file()
+    assert os.stat(p).st_mode & stat.S_IXUSR, "omw-install.sh must be executable"
+    text = p.read_text()
+    assert "omw setup" in text                 # auto-launches the wizard
+    assert "pipx install" in text or "pip install" in text

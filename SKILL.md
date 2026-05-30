@@ -19,6 +19,17 @@ v2 (in progress) adds plugin-marketplace install, session hot cache, 6 vault-set
 
 Always invoke this before doing anything else:
 
+> **Command interface — read this first.** omw has exactly two ways to run things,
+> and NO standalone script CLIs. Do **not** invent filenames like `omw_db.py`,
+> `vault.py`, `cli.py`, or `bootstrap.py` — they do not exist.
+>
+> 1. **Deterministic ops** (status, vault management, lint): run the `omw` CLI —
+>    `omw status`, `omw vault list`, `omw vault create <name> --mode wiki`,
+>    `omw vault use <name>`, `omw lint`.
+> 2. **Reasoning ops** (ingest, query, autoresearch, personas, …): read the exact
+>    procedure in `commands/<op>.md` and run its inline `python3 -c` snippet /
+>    `python3 -m scripts.<module>` commands verbatim. Never guess a script path.
+
 ```bash
 python3 -m scripts.wizard status
 ```
@@ -38,6 +49,9 @@ Parse the JSON output. Fields:
 | `"select"`  | Load `commands/vault-use.md`.                                                                                                   |
 | `"migrate"` | Load `commands/migrate.md`.                                                                                                     |
 | `"op"`      | Inspect the user's input. If it names an op explicitly, load that op's `commands/<op>.md`. Otherwise run the Op Wizard (below). |
+
+For deterministic vault management you may call the `omw` CLI directly (e.g.
+`omw vault list`); for content ops always load `commands/<op>.md` and follow it.
 
 ## Step 3 — Op Wizard (when no op specified)
 

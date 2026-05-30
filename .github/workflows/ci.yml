@@ -79,5 +79,9 @@ jobs:
           # install/uninstall scripts keep their executable bit
           test -x bin/install.sh
           test -x bin/uninstall.sh
+          # user-facing omw CLI entrypoint
+          omw --help > /dev/null
+          omw status > /dev/null
+          test -x bin/omw-install.sh
           echo "✅ smoke checks passed"
         shell: bash
