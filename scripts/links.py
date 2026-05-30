@@ -63,3 +63,26 @@ def replace_links(db_path: Path, *, vault_id: int, src_note_id: int, body: str) 
                 )
     finally:
         conn.close()
+
+
+def resolve(db_path: Path, vault_id: int) -> None:
+    """Set links.dst_note_id by basename-slug match; ambiguous/missing -> NULL."""
+    conn = registry.connect(db_path)
+    try:
+        with conn:
+            slug_to_ids: dict[str, list[int]] = {}
+            for row in conn.execute(
+                "SELECT id, relpath FROM notes WHERE vault_id = ?", (vault_id,)
+            ):
+                slug_to_ids.setdefault(_slugify(row["relpath"]), []).append(row["id"])
+            for row in conn.execute(
+                "SELECT DISTINCT dst_slug FROM links WHERE vault_id = ?", (vault_id,)
+            ):
+                ids = slug_to_ids.get(row["dst_slug"], [])
+                dst = ids[0] if len(ids) == 1 else None
+                conn.execute(
+                    "UPDATE links SET dst_note_id = ? WHERE vault_id = ? AND dst_slug = ?",
+                    (dst, vault_id, row["dst_slug"]),
+                )
+    finally:
+        conn.close()

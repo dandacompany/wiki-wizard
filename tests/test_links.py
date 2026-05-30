@@ -112,3 +112,36 @@ def test_replace_links_is_idempotent_replace(vault):
     links.replace_links(db, vault_id=vid, src_note_id=nid, body="[[c]]")  # replaces
     rows = _link_rows(db, vid)
     assert [r["dst_slug"] for r in rows] == ["c"]
+
+
+def test_resolve_sets_dst_note_id_for_unique_match(vault):
+    db, vid = vault
+    a = _add_note(db, vid, "wiki/a.md", "[[b]] [[missing]]")
+    b = _add_note(db, vid, "wiki/b.md")
+    links.replace_links(db, vault_id=vid, src_note_id=a, body="[[b]] [[missing]]")
+    links.resolve(db, vid)
+    rows = {r["dst_slug"]: r["dst_note_id"] for r in _link_rows(db, vid)}
+    assert rows["b"] == b
+    assert rows["missing"] is None
+
+
+def test_resolve_leaves_ambiguous_slug_unresolved(vault):
+    db, vid = vault
+    a = _add_note(db, vid, "wiki/a.md", "[[dup]]")
+    _add_note(db, vid, "wiki/x/dup.md")
+    _add_note(db, vid, "wiki/y/dup.md")  # same basename slug 'dup'
+    links.replace_links(db, vault_id=vid, src_note_id=a, body="[[dup]]")
+    links.resolve(db, vid)
+    rows = {r["dst_slug"]: r["dst_note_id"] for r in _link_rows(db, vid)}
+    assert rows["dup"] is None  # ambiguous -> unresolved
+
+
+def test_resolve_repairs_after_target_added(vault):
+    db, vid = vault
+    a = _add_note(db, vid, "wiki/a.md", "[[late]]")
+    links.replace_links(db, vault_id=vid, src_note_id=a, body="[[late]]")
+    links.resolve(db, vid)
+    assert _link_rows(db, vid)[0]["dst_note_id"] is None
+    late = _add_note(db, vid, "wiki/late.md")
+    links.resolve(db, vid)
+    assert _link_rows(db, vid)[0]["dst_note_id"] == late
