@@ -47,3 +47,19 @@ def extract_links(body: str) -> list[tuple[str, str, int]]:
             found.append((m.start(), slug, "markdown"))
     found.sort(key=lambda x: x[0])
     return [(slug, kind, i) for i, (_, slug, kind) in enumerate(found)]
+
+
+def replace_links(db_path: Path, *, vault_id: int, src_note_id: int, body: str) -> None:
+    """Replace all outbound links for one note (dst_note_id left NULL)."""
+    conn = registry.connect(db_path)
+    try:
+        with conn:
+            conn.execute("DELETE FROM links WHERE src_note_id = ?", (src_note_id,))
+            for slug, link_type, position in extract_links(body):
+                conn.execute(
+                    "INSERT INTO links(vault_id, src_note_id, dst_slug, dst_note_id, "
+                    "link_type, position) VALUES (?, ?, ?, NULL, ?, ?)",
+                    (vault_id, src_note_id, slug, link_type, position),
+                )
+    finally:
+        conn.close()

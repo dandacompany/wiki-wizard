@@ -59,3 +59,56 @@ def test_extract_preserves_document_order_across_kinds():
 
 def test_extract_skips_empty_targets():
     assert links.extract_links("[[ ]] and [x]()") == []
+
+
+import pytest
+
+
+@pytest.fixture
+def vault(tmp_db, tmp_path):
+    registry.init_db(tmp_db)
+    vroot = tmp_path / "v"
+    vroot.mkdir()
+    row = registry.add_vault(
+        tmp_db, name="v", path=str(vroot), type_="markdown", mode="wiki"
+    )
+    return tmp_db, row["id"]
+
+
+def _add_note(db, vault_id, relpath, body=""):
+    return registry.upsert_note(
+        db, vault_id=vault_id, relpath=relpath, layer="wiki",
+        title=relpath, summary=None, mtime=0.0, size_bytes=len(body), tags=[],
+    )
+
+
+def _link_rows(db, vault_id):
+    conn = registry.connect(db)
+    try:
+        return [dict(r) for r in conn.execute(
+            "SELECT src_note_id, dst_slug, dst_note_id, link_type, position "
+            "FROM links WHERE vault_id = ? ORDER BY src_note_id, position",
+            (vault_id,),
+        )]
+    finally:
+        conn.close()
+
+
+def test_replace_links_inserts_unresolved(vault):
+    db, vid = vault
+    nid = _add_note(db, vid, "wiki/a.md", "[[b]] and [x](c.md)")
+    links.replace_links(db, vault_id=vid, src_note_id=nid, body="[[b]] and [x](c.md)")
+    rows = _link_rows(db, vid)
+    assert [(r["dst_slug"], r["link_type"], r["position"]) for r in rows] == [
+        ("b", "wikilink", 0), ("c", "markdown", 1)
+    ]
+    assert all(r["dst_note_id"] is None for r in rows)  # not resolved yet
+
+
+def test_replace_links_is_idempotent_replace(vault):
+    db, vid = vault
+    nid = _add_note(db, vid, "wiki/a.md")
+    links.replace_links(db, vault_id=vid, src_note_id=nid, body="[[b]]")
+    links.replace_links(db, vault_id=vid, src_note_id=nid, body="[[c]]")  # replaces
+    rows = _link_rows(db, vid)
+    assert [r["dst_slug"] for r in rows] == ["c"]
