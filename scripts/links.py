@@ -1,0 +1,49 @@
+"""Wiki link graph: extract [[wikilink]] + markdown internal [](*.md) refs,
+populate the `links` table, resolve to notes by basename-slug, and query
+backlinks / orphans / broken-links / graph. Semantic edge types are F#2.
+"""
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+from scripts import registry
+
+_WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
+_MDLINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+_EXTERNAL_PREFIXES = ("http://", "https://", "mailto:")
+
+
+def _slugify(target: str) -> str:
+    """basename without .md, alias/heading/query stripped, lowercased."""
+    t = target.split("|", 1)[0].split("#", 1)[0].split("?", 1)[0]
+    t = t.strip().split("/")[-1]
+    if t.lower().endswith(".md"):
+        t = t[:-3]
+    return t.strip().lower()
+
+
+def extract_links(body: str) -> list[tuple[str, str, int]]:
+    """Return [(dst_slug, link_type, position), ...] in document order.
+
+    link_type is 'wikilink' or 'markdown'. External URLs, mailto:, pure
+    fragments, and non-.md markdown targets are skipped.
+    """
+    found: list[tuple[int, str, str]] = []  # (offset, slug, kind)
+    for m in _WIKILINK_RE.finditer(body):
+        slug = _slugify(m.group(1))
+        if slug:
+            found.append((m.start(), slug, "wikilink"))
+    for m in _MDLINK_RE.finditer(body):
+        target = m.group(1).strip()
+        low = target.lower()
+        if not target or low.startswith(_EXTERNAL_PREFIXES) or target.startswith("#"):
+            continue
+        path_part = target.split("#", 1)[0].split("?", 1)[0].strip()
+        if not path_part.lower().endswith(".md"):
+            continue
+        slug = _slugify(target)
+        if slug:
+            found.append((m.start(), slug, "markdown"))
+    found.sort(key=lambda x: x[0])
+    return [(slug, kind, i) for i, (_, slug, kind) in enumerate(found)]
