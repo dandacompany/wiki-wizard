@@ -376,3 +376,10 @@ def test_wiki_librarian_persona_loads():
     assert p["output_kind"] == "stdout"
     assert set(p["input_kinds"]) == {"text", "vault_page"}
     assert p["body"].strip()
+
+
+def test_curator_persona_loads():
+    p = personas.load_persona("curator")
+    assert p["output_kind"] == "stdout"
+    assert set(p["input_kinds"]) == {"text", "vault_page"}
+    assert p["body"].strip()
