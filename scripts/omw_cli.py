@@ -124,6 +124,23 @@ def _cmd_lint(args) -> int:
     return 0
 
 
+def _cmd_setup(args) -> int:
+    from scripts import setup_wizard
+    return setup_wizard.run(
+        section=args.section,
+        noninteractive=args.noninteractive,
+        name=args.name,
+        mode=args.mode,
+        type_=args.type,
+        location=args.location,
+    )
+
+
+def _cmd_doctor(args) -> int:
+    from scripts import setup_wizard
+    return setup_wizard.doctor()
+
+
 def _cmd_agentic(args) -> int:
     op = args.op
     print(
@@ -172,6 +189,24 @@ def build_parser() -> argparse.ArgumentParser:
     pl = sub.add_parser("lint", help="Run deterministic lint over a vault.")
     pl.add_argument("--vault", default=None, help="vault name (default: active)")
     pl.set_defaults(func=_cmd_lint)
+
+    pset = sub.add_parser("setup", help="Interactive setup wizard (run after install).")
+    pset.add_argument(
+        "section", nargs="?", choices=["vault", "hosts", "search"], default=None
+    )
+    pset.add_argument(
+        "--noninteractive", action="store_true",
+        help="create from flags/defaults without prompting",
+    )
+    pset.add_argument("--name", default="default")
+    pset.add_argument("--mode", choices=["memo", "wiki"], default="wiki")
+    pset.add_argument("--type", choices=["markdown", "obsidian"], default="markdown")
+    pset.add_argument("--location", default="global")
+    pset.set_defaults(func=_cmd_setup)
+
+    sub.add_parser(
+        "doctor", help="Validate omw config + install."
+    ).set_defaults(func=_cmd_doctor)
 
     for op in AGENTIC_OPS:
         ap = sub.add_parser(op, help=f"(needs a Claude session) {op}")
