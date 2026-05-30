@@ -95,6 +95,7 @@ def check(db_path: Path, *, vault_id: int) -> dict:
 
     broken = links.broken_links(db_path, vault_id=vault_id)
     orphan_pages = links.orphans(db_path, vault_id=vault_id)
+    index_drift_report = links.index_drift(db_path, vault_id=vault_id)
 
     return {
         "vault_id": vault_id,
@@ -107,6 +108,7 @@ def check(db_path: Path, *, vault_id: int) -> dict:
         "links": {
             "broken": broken,
             "orphans": orphan_pages,
+            "index_drift": index_drift_report,
         },
         "auto_fix_hints": _hints(fm_issues, missing_files, mtime_drift, broken, orphan_pages),
     }
