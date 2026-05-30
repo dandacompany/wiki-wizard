@@ -421,3 +421,8 @@ def test_skill_md_routes_to_orchestrate():
     assert "persona-orchestrate" in skill
     # the hierarchical-routing note must mention multi-step routing
     assert "operations-orchestrator" in skill or "multi-step" in skill.lower()
+
+
+def test_orchestrator_in_roster():
+    names = {p["name"] for p in personas.list_personas()}
+    assert "operations-orchestrator" in names
