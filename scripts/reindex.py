@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts import frontmatter, registry
+from scripts import frontmatter, links, registry
 
 
 def full(db_path: Path, *, vault_id: int) -> int:
@@ -62,6 +62,7 @@ def _scan(
     *,
     incremental: bool,
 ) -> int:
+    registry.init_db(db_path)  # idempotent; guarantees the links table on old vaults
     known = _existing_mtimes(db_path, vault_id) if incremental else {}
     count = 0
     for path in vault_path.rglob("*.md"):
@@ -71,18 +72,20 @@ def _scan(
         mtime = path.stat().st_mtime
         if incremental and rel in known and known[rel] >= mtime:
             continue
+        raw = path.read_text(encoding="utf-8")
         try:
-            meta, _body = frontmatter.parse(path.read_text(encoding="utf-8"))
+            meta, body = frontmatter.parse(raw)
             parse_error = False
         except frontmatter.FrontmatterError:
             meta = {}
+            body = raw  # still extract links from a frontmatter-broken note
             parse_error = True
         if not meta:
             parse_error = True
         tags = meta.get("tags") or []
         if not isinstance(tags, list):
             tags = []
-        registry.upsert_note(
+        note_id = registry.upsert_note(
             db_path,
             vault_id=vault_id,
             relpath=rel,
@@ -94,5 +97,7 @@ def _scan(
             tags=[str(t) for t in tags],
             parse_error=parse_error,
         )
+        links.replace_links(db_path, vault_id=vault_id, src_note_id=note_id, body=body)
         count += 1
+    links.resolve(db_path, vault_id)
     return count

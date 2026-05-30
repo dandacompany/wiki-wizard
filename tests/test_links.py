@@ -194,3 +194,46 @@ def test_graph(linked_vault):
     by_slug = {r["dst_slug"]: r for r in edges}
     assert by_slug["b"]["dst_relpath"] == "wiki/b.md" and by_slug["b"]["resolved"]
     assert by_slug["ghost"]["dst_relpath"] is None and not by_slug["ghost"]["resolved"]
+
+
+from scripts import reindex
+
+
+def _write(vroot, relpath, body):
+    p = vroot / relpath
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(
+        "---\ntitle: " + relpath + "\ntype: concept\ntags: []\n---\n\n" + body,
+        encoding="utf-8",
+    )
+
+
+def test_reindex_full_populates_and_resolves_links(tmp_db, tmp_path):
+    registry.init_db(tmp_db)
+    vroot = tmp_path / "wv"
+    (vroot / "wiki").mkdir(parents=True)
+    row = registry.add_vault(
+        tmp_db, name="wv", path=str(vroot), type_="markdown", mode="wiki"
+    )
+    vid = row["id"]
+    _write(vroot, "wiki/a.md", "links to [[b]] and [[ghost]]")
+    _write(vroot, "wiki/b.md", "no outbound")
+    reindex.full(tmp_db, vault_id=vid)
+    assert [r["relpath"] for r in links.backlinks(tmp_db, vid, "wiki/b.md")] == ["wiki/a.md"]
+    assert [r["dst_slug"] for r in links.broken_links(tmp_db, vid)] == ["ghost"]
+
+
+def test_reindex_incremental_repairs_broken_link(tmp_db, tmp_path):
+    registry.init_db(tmp_db)
+    vroot = tmp_path / "wv2"
+    (vroot / "wiki").mkdir(parents=True)
+    row = registry.add_vault(
+        tmp_db, name="wv2", path=str(vroot), type_="markdown", mode="wiki"
+    )
+    vid = row["id"]
+    _write(vroot, "wiki/a.md", "points at [[late]]")
+    reindex.full(tmp_db, vault_id=vid)
+    assert [r["dst_slug"] for r in links.broken_links(tmp_db, vid)] == ["late"]
+    _write(vroot, "wiki/late.md", "now exists")
+    reindex.incremental(tmp_db, vault_id=vid)
+    assert links.broken_links(tmp_db, vid) == []
