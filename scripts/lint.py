@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts import frontmatter, registry
+from scripts import frontmatter, links, registry
 from scripts.paths import registry_path
 
 REQUIRED_FIELDS = ("title", "date", "type", "tags")
@@ -17,7 +17,7 @@ VALID_TYPES = {
 }
 
 # Files whose frontmatter is intentionally minimal (no full REQUIRED_FIELDS check)
-_META_RELPATHS = {"wiki/index.md", "wiki/log.md"}
+_META_RELPATHS = set(links.META_RELPATHS)
 
 
 def check(db_path: Path, *, vault_id: int) -> dict:
@@ -93,6 +93,9 @@ def check(db_path: Path, *, vault_id: int) -> dict:
                 "detail": str(meta["type"]),
             })
 
+    broken = links.broken_links(db_path, vault_id=vault_id)
+    orphan_pages = links.orphans(db_path, vault_id=vault_id)
+
     return {
         "vault_id": vault_id,
         "vault_path": str(root),
@@ -101,11 +104,15 @@ def check(db_path: Path, *, vault_id: int) -> dict:
             "missing_files": missing_files,
             "mtime_drift": mtime_drift,
         },
-        "auto_fix_hints": _hints(fm_issues, missing_files, mtime_drift),
+        "links": {
+            "broken": broken,
+            "orphans": orphan_pages,
+        },
+        "auto_fix_hints": _hints(fm_issues, missing_files, mtime_drift, broken, orphan_pages),
     }
 
 
-def _hints(fm_issues, missing, drift) -> list[str]:
+def _hints(fm_issues, missing, drift, broken=None, orphan_pages=None) -> list[str]:
     hints = []
     if drift:
         hints.append("Run `reindex.incremental(db, vault_id=...)` to refresh mtime drift.")
@@ -113,6 +120,10 @@ def _hints(fm_issues, missing, drift) -> list[str]:
         hints.append("Missing files: delete the orphan rows or restore the files.")
     if fm_issues:
         hints.append("Edit each file's YAML frontmatter to fix the reported issues.")
+    if broken:
+        hints.append("Broken links: fix the target slug or create the missing page.")
+    if orphan_pages:
+        hints.append("Orphan pages: add an inbound link from a related page, or archive.")
     return hints
 
 
