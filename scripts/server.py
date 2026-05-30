@@ -73,7 +73,12 @@ def handle_query(
 
 
 class QueryHandler(BaseHTTPRequestHandler):
-    """Thin HTTP shell over handle_query: auth + JSON + status mapping."""
+    """Thin HTTP shell over handle_query: auth + JSON + status mapping.
+
+    Relies on the stdlib default ``protocol_version = "HTTP/1.0"`` (no keep-alive),
+    so early-return paths (401/400) need not drain the request body. If this is
+    ever bumped to HTTP/1.1, those paths must read+discard the body first.
+    """
 
     def log_message(self, *args):  # silence default stderr access logging
         pass
