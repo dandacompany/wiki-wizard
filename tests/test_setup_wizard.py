@@ -70,3 +70,28 @@ def test_vault_setup_preserves_search_config(monkeypatch):
     omw_cli.main(["setup", "--noninteractive", "--name", "v1"])
     cfg = config.load_config()
     assert cfg["search"]["provider"] == "brave" and cfg["default_vault"] == "v1"
+
+
+def test_setup_serve_with_token_writes_env():
+    from scripts import setup_wizard, config
+    from scripts.paths import omw_home
+    rc = setup_wizard.setup_serve(token="abc123")
+    assert rc == 0
+    assert config.read_secret("OMW_SERVE_TOKEN") == "abc123"
+    mode = (omw_home() / ".env").stat().st_mode & 0o777
+    assert mode == 0o600
+
+
+def test_setup_serve_generate_token_writes_random():
+    from scripts import setup_wizard, config
+    rc = setup_wizard.setup_serve(generate_token=True)
+    assert rc == 0
+    tok = config.read_secret("OMW_SERVE_TOKEN")
+    assert tok and len(tok) >= 20
+
+
+def test_setup_serve_without_token_or_flag_errors(capsys):
+    from scripts import setup_wizard
+    rc = setup_wizard.setup_serve()
+    assert rc == 1
+    assert "token" in capsys.readouterr().err.lower()

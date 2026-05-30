@@ -168,3 +168,25 @@ def test_omw_search_unconfigured_errors(capsys):
     rc = _run(["search", "q"])
     assert rc == 1
     assert "omw setup search" in capsys.readouterr().err
+
+
+def test_serve_help_exits_zero():
+    import pytest
+    with pytest.raises(SystemExit) as exc:
+        omw_cli.main(["serve", "--help"])
+    assert exc.value.code == 0
+
+
+def test_serve_without_token_exits_1(monkeypatch, capsys):
+    monkeypatch.delenv("OMW_SERVE_TOKEN", raising=False)
+    # autouse OMW_HOME isolation guarantees no ~/.omw/.env token exists
+    rc = omw_cli.main(["serve"])
+    assert rc == 1
+    assert "OMW_SERVE_TOKEN" in capsys.readouterr().err
+
+
+def test_setup_serve_via_cli_writes_token():
+    from scripts import omw_cli, config
+    rc = omw_cli.main(["setup", "serve", "--token", "xyz789"])
+    assert rc == 0
+    assert config.read_secret("OMW_SERVE_TOKEN") == "xyz789"

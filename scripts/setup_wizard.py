@@ -7,6 +7,7 @@ The first slice writes config.yaml; secrets (search/persona/TTS) come in later s
 from __future__ import annotations
 
 import json
+import secrets
 import sys
 
 from scripts import adapters, registry, reindex
@@ -134,6 +135,19 @@ def setup_search(*, noninteractive: bool = False, provider: str | None = None,
         print(f"recorded provider '{provider}' — add missing key(s) with "
               f"`omw setup search --provider {provider} --api-key <key>` "
               f"(brightdata also needs --zone).")
+    return 0
+
+
+def setup_serve(*, token: str | None = None, generate_token: bool = False) -> int:
+    """Configure OMW_SERVE_TOKEN in ~/.omw/.env (0600)."""
+    from scripts import config
+    if generate_token:
+        token = secrets.token_urlsafe(32)
+    if not token:
+        print("error: provide --token <t> or --generate-token", file=sys.stderr)
+        return 1
+    config.set_secret("OMW_SERVE_TOKEN", token)
+    print(f"✓ serve token configured ({len(token)} chars). Start with: omw serve")
     return 0
 
 
