@@ -347,3 +347,11 @@ def test_cli_run_summarizer_stdout(tmp_path):
     )
     assert proc.returncode == 0, proc.stderr
     assert "one_line" in proc.stdout
+
+
+def test_researcher_persona_loads():
+    p = personas.load_persona("researcher")
+    assert p["output_kind"] == "new_page"
+    assert p["input_kinds"] == ["text"]
+    assert p["tools"] == []          # search via abstraction, NOT hardcoded MCP
+    assert p["body"].strip()
