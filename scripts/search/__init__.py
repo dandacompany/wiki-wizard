@@ -1,0 +1,47 @@
+"""omw search abstraction. search() / resolve_provider() / SearchError.
+
+MCP search stays LLM-mediated (not wrapped here). This is the Python provider
+layer for the native CLI / server contexts where no host MCP exists.
+"""
+from __future__ import annotations
+
+from scripts import config
+from scripts.search.base import Provider, SearchError
+from scripts.search.providers.brave import BraveProvider, SECRETS as _BRAVE_SECRETS
+from scripts.search.providers.brightdata import BrightDataProvider, SECRETS as _BD_SECRETS
+from scripts.search.providers.exa import ExaProvider, SECRETS as _EXA_SECRETS
+from scripts.search.providers.firecrawl import FirecrawlProvider, SECRETS as _FC_SECRETS
+from scripts.search.providers.tavily import TavilyProvider, SECRETS as _TAVILY_SECRETS
+
+PROVIDERS = {
+    "brave": (BraveProvider, _BRAVE_SECRETS),
+    "brightdata": (BrightDataProvider, _BD_SECRETS),
+    "tavily": (TavilyProvider, _TAVILY_SECRETS),
+    "exa": (ExaProvider, _EXA_SECRETS),
+    "firecrawl": (FirecrawlProvider, _FC_SECRETS),
+}
+
+
+def resolve_provider(name: str | None = None) -> Provider:
+    cfg = config.load_config()
+    name = name or (cfg.get("search") or {}).get("provider")
+    if not name:
+        raise SearchError("no search provider configured — run `omw setup search`")
+    entry = PROVIDERS.get(name)
+    if entry is None:
+        raise SearchError(f"unknown search provider {name!r}; have: {', '.join(PROVIDERS)}")
+    cls, secret_spec = entry
+    kwargs = {}
+    for kw, env_vars in secret_spec.items():
+        env_vars = (env_vars,) if isinstance(env_vars, str) else env_vars
+        val = next((s for v in env_vars if (s := config.read_secret(v))), None)
+        if not val:
+            raise SearchError(
+                f"missing API key for {name!r} ({' or '.join(env_vars)}) — run `omw setup search`"
+            )
+        kwargs[kw] = val
+    return cls(**kwargs)
+
+
+def search(query: str, *, provider: str | None = None, limit: int = 10) -> list[dict]:
+    return resolve_provider(provider).search(query, limit=limit)

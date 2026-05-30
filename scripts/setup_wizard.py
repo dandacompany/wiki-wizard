@@ -9,8 +9,6 @@ from __future__ import annotations
 import json
 import sys
 
-import yaml
-
 from scripts import adapters, registry, reindex
 from scripts.paths import ensure_home, omw_home, registry_path, resolve_vault_root
 
@@ -31,9 +29,11 @@ def _ensure_vault(name: str, mode: str, type_: str, location: str) -> None:
 
 
 def _write_config(default_vault: str) -> None:
-    cfg = omw_home() / "config.yaml"
-    data = {"version": 1, "default_vault": default_vault, "ui": {"language": "ko"}}
-    cfg.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False))
+    # Merge (not overwrite) so a previously-configured search section survives.
+    from scripts import config
+    config.set_config("version", 1)
+    config.set_config("default_vault", default_vault)
+    config.set_config("ui.language", "ko")
 
 
 def run(
@@ -80,6 +80,60 @@ def _run_interactive(name: str, mode: str, type_: str, location: str) -> int:
         f"setup complete — vault '{name}' at {omw_home()}. "
         f"Search/persona/TTS sections: configure later with 'omw setup search' (coming soon)."
     )
+    return 0
+
+
+#: provider -> ordered list of (field, env var) the wizard must write.
+#: Multi-secret providers (e.g. brightdata) are only enabled once ALL are present.
+_PROVIDER_SECRETS = {
+    "brave":      [("api_key", "BRAVE_API_KEY")],
+    "tavily":     [("api_key", "TAVILY_API_KEY")],
+    "exa":        [("api_key", "EXA_API_KEY")],
+    "firecrawl":  [("api_key", "FIRECRAWL_API_KEY")],
+    "brightdata": [("api_key", "BRIGHTDATA_API_KEY"), ("zone", "BRIGHTDATA_ZONE")],
+}
+
+
+def setup_search(*, noninteractive: bool = False, provider: str | None = None,
+                 api_key: str | None = None, zone: str | None = None) -> int:
+    from scripts import config
+    interactive = (not noninteractive) and sys.stdin.isatty()
+    if interactive:
+        try:
+            import questionary  # type: ignore
+            provider = questionary.select(
+                "Search provider", choices=list(_PROVIDER_SECRETS) + ["skip"]).ask() or "skip"
+        except Exception:
+            provider = input(f"Search provider {list(_PROVIDER_SECRETS)} [skip]: ").strip() or "skip"
+    if not provider or provider == "skip":
+        print("search setup skipped — re-run `omw setup search` anytime.")
+        return 0
+    if provider not in _PROVIDER_SECRETS:
+        print(f"error: unknown provider {provider!r}; choose from {list(_PROVIDER_SECRETS)}",
+              file=sys.stderr)
+        return 1
+    supplied = {"api_key": api_key, "zone": zone}
+    all_present = True
+    for field, env_var in _PROVIDER_SECRETS[provider]:
+        val = supplied.get(field)
+        if interactive and not val:
+            try:
+                import questionary  # type: ignore
+                val = questionary.password(f"{field} (blank to defer)").ask() or None
+            except Exception:
+                val = input(f"{field} (blank to defer): ").strip() or None
+        if val:
+            config.set_secret(env_var, val)
+        else:
+            all_present = False
+    config.set_config("search.provider", provider)
+    config.set_config("search.enabled", all_present)
+    if all_present:
+        print(f"✓ search provider '{provider}' configured.")
+    else:
+        print(f"recorded provider '{provider}' — add missing key(s) with "
+              f"`omw setup search --provider {provider} --api-key <key>` "
+              f"(brightdata also needs --zone).")
     return 0
 
 

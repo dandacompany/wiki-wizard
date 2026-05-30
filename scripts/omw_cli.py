@@ -124,8 +124,26 @@ def _cmd_lint(args) -> int:
     return 0
 
 
+def _cmd_search(args) -> int:
+    from scripts import search as _search
+    try:
+        results = _search.search(args.query, provider=args.provider, limit=args.limit)
+    except _search.SearchError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(results, ensure_ascii=False, indent=2))
+    return 0
+
+
 def _cmd_setup(args) -> int:
     from scripts import setup_wizard
+    if args.section == "search":
+        return setup_wizard.setup_search(
+            noninteractive=args.noninteractive,
+            provider=args.provider,
+            api_key=args.api_key,
+            zone=args.zone,
+        )
     return setup_wizard.run(
         section=args.section,
         noninteractive=args.noninteractive,
@@ -190,6 +208,12 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--vault", default=None, help="vault name (default: active)")
     pl.set_defaults(func=_cmd_lint)
 
+    psr = sub.add_parser("search", help="Web search via the configured provider.")
+    psr.add_argument("query")
+    psr.add_argument("--provider", default=None)
+    psr.add_argument("--limit", type=int, default=10)
+    psr.set_defaults(func=_cmd_search)
+
     pset = sub.add_parser("setup", help="Interactive setup wizard (run after install).")
     pset.add_argument(
         "section", nargs="?", choices=["vault", "hosts", "search"], default=None
@@ -202,6 +226,9 @@ def build_parser() -> argparse.ArgumentParser:
     pset.add_argument("--mode", choices=["memo", "wiki"], default="wiki")
     pset.add_argument("--type", choices=["markdown", "obsidian"], default="markdown")
     pset.add_argument("--location", default="global")
+    pset.add_argument("--provider", default=None)
+    pset.add_argument("--api-key", dest="api_key", default=None)
+    pset.add_argument("--zone", default=None)
     pset.set_defaults(func=_cmd_setup)
 
     sub.add_parser(

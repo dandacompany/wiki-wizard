@@ -48,6 +48,11 @@ mcp__brightdata__scrape_as_markdown(url=...)   # for deep reads
 
 If multiple claims share search terms, batch via `mcp__brightdata__search_engine_batch`.
 
+> Two search paths: **(in a Claude session)** invoke the Bright Data MCP tools as
+> above — no API key needed. **(outside a session, or if a provider is configured)**
+> run the deterministic CLI: `omw search "<query>" --limit 5` and read its JSON
+> (`[{title,url,snippet}]`). `omw search` uses the provider set via `omw setup search`.
+
 **(c) Read + judge.** For each claim, read the returned sources and decide a confidence tag:
 
 - **high** — multiple independent reputable sources agree

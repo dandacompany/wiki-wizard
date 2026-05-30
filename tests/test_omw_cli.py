@@ -154,3 +154,17 @@ def test_installer_is_executable_and_valid():
     text = p.read_text()
     assert "omw setup" in text                 # auto-launches the wizard
     assert "pipx install" in text or "pip install" in text
+
+
+def test_omw_search_returns_json(capsys, monkeypatch):
+    import scripts.search as _search
+    monkeypatch.setattr(_search, "search",
+                        lambda q, *, provider=None, limit=10: [{"title": "T", "url": "u", "snippet": "s"}])
+    assert _run(["search", "ai agents", "--limit", "3"]) == 0
+    assert json.loads(capsys.readouterr().out) == [{"title": "T", "url": "u", "snippet": "s"}]
+
+
+def test_omw_search_unconfigured_errors(capsys):
+    rc = _run(["search", "q"])
+    assert rc == 1
+    assert "omw setup search" in capsys.readouterr().err

@@ -1,6 +1,7 @@
 import pytest
 
-from scripts import registry, reindex, search
+from scripts import registry, reindex
+from scripts import search_index as search
 
 
 @pytest.fixture

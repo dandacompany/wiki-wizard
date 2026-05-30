@@ -82,6 +82,7 @@ jobs:
           # user-facing omw CLI entrypoint
           omw --help > /dev/null
           omw status > /dev/null
+          omw search --help > /dev/null
           test -x bin/omw-install.sh
           echo "✅ smoke checks passed"
         shell: bash
