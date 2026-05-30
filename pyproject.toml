@@ -8,11 +8,15 @@ dependencies = [
     "pypdf>=4.0",
 ]
 
+[project.scripts]
+omw = "scripts.omw_cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
 ]
+wizard = ["questionary>=2.0"]
 
 [tool.setuptools.packages.find]
 include = ["scripts*"]

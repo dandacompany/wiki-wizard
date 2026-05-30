@@ -1,0 +1,156 @@
+"""User-facing omw CLI."""
+import json
+import os
+import stat
+from pathlib import Path
+
+import pytest
+
+from scripts import omw_cli, registry
+from scripts.paths import registry_path
+
+
+def _run(argv):
+    return omw_cli.main(argv)
+
+
+def _seed_vault(tmp_path, name="v1"):
+    from scripts.paths import ensure_home
+    ensure_home()
+    db = registry_path()
+    root = tmp_path / name
+    root.mkdir()
+    registry.init_db(db)
+    registry.add_vault(db, name=name, path=root, type_="markdown", mode="wiki")
+    return db
+
+
+def test_status_emits_setup_when_empty(capsys, monkeypatch):
+    monkeypatch.setattr("scripts.paths.legacy_registry_candidates", lambda: [])
+    assert _run(["status"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["needs"] == "setup" and out["vault_count"] == 0
+
+
+def test_status_surfaces_migrate_when_legacy_present(tmp_path, capsys, monkeypatch):
+    # legacy registry exists, global one absent → omw status must report migrate,
+    # and must NOT mask it by creating the global registry first.
+    legacy = tmp_path / "legacy" / "registry.db"
+    legacy.parent.mkdir(parents=True)
+    registry.init_db(legacy)
+    root = tmp_path / "c"
+    root.mkdir()
+    registry.add_vault(legacy, name="old", path=root, type_="markdown", mode="memo")
+    monkeypatch.setattr("scripts.paths.legacy_registry_candidates", lambda: [legacy])
+    assert _run(["status"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["needs"] == "migrate"
+    assert not registry_path().exists()   # status must not have created/masked it
+
+
+def test_vault_list_empty(capsys):
+    assert _run(["vault", "list"]) == 0
+    assert json.loads(capsys.readouterr().out) == []
+
+
+def test_vault_list_shows_seeded(tmp_path, capsys):
+    _seed_vault(tmp_path, "v1")
+    assert _run(["vault", "list"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [v["name"] for v in data] == ["v1"]
+    assert data[0]["mode"] == "wiki" and "is_active" in data[0]
+
+
+def test_vault_create_global_default(capsys):
+    assert _run(["vault", "create", "ai-agents", "--mode", "wiki", "--type", "markdown"]) == 0
+    rows = registry.list_vaults(registry_path())
+    assert [v["name"] for v in rows] == ["ai-agents"]
+    v = rows[0]
+    assert v["mode"] == "wiki" and v["type"] == "markdown" and bool(v["is_active"])
+    root = Path(v["path"])
+    assert (root / "wiki" / "entities").is_dir()
+    assert (root / "wiki" / "index.md").is_file()
+
+
+def test_vault_create_duplicate_errors(capsys):
+    assert _run(["vault", "create", "dup"]) == 0
+    capsys.readouterr()  # drain first create output
+    assert _run(["vault", "create", "dup"]) == 1
+    assert "already registered" in capsys.readouterr().err
+
+
+def test_vault_create_project_location(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    assert _run(["vault", "create", "p", "--location", "project"]) == 0
+    v = registry.list_vaults(registry_path())[0]
+    assert Path(v["path"]) == (tmp_path / ".omw" / "p")
+
+
+def test_vault_use_switches_active(capsys):
+    _run(["vault", "create", "a"])
+    _run(["vault", "create", "b"])
+    assert _run(["vault", "use", "a"]) == 0
+    active = [v["name"] for v in registry.list_vaults(registry_path()) if v["is_active"]]
+    assert active == ["a"]
+
+
+def test_vault_use_unknown_errors(tmp_path, capsys):
+    # Registry exists but the requested vault does not → VaultError "not found".
+    _seed_vault(tmp_path, "exists")
+    assert _run(["vault", "use", "nope"]) == 1
+    assert "not found" in capsys.readouterr().err
+
+
+def test_vault_use_no_registry_errors(capsys):
+    assert _run(["vault", "use", "nope"]) == 1
+    assert "no registry" in capsys.readouterr().err
+
+
+def test_vault_forget_removes_row_keeps_files(capsys):
+    _run(["vault", "create", "gone"])
+    path = Path([v["path"] for v in registry.list_vaults(registry_path())][0])
+    assert _run(["vault", "forget", "gone"]) == 0
+    assert registry.list_vaults(registry_path()) == []
+    assert path.is_dir()
+
+
+def test_lint_active_vault_returns_report(capsys):
+    _run(["vault", "create", "lv", "--mode", "wiki"])
+    capsys.readouterr()  # drain vault create output
+    assert _run(["lint"]) == 0
+    assert isinstance(json.loads(capsys.readouterr().out), dict)
+
+
+def test_lint_no_active_errors(tmp_path, capsys):
+    # Registry exists with a vault but none active → "no active vault".
+    _seed_vault(tmp_path, "lv")  # add_vault leaves is_active = 0
+    assert _run(["lint"]) == 1
+    assert "no active vault" in capsys.readouterr().err
+
+
+def test_lint_no_registry_errors(capsys):
+    assert _run(["lint"]) == 1
+    assert "no registry" in capsys.readouterr().err
+
+
+def test_lint_vault_flag_no_registry_errors(capsys):
+    assert _run(["lint", "--vault", "foo"]) == 1
+    assert "no registry" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("op", ["ingest", "query", "autoresearch", "persona-polish"])
+def test_agentic_op_bridges_to_claude(op, capsys):
+    assert _run([op]) == 0
+    out = capsys.readouterr().out
+    assert "Claude" in out and op in out
+    db = registry_path()
+    assert (not db.exists()) or registry.list_vaults(db) == []
+
+
+def test_installer_is_executable_and_valid():
+    p = Path(__file__).resolve().parents[1] / "bin" / "omw-install.sh"
+    assert p.is_file()
+    assert os.stat(p).st_mode & stat.S_IXUSR, "omw-install.sh must be executable"
+    text = p.read_text()
+    assert "omw setup" in text                 # auto-launches the wizard
+    assert "pipx install" in text or "pip install" in text

@@ -47,3 +47,11 @@ def test_legacy_candidates_include_skill_dir_and_cwd(monkeypatch, tmp_path):
     assert cands[1] == tmp_path / "data" / "registry.db"
     assert cands[0] != cands[1]
     assert cands[0].parent.name == "data" and cands[0].name == "registry.db"
+
+
+def test_resolve_vault_root_branches(monkeypatch, tmp_path):
+    monkeypatch.setenv("OMW_HOME", str(tmp_path))
+    assert paths.resolve_vault_root("v", "global") == tmp_path / "vaults" / "v"
+    monkeypatch.chdir(tmp_path)
+    assert paths.resolve_vault_root("v", "project") == tmp_path / ".omw" / "v"
+    assert paths.resolve_vault_root("v", "/abs/x") == Path("/abs/x")
