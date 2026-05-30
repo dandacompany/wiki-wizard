@@ -13,6 +13,8 @@ _WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 _MDLINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 _EXTERNAL_PREFIXES = ("http://", "https://", "mailto:")
 
+META_RELPATHS = ("wiki/index.md", "wiki/log.md")
+
 
 def _slugify(target: str) -> str:
     """basename without .md, alias/heading/query stripped, lowercased."""
@@ -131,13 +133,14 @@ def orphans(db_path: Path, vault_id: int) -> list[dict]:
     """wiki-layer notes with no inbound resolved link (meta pages excluded)."""
     conn = registry.connect(db_path)
     try:
+        placeholders = ",".join("?" for _ in META_RELPATHS)
         return [dict(r) for r in conn.execute(
             "SELECT id, relpath, title FROM notes n "
             "WHERE n.vault_id = ? AND n.layer = 'wiki' "
-            "AND n.relpath NOT IN ('wiki/index.md', 'wiki/log.md') "
+            f"AND n.relpath NOT IN ({placeholders}) "
             "AND NOT EXISTS (SELECT 1 FROM links l WHERE l.dst_note_id = n.id) "
             "ORDER BY n.relpath",
-            (vault_id,),
+            (vault_id, *META_RELPATHS),
         )]
     finally:
         conn.close()
