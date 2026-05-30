@@ -355,3 +355,10 @@ def test_researcher_persona_loads():
     assert p["input_kinds"] == ["text"]
     assert p["tools"] == []          # search via abstraction, NOT hardcoded MCP
     assert p["body"].strip()
+
+
+def test_source_curator_persona_loads():
+    p = personas.load_persona("source-curator")
+    assert p["output_kind"] == "stdout"
+    assert set(p["input_kinds"]) == {"text", "file"}
+    assert p["body"].strip()
