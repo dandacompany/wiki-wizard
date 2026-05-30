@@ -37,6 +37,19 @@ CREATE TABLE IF NOT EXISTS notes (
 CREATE INDEX IF NOT EXISTS idx_notes_vault ON notes(vault_id);
 CREATE INDEX IF NOT EXISTS idx_notes_layer ON notes(vault_id, layer);
 
+CREATE TABLE IF NOT EXISTS links (
+  id          INTEGER PRIMARY KEY,
+  vault_id    INTEGER NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+  src_note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  dst_slug    TEXT NOT NULL,
+  dst_note_id INTEGER REFERENCES notes(id) ON DELETE SET NULL,  -- NULL = broken/unresolved
+  link_type   TEXT NOT NULL,    -- 'wikilink' | 'markdown' (syntactic; semantic types are F#2)
+  position    INTEGER NOT NULL  -- 0-based order of appearance in the src body
+);
+CREATE INDEX IF NOT EXISTS idx_links_src   ON links(src_note_id);
+CREATE INDEX IF NOT EXISTS idx_links_dst   ON links(dst_note_id);
+CREATE INDEX IF NOT EXISTS idx_links_vault ON links(vault_id);
+
 CREATE TABLE IF NOT EXISTS tags (
   id    INTEGER PRIMARY KEY,
   name  TEXT NOT NULL UNIQUE

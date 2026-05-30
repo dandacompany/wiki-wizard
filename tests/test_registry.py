@@ -18,7 +18,7 @@ def test_init_db_records_migration_version(tmp_db, db_connect):
     versions = [row["version"] for row in conn.execute(
         "SELECT version FROM schema_migrations ORDER BY version"
     )]
-    assert versions == [1]
+    assert versions == [2]
 
 
 def test_init_db_is_idempotent(tmp_db, db_connect):
