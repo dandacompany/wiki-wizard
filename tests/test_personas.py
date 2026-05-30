@@ -347,3 +347,52 @@ def test_cli_run_summarizer_stdout(tmp_path):
     )
     assert proc.returncode == 0, proc.stderr
     assert "one_line" in proc.stdout
+
+
+def test_researcher_persona_loads():
+    p = personas.load_persona("researcher")
+    assert p["output_kind"] == "new_page"
+    assert p["input_kinds"] == ["text"]
+    assert p["tools"] == []          # search via abstraction, NOT hardcoded MCP
+    assert p["body"].strip()
+
+
+def test_source_curator_persona_loads():
+    p = personas.load_persona("source-curator")
+    assert p["output_kind"] == "stdout"
+    assert set(p["input_kinds"]) == {"text", "file"}
+    assert p["body"].strip()
+
+
+def test_memo_curator_persona_loads():
+    p = personas.load_persona("memo-curator")
+    assert p["output_kind"] == "stdout"
+    assert set(p["input_kinds"]) == {"text", "vault_page"}
+    assert p["body"].strip()
+
+
+def test_wiki_librarian_persona_loads():
+    p = personas.load_persona("wiki-librarian")
+    assert p["output_kind"] == "stdout"
+    assert set(p["input_kinds"]) == {"text", "vault_page"}
+    assert p["body"].strip()
+
+
+def test_curator_persona_loads():
+    p = personas.load_persona("curator")
+    assert p["output_kind"] == "stdout"
+    assert set(p["input_kinds"]) == {"text", "vault_page"}
+    assert p["body"].strip()
+
+
+def test_wiki_auditor_persona_loads():
+    p = personas.load_persona("wiki-auditor")
+    assert p["output_kind"] == "stdout"
+    assert set(p["input_kinds"]) == {"text", "vault_page"}
+    assert p["body"].strip()
+
+
+def test_all_sp1_personas_present():
+    names = {p["name"] for p in personas.list_personas()}
+    assert {"researcher", "source-curator", "memo-curator",
+            "wiki-librarian", "curator", "wiki-auditor"} <= names

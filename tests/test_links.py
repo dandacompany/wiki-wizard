@@ -237,3 +237,31 @@ def test_reindex_incremental_repairs_broken_link(tmp_db, tmp_path):
     _write(vroot, "wiki/late.md", "now exists")
     reindex.incremental(tmp_db, vault_id=vid)
     assert links.broken_links(tmp_db, vid) == []
+
+
+def test_index_drift_reports_missing_and_dangling(tmp_db, tmp_path):
+    registry.init_db(tmp_db)
+    vroot = tmp_path / "iv"
+    (vroot / "wiki").mkdir(parents=True)
+    row = registry.add_vault(tmp_db, name="iv", path=str(vroot), type_="markdown", mode="wiki")
+    vid = row["id"]
+    _write(vroot, "wiki/index.md", "- [A](a.md)\n- [Ghost](ghost.md)")
+    _write(vroot, "wiki/a.md", "page a")
+    _write(vroot, "wiki/b.md", "page b not in index")
+    reindex.full(tmp_db, vault_id=vid)
+    drift = links.index_drift(tmp_db, vid)
+    assert [n["relpath"] for n in drift["missing_from_index"]] == ["wiki/b.md"]
+    assert [d["dst_slug"] for d in drift["dangling_in_index"]] == ["ghost"]
+
+
+def test_index_drift_absent_index_lists_all_pages(tmp_db, tmp_path):
+    registry.init_db(tmp_db)
+    vroot = tmp_path / "iv2"
+    (vroot / "wiki").mkdir(parents=True)
+    row = registry.add_vault(tmp_db, name="iv2", path=str(vroot), type_="markdown", mode="wiki")
+    vid = row["id"]
+    _write(vroot, "wiki/a.md", "page a")
+    reindex.full(tmp_db, vault_id=vid)
+    drift = links.index_drift(tmp_db, vid)
+    assert {n["relpath"] for n in drift["missing_from_index"]} == {"wiki/a.md"}
+    assert drift["dangling_in_index"] == []

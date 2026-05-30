@@ -175,3 +175,41 @@ def graph(db_path: Path, vault_id: int) -> list[dict]:
         )]
     finally:
         conn.close()
+
+
+def index_drift(db_path: Path, vault_id: int) -> dict:
+    """Compare wiki/index.md's outbound links against the wiki page set.
+
+    Returns {"missing_from_index": [{id,relpath,title}, ...],
+             "dangling_in_index": [{dst_slug, link_type, position}, ...]}.
+    """
+    conn = registry.connect(db_path)
+    try:
+        index_row = conn.execute(
+            "SELECT id FROM notes WHERE vault_id = ? AND relpath = 'wiki/index.md'",
+            (vault_id,),
+        ).fetchone()
+        index_id = index_row["id"] if index_row else None
+        linked_ids = set()
+        dangling = []
+        if index_id is not None:
+            for r in conn.execute(
+                "SELECT dst_note_id, dst_slug, link_type, position FROM links "
+                "WHERE src_note_id = ? ORDER BY position",
+                (index_id,),
+            ):
+                if r["dst_note_id"] is None:
+                    dangling.append({"dst_slug": r["dst_slug"], "link_type": r["link_type"],
+                                     "position": r["position"]})
+                else:
+                    linked_ids.add(r["dst_note_id"])
+        missing = [dict(r) for r in conn.execute(
+            "SELECT id, relpath, title FROM notes "
+            "WHERE vault_id = ? AND layer = 'wiki' "
+            "AND relpath NOT IN ('wiki/index.md', 'wiki/log.md') "
+            "ORDER BY relpath",
+            (vault_id,),
+        ) if r["id"] not in linked_ids]
+        return {"missing_from_index": missing, "dangling_in_index": dangling}
+    finally:
+        conn.close()
