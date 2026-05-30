@@ -142,6 +142,7 @@ def _cmd_setup(args) -> int:
             noninteractive=args.noninteractive,
             provider=args.provider,
             api_key=args.api_key,
+            zone=args.zone,
         )
     return setup_wizard.run(
         section=args.section,
@@ -227,6 +228,7 @@ def build_parser() -> argparse.ArgumentParser:
     pset.add_argument("--location", default="global")
     pset.add_argument("--provider", default=None)
     pset.add_argument("--api-key", dest="api_key", default=None)
+    pset.add_argument("--zone", default=None)
     pset.set_defaults(func=_cmd_setup)
 
     sub.add_parser(
