@@ -390,3 +390,9 @@ def test_wiki_auditor_persona_loads():
     assert p["output_kind"] == "stdout"
     assert set(p["input_kinds"]) == {"text", "vault_page"}
     assert p["body"].strip()
+
+
+def test_all_sp1_personas_present():
+    names = {p["name"] for p in personas.list_personas()}
+    assert {"researcher", "source-curator", "memo-curator",
+            "wiki-librarian", "curator", "wiki-auditor"} <= names

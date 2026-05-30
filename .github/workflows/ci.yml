@@ -70,7 +70,7 @@ jobs:
           import json, subprocess, sys
           out = subprocess.check_output([sys.executable, "-m", "scripts.personas", "list"], text=True)
           data = json.loads(out)
-          assert isinstance(data, list) and len(data) >= 1, "personas list must be a non-empty JSON array"
+          assert isinstance(data, list) and len(data) >= 15, "expected >=15 personas (9 base + 6 SP1)"
           print(f"personas: {len(data)} entries")
           PY
           # both plugin manifests are valid JSON
