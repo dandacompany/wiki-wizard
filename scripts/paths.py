@@ -35,6 +35,15 @@ def project_vault_root(name: str) -> Path:
     return Path.cwd() / ".omw" / slugify(name)
 
 
+def resolve_vault_root(name: str, location: str) -> Path:
+    """global | project | <absolute/relative path>."""
+    if location == "global":
+        return default_vault_root(name)
+    if location == "project":
+        return project_vault_root(name)
+    return Path(location).expanduser()
+
+
 def ensure_home() -> Path:
     """Create ~/.omw and ~/.omw/vaults/ (idempotent). Call before registry access."""
     home = omw_home()
