@@ -104,7 +104,13 @@ class QueryHandler(BaseHTTPRequestHandler):
         if not verify_bearer(self.headers.get("Authorization"), self.server.omw_token):
             self._send_json(401, {"error": "unauthorized"})
             return
-        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            if length < 0:
+                raise ValueError
+        except ValueError:
+            self._send_json(400, {"error": "invalid Content-Length"})
+            return
         raw = self.rfile.read(length) if length else b""
         try:
             payload = json.loads(raw or b"{}")

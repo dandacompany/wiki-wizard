@@ -1,3 +1,4 @@
+import http.client
 import json
 import threading
 
@@ -94,9 +95,6 @@ def test_verify_bearer_rejects_empty_expected():
     assert server.verify_bearer("Bearer ", "") is False
 
 
-import http.client
-
-
 @pytest.fixture
 def running_server(seeded_db):
     """Start make_server on an ephemeral port with active vault 'md' and token 'secret'."""
@@ -122,6 +120,19 @@ def _request(host, port, method, path, *, token=None, body=None):
     if token is not None:
         headers["Authorization"] = f"Bearer {token}"
     conn.request(method, path, body=body, headers=headers)
+    resp = conn.getresponse()
+    raw = resp.read().decode()
+    conn.close()
+    return resp.status, raw
+
+
+def _raw_post(host, port, path, headers_list):
+    """POST with manually-specified headers (to inject a bad Content-Length)."""
+    conn = http.client.HTTPConnection(host, port, timeout=5)
+    conn.putrequest("POST", path, skip_accept_encoding=True)
+    for k, v in headers_list:
+        conn.putheader(k, v)
+    conn.endheaders()
     resp = conn.getresponse()
     raw = resp.read().decode()
     conn.close()
@@ -198,3 +209,21 @@ def test_error_responses_are_json(running_server):
     status, raw = _request(host, port, "POST", "/query", body=json.dumps({"text": "x"}))
     assert status == 401
     assert json.loads(raw) == {"error": "unauthorized"}
+
+
+def test_post_query_malformed_content_length_returns_400(running_server):
+    host, port = running_server
+    status, _ = _raw_post(
+        host, port, "/query",
+        [("Authorization", "Bearer secret"), ("Content-Length", "abc")],
+    )
+    assert status == 400
+
+
+def test_post_query_negative_content_length_returns_400(running_server):
+    host, port = running_server
+    status, _ = _raw_post(
+        host, port, "/query",
+        [("Authorization", "Bearer secret"), ("Content-Length", "-1")],
+    )
+    assert status == 400
