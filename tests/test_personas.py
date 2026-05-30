@@ -396,3 +396,33 @@ def test_all_sp1_personas_present():
     names = {p["name"] for p in personas.list_personas()}
     assert {"researcher", "source-curator", "memo-curator",
             "wiki-librarian", "curator", "wiki-auditor"} <= names
+
+
+def test_operations_orchestrator_persona_loads():
+    p = personas.load_persona("operations-orchestrator")
+    assert p["output_kind"] == "stdout"
+    assert p["input_kinds"] == ["text"]
+    assert p["tools"] == []
+    assert p["model_hint"] == "most_capable"
+    assert p["body"].strip()
+
+
+def test_orchestrate_command_present():
+    from pathlib import Path as _Path
+    doc = _Path(__file__).resolve().parent.parent / "commands" / "persona-orchestrate.md"
+    text = doc.read_text(encoding="utf-8")
+    assert "operations-orchestrator" in text
+    assert "scripts.personas run operations-orchestrator" in text
+
+
+def test_skill_md_routes_to_orchestrate():
+    from pathlib import Path as _Path
+    skill = (_Path(__file__).resolve().parent.parent / "SKILL.md").read_text(encoding="utf-8")
+    assert "persona-orchestrate" in skill
+    # the hierarchical-routing note must mention multi-step routing
+    assert "operations-orchestrator" in skill or "multi-step" in skill.lower()
+
+
+def test_orchestrator_in_roster():
+    names = {p["name"] for p in personas.list_personas()}
+    assert "operations-orchestrator" in names
