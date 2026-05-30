@@ -145,3 +145,52 @@ def test_resolve_repairs_after_target_added(vault):
     late = _add_note(db, vid, "wiki/late.md")
     links.resolve(db, vid)
     assert _link_rows(db, vid)[0]["dst_note_id"] == late
+
+
+@pytest.fixture
+def linked_vault(vault):
+    """a -> b (resolved), a -> ghost (broken); b has no outbound; c is an orphan."""
+    db, vid = vault
+    a = _add_note(db, vid, "wiki/a.md", "[[b]] [[ghost]]")
+    b = _add_note(db, vid, "wiki/b.md")
+    c = _add_note(db, vid, "wiki/c.md")  # orphan (nothing links to it)
+    _add_note(db, vid, "wiki/index.md")  # meta — must be excluded from orphans
+    links.replace_links(db, vault_id=vid, src_note_id=a, body="[[b]] [[ghost]]")
+    links.resolve(db, vid)
+    return db, vid, {"a": a, "b": b, "c": c}
+
+
+def test_backlinks(linked_vault):
+    db, vid, ids = linked_vault
+    back = links.backlinks(db, vid, "wiki/b.md")
+    assert [r["relpath"] for r in back] == ["wiki/a.md"]
+    assert links.backlinks(db, vid, "wiki/a.md") == []
+
+
+def test_outbound(linked_vault):
+    db, vid, ids = linked_vault
+    out = links.outbound(db, vid, "wiki/a.md")
+    assert [(r["dst_slug"], bool(r["resolved"])) for r in out] == [("b", True), ("ghost", False)]
+
+
+def test_orphans_excludes_meta_and_linked(linked_vault):
+    db, vid, ids = linked_vault
+    orphans = {r["relpath"] for r in links.orphans(db, vid)}
+    assert "wiki/c.md" in orphans       # nothing links to c
+    assert "wiki/a.md" in orphans       # nothing links to a either
+    assert "wiki/b.md" not in orphans   # a links to b
+    assert "wiki/index.md" not in orphans  # meta excluded
+
+
+def test_broken_links(linked_vault):
+    db, vid, ids = linked_vault
+    broken = links.broken_links(db, vid)
+    assert [(r["src_relpath"], r["dst_slug"]) for r in broken] == [("wiki/a.md", "ghost")]
+
+
+def test_graph(linked_vault):
+    db, vid, ids = linked_vault
+    edges = links.graph(db, vid)
+    by_slug = {r["dst_slug"]: r for r in edges}
+    assert by_slug["b"]["dst_relpath"] == "wiki/b.md" and by_slug["b"]["resolved"]
+    assert by_slug["ghost"]["dst_relpath"] is None and not by_slug["ghost"]["resolved"]

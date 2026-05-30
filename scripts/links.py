@@ -86,3 +86,89 @@ def resolve(db_path: Path, vault_id: int) -> None:
                 )
     finally:
         conn.close()
+
+
+def backlinks(db_path: Path, vault_id: int, relpath: str) -> list[dict]:
+    """Notes whose links resolve TO the note at `relpath`."""
+    conn = registry.connect(db_path)
+    try:
+        target = conn.execute(
+            "SELECT id FROM notes WHERE vault_id = ? AND relpath = ?", (vault_id, relpath)
+        ).fetchone()
+        if target is None:
+            return []
+        return [dict(r) for r in conn.execute(
+            "SELECT n.relpath, n.title, l.link_type, l.position FROM links l "
+            "JOIN notes n ON n.id = l.src_note_id "
+            "WHERE l.vault_id = ? AND l.dst_note_id = ? ORDER BY n.relpath, l.position",
+            (vault_id, target["id"]),
+        )]
+    finally:
+        conn.close()
+
+
+def outbound(db_path: Path, vault_id: int, relpath: str) -> list[dict]:
+    """Links FROM the note at `relpath` (resolved + broken), in body order."""
+    conn = registry.connect(db_path)
+    try:
+        src = conn.execute(
+            "SELECT id FROM notes WHERE vault_id = ? AND relpath = ?", (vault_id, relpath)
+        ).fetchone()
+        if src is None:
+            return []
+        return [dict(r) for r in conn.execute(
+            "SELECT l.dst_slug, l.link_type, l.position, d.relpath AS dst_relpath, "
+            "(l.dst_note_id IS NOT NULL) AS resolved FROM links l "
+            "LEFT JOIN notes d ON d.id = l.dst_note_id "
+            "WHERE l.src_note_id = ? ORDER BY l.position",
+            (src["id"],),
+        )]
+    finally:
+        conn.close()
+
+
+def orphans(db_path: Path, vault_id: int) -> list[dict]:
+    """wiki-layer notes with no inbound resolved link (meta pages excluded)."""
+    conn = registry.connect(db_path)
+    try:
+        return [dict(r) for r in conn.execute(
+            "SELECT id, relpath, title FROM notes n "
+            "WHERE n.vault_id = ? AND n.layer = 'wiki' "
+            "AND n.relpath NOT IN ('wiki/index.md', 'wiki/log.md') "
+            "AND NOT EXISTS (SELECT 1 FROM links l WHERE l.dst_note_id = n.id) "
+            "ORDER BY n.relpath",
+            (vault_id,),
+        )]
+    finally:
+        conn.close()
+
+
+def broken_links(db_path: Path, vault_id: int) -> list[dict]:
+    """Links whose target slug resolves to no (unique) note."""
+    conn = registry.connect(db_path)
+    try:
+        return [dict(r) for r in conn.execute(
+            "SELECT n.relpath AS src_relpath, l.dst_slug, l.link_type, l.position "
+            "FROM links l JOIN notes n ON n.id = l.src_note_id "
+            "WHERE l.vault_id = ? AND l.dst_note_id IS NULL "
+            "ORDER BY n.relpath, l.position",
+            (vault_id,),
+        )]
+    finally:
+        conn.close()
+
+
+def graph(db_path: Path, vault_id: int) -> list[dict]:
+    """Full edge list for the vault."""
+    conn = registry.connect(db_path)
+    try:
+        return [dict(r) for r in conn.execute(
+            "SELECT s.relpath AS src_relpath, d.relpath AS dst_relpath, l.dst_slug, "
+            "l.link_type, (l.dst_note_id IS NOT NULL) AS resolved FROM links l "
+            "JOIN notes s ON s.id = l.src_note_id "
+            "LEFT JOIN notes d ON d.id = l.dst_note_id "
+            "WHERE l.vault_id = ? ORDER BY s.relpath, l.position",
+            (vault_id,),
+        )]
+    finally:
+        conn.close()
