@@ -1,3 +1,4 @@
+import json
 import time
 
 import pytest
@@ -80,3 +81,42 @@ def test_obsidian_vault_layer_classification(tmp_db, obsidian_vault_path):
     assert layers["wiki/log.md"] == "meta"
     assert layers["wiki/concepts/compounding-knowledge.md"] == "wiki"
     assert layers["raw/2026-04-04-llm-wiki-gist.md"] == "raw"
+
+
+# ---------------------------------------------------------------------------
+# CLI entry-point tests
+# ---------------------------------------------------------------------------
+
+def _seed_vault(tmp_db, tmp_path, name):
+    registry.init_db(tmp_db)
+    vroot = tmp_path / name
+    (vroot / "wiki").mkdir(parents=True)
+    row = registry.add_vault(tmp_db, name=name, path=str(vroot), type_="markdown", mode="wiki")
+    (vroot / "wiki" / "a.md").write_text(
+        "---\ntitle: a\ntype: concept\ndate: 2026-05-31\ntags: []\n---\n\nbody", encoding="utf-8")
+    return row["id"], vroot
+
+
+def test_reindex_cli_indexes_and_prints_json(tmp_db, tmp_path, capsys):
+    vid, _ = _seed_vault(tmp_db, tmp_path, "rv")
+    rc = reindex.main(["--vault-id", str(vid), "--db", str(tmp_db)])
+    assert rc == 0
+    notes = {n["relpath"] for n in registry.list_notes(tmp_db, vault_id=vid)}
+    assert "wiki/a.md" in notes
+    out = json.loads(capsys.readouterr().out)
+    assert out["vault_id"] == vid
+    assert out["mode"] == "incremental"
+    assert out["indexed"] >= 1
+
+
+def test_reindex_cli_full_flag(tmp_db, tmp_path, capsys):
+    vid, _ = _seed_vault(tmp_db, tmp_path, "rv2")
+    rc = reindex.main(["--vault-id", str(vid), "--db", str(tmp_db), "--full"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["mode"] == "full"
+
+
+def test_reindex_cli_requires_vault_id():
+    with pytest.raises(SystemExit):
+        reindex.main(["--db", "/tmp/whatever.db"])

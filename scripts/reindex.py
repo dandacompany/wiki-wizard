@@ -1,6 +1,9 @@
 """Filesystem → sqlite indexer using mtime to skip unchanged files."""
 from __future__ import annotations
 
+import argparse
+import json
+import sys
 from pathlib import Path
 
 from scripts import frontmatter, links, registry
@@ -101,3 +104,27 @@ def _scan(
         count += 1
     links.resolve(db_path, vault_id)
     return count
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI: reindex a vault. Default incremental; --full for a full rescan."""
+    from scripts.paths import registry_path
+    parser = argparse.ArgumentParser(
+        prog="reindex", description="Reindex a vault's notes into the registry."
+    )
+    parser.add_argument("--vault-id", type=int, required=True)
+    parser.add_argument("--db", default=None, help="registry db path (default: ~/.omw/registry.db)")
+    parser.add_argument("--full", action="store_true", help="full rescan (default: incremental)")
+    args = parser.parse_args(argv)
+    db = Path(args.db) if args.db else registry_path()
+    count = full(db, vault_id=args.vault_id) if args.full else incremental(db, vault_id=args.vault_id)
+    print(json.dumps({
+        "vault_id": args.vault_id,
+        "mode": "full" if args.full else "incremental",
+        "indexed": count,
+    }))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
