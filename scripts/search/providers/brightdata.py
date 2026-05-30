@@ -22,9 +22,9 @@ class BrightDataProvider:
         organic = data.get("organic") if isinstance(data, dict) else None
         if organic is None:
             raise base.SearchError(
-                "Bright Data returned no 'organic' results — the configured zone must be a "
-                "SERP zone (brd_json), not a plain Web Unlocker zone. Set BRIGHTDATA_ZONE "
-                "(or WEB_UNLOCKER_ZONE) to a SERP zone via `omw setup search`."
+                "Bright Data returned no 'organic' results — ensure the configured zone "
+                "serves brd_json SERP output. Set BRIGHTDATA_ZONE (or WEB_UNLOCKER_ZONE) "
+                "via `omw setup search`."
             )
         return [{"title": r.get("title", ""), "url": r.get("link", ""),
                  "snippet": r.get("description", "")} for r in organic][:limit]

@@ -98,5 +98,5 @@ def test_brightdata_no_organic_raises(fake_http):
     fake.payload = {"html": "<html>...</html>"}
     from scripts.search.providers.brightdata import BrightDataProvider
     from scripts.search.base import SearchError
-    with pytest.raises(SearchError, match="SERP zone"):
+    with pytest.raises(SearchError, match="brd_json SERP"):
         BrightDataProvider(api_key="k", zone="webunlock").search("q", limit=10)
