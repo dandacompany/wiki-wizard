@@ -7,6 +7,8 @@ See docs/superpowers/specs/2026-05-30-omw-messenger-query-api-design.md.
 from __future__ import annotations
 
 import hmac
+import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from scripts import registry
@@ -68,3 +70,78 @@ def handle_query(
     row = _resolve_vault(db_path, payload.get("vault") or default_vault)
     hits = search_index.query(db_path, vault_id=row["id"], query=text, limit=limit)
     return {"query": text, "vault": row["name"], "count": len(hits), "hits": hits}
+
+
+class QueryHandler(BaseHTTPRequestHandler):
+    """Thin HTTP shell over handle_query: auth + JSON + status mapping."""
+
+    def log_message(self, *args):  # silence default stderr access logging
+        pass
+
+    def _send_json(self, status: int, obj: dict) -> None:
+        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path == "/health":
+            self._send_json(200, {"status": "ok"})
+        elif self.path == "/query":
+            self._send_json(405, {"error": "method not allowed"})
+        else:
+            self._send_json(404, {"error": "not found"})
+
+    def do_POST(self):
+        if self.path == "/health":
+            self._send_json(405, {"error": "method not allowed"})
+            return
+        if self.path != "/query":
+            self._send_json(404, {"error": "not found"})
+            return
+        if not verify_bearer(self.headers.get("Authorization"), self.server.omw_token):
+            self._send_json(401, {"error": "unauthorized"})
+            return
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b""
+        try:
+            payload = json.loads(raw or b"{}")
+            if not isinstance(payload, dict):
+                raise ValueError("payload must be a JSON object")
+        except (ValueError, json.JSONDecodeError):
+            self._send_json(400, {"error": "invalid JSON body"})
+            return
+        try:
+            result = handle_query(
+                payload,
+                db_path=self.server.omw_db,
+                default_vault=self.server.omw_default_vault,
+                max_limit=self.server.omw_max_limit,
+            )
+        except ServeError as exc:
+            self._send_json(exc.status, {"error": exc.message})
+            return
+        except Exception:
+            self._send_json(500, {"error": "internal"})
+            return
+        self._send_json(200, result)
+
+
+def make_server(
+    *,
+    host: str,
+    port: int,
+    token: str,
+    db_path: Path,
+    default_vault: str | None = None,
+    max_limit: int = 10,
+) -> ThreadingHTTPServer:
+    """Build (but do not start) the HTTP server with request context attached."""
+    httpd = ThreadingHTTPServer((host, port), QueryHandler)
+    httpd.omw_token = token
+    httpd.omw_db = db_path
+    httpd.omw_default_vault = default_vault
+    httpd.omw_max_limit = max_limit
+    return httpd
