@@ -49,7 +49,6 @@ def test_lint_detects_drift_orphan_row(broken_vault):
 
 
 def test_lint_reports_links_broken_and_orphans(tmp_db, tmp_path):
-    from scripts import registry, reindex, lint
     registry.init_db(tmp_db)
     vroot = tmp_path / "lv"
     (vroot / "wiki").mkdir(parents=True)
@@ -58,13 +57,14 @@ def test_lint_reports_links_broken_and_orphans(tmp_db, tmp_path):
     )
     vid = row["id"]
     (vroot / "wiki" / "a.md").write_text(
-        "---\ntitle: a\ntype: concept\ntags: []\n---\n\n[[ghost]]", encoding="utf-8"
+        "---\ntitle: a\ntype: concept\ndate: 2026-05-30\ntags: []\n---\n\n[[ghost]]", encoding="utf-8"
     )
     (vroot / "wiki" / "b.md").write_text(
-        "---\ntitle: b\ntype: concept\ntags: []\n---\n\norphan page", encoding="utf-8"
+        "---\ntitle: b\ntype: concept\ndate: 2026-05-30\ntags: []\n---\n\norphan page", encoding="utf-8"
     )
     reindex.full(tmp_db, vault_id=vid)
     report = lint.check(tmp_db, vault_id=vid)
+    assert report["frontmatter_issues"] == []   # fixture is otherwise clean
     assert [r["dst_slug"] for r in report["links"]["broken"]] == ["ghost"]
     orphan_paths = {r["relpath"] for r in report["links"]["orphans"]}
     assert {"wiki/a.md", "wiki/b.md"} <= orphan_paths

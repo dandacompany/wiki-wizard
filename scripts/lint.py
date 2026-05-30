@@ -112,7 +112,7 @@ def check(db_path: Path, *, vault_id: int) -> dict:
     }
 
 
-def _hints(fm_issues, missing, drift, broken=None, orphans=None) -> list[str]:
+def _hints(fm_issues, missing, drift, broken=None, orphan_pages=None) -> list[str]:
     hints = []
     if drift:
         hints.append("Run `reindex.incremental(db, vault_id=...)` to refresh mtime drift.")
@@ -122,7 +122,7 @@ def _hints(fm_issues, missing, drift, broken=None, orphans=None) -> list[str]:
         hints.append("Edit each file's YAML frontmatter to fix the reported issues.")
     if broken:
         hints.append("Broken links: fix the target slug or create the missing page.")
-    if orphans:
+    if orphan_pages:
         hints.append("Orphan pages: add an inbound link from a related page, or archive.")
     return hints
 
