@@ -183,3 +183,10 @@ def test_serve_without_token_exits_1(monkeypatch, capsys):
     rc = omw_cli.main(["serve"])
     assert rc == 1
     assert "OMW_SERVE_TOKEN" in capsys.readouterr().err
+
+
+def test_setup_serve_via_cli_writes_token():
+    from scripts import omw_cli, config
+    rc = omw_cli.main(["setup", "serve", "--token", "xyz789"])
+    assert rc == 0
+    assert config.read_secret("OMW_SERVE_TOKEN") == "xyz789"
