@@ -1,7 +1,7 @@
 # `query` — ask the wiki
 
 **Mode:** memo or wiki (search works for both)
-**Underlying scripts:** `scripts.search.query` (Plan A) + `scripts.query.write_synthesis` (Plan C, wiki only)
+**Underlying scripts:** `scripts.search_index.query` (Plan A) + `scripts.query.write_synthesis` (Plan C, wiki only)
 
 ## Preconditions
 
@@ -17,7 +17,7 @@ Active vault must exist.
    python3 -c "
    import json
    from scripts.paths import registry_path
-   from scripts import search, registry
+   from scripts import search_index as search, registry
    db = registry_path()
    vault = registry.get_active(db)
    hits = search.query(db, vault_id=vault['id'], query='<query>', limit=5)

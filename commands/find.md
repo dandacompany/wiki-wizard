@@ -1,7 +1,7 @@
 # `find` — natural-language search across the active vault
 
 **Mode:** memo or wiki (any active vault)
-**Underlying script:** `scripts.search.query` (Plan A weighted ranker)
+**Underlying script:** `scripts.search_index.query` (Plan A weighted ranker)
 
 ## Preconditions
 
@@ -15,7 +15,7 @@ Active vault must exist. Run `python3 -m scripts.wizard status` first.
 ```bash
 python3 -c "
 from scripts.paths import registry_path
-from scripts import search, registry
+from scripts import search_index as search, registry
 db = registry_path()
 vault = registry.get_active(db)
 hits = search.query(db, vault_id=vault['id'], query='<query>', limit=5)

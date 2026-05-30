@@ -4,8 +4,9 @@ from pathlib import Path
 import pytest
 
 from scripts import (
-    adapters, import_memo, lint, memo_ops, registry, reindex, search,
+    adapters, import_memo, lint, memo_ops, registry, reindex,
 )
+from scripts import search_index as search
 
 
 @pytest.fixture

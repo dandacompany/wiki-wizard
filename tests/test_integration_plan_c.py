@@ -4,8 +4,9 @@ from pathlib import Path
 import pytest
 
 from scripts import (
-    adapters, ingest, lint, query, registry, reindex, search, wiki_lint,
+    adapters, ingest, lint, query, registry, reindex, wiki_lint,
 )
+from scripts import search_index as search
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
