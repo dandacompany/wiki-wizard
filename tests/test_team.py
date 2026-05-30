@@ -817,3 +817,20 @@ class TestLiveMonitorTeamManifest:
             # either no workers key, or empty list — it's doc-only
             workers = data.get("workers", [])
             assert workers == [], "live-monitor is doc-only; workers must be empty or absent"
+
+
+class TestSp1Teams:
+    def test_research_to_wiki_loads(self):
+        t = load_template("research-to-wiki")
+        assert t.name == "research-to-wiki"
+        assert t.mode == "sequential"
+        assert [w.persona for w in t.workers] == [
+            "researcher", "source-curator", "fact-checker", "polisher"]
+        assert t.workers[1].inputs_from == "previous"
+
+    def test_vault_maintenance_loads(self):
+        t = load_template("vault-maintenance")
+        assert t.name == "vault-maintenance"
+        assert t.mode == "sequential"
+        assert [w.persona for w in t.workers] == [
+            "wiki-auditor", "wiki-librarian", "curator"]
