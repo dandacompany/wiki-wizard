@@ -116,6 +116,16 @@ If the user input matches an op keyword, prefer that op over the wizard:
 | team / 팀 실행 / run a team                                                     | `commands/team.md`                                              |
 | team-run / 병렬 검토 / team template                                            | `commands/team-run.md`                                          |
 | "monitor the swarm" / "show worker status" / "스웜 모니터" / "워커 상태 보여줘" | `commands/swarm-monitor.md`                                     |
+| "orchestrate" / "plan this" / "전체적으로 처리" / "계획 세워줘" / "워크플로"    | `commands/persona-orchestrate.md`                               |
+
+### Hierarchical routing (multi-step requests)
+
+The table above routes **single ops**. If a request spans **multiple lifecycle
+stages**, names **≥2 ops**, or is a **broad multi-step goal** (e.g. "research X,
+fact-check it, and organize it into the wiki"), route to
+`commands/persona-orchestrate.md` instead: the **operations-orchestrator** persona
+proposes an execution plan, you confirm it, then execute each step via that step's
+own command/team. A single, clearly-named op keeps using its direct trigger above.
 
 ## Pasted content heuristic
 

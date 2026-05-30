@@ -413,3 +413,11 @@ def test_orchestrate_command_present():
     text = doc.read_text(encoding="utf-8")
     assert "operations-orchestrator" in text
     assert "scripts.personas run operations-orchestrator" in text
+
+
+def test_skill_md_routes_to_orchestrate():
+    from pathlib import Path as _Path
+    skill = (_Path(__file__).resolve().parent.parent / "SKILL.md").read_text(encoding="utf-8")
+    assert "persona-orchestrate" in skill
+    # the hierarchical-routing note must mention multi-step routing
+    assert "operations-orchestrator" in skill or "multi-step" in skill.lower()
