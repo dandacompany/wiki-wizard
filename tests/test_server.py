@@ -72,3 +72,23 @@ def test_handle_query_bad_limit_raises_400(seeded_db):
             {"text": "note", "limit": "abc"}, db_path=seeded_db, default_vault="md"
         )
     assert exc.value.status == 400
+
+
+def test_verify_bearer_accepts_matching_token():
+    assert server.verify_bearer("Bearer s3cret", "s3cret") is True
+
+
+def test_verify_bearer_rejects_wrong_token():
+    assert server.verify_bearer("Bearer nope", "s3cret") is False
+
+
+def test_verify_bearer_rejects_missing_header():
+    assert server.verify_bearer(None, "s3cret") is False
+
+
+def test_verify_bearer_rejects_non_bearer_scheme():
+    assert server.verify_bearer("Basic s3cret", "s3cret") is False
+
+
+def test_verify_bearer_rejects_empty_expected():
+    assert server.verify_bearer("Bearer ", "") is False

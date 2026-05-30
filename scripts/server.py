@@ -6,6 +6,7 @@ See docs/superpowers/specs/2026-05-30-omw-messenger-query-api-design.md.
 """
 from __future__ import annotations
 
+import hmac
 from pathlib import Path
 
 from scripts import registry
@@ -19,6 +20,17 @@ class ServeError(Exception):
         super().__init__(message)
         self.status = status
         self.message = message
+
+
+def verify_bearer(auth_header: str | None, expected: str) -> bool:
+    """Constant-time check of an `Authorization: Bearer <token>` header."""
+    if not expected or not auth_header:
+        return False
+    prefix = "Bearer "
+    if not auth_header.startswith(prefix):
+        return False
+    presented = auth_header[len(prefix):]
+    return hmac.compare_digest(presented, expected)
 
 
 def _resolve_vault(db_path: Path, name: str | None):
