@@ -83,6 +83,49 @@ def _run_interactive(name: str, mode: str, type_: str, location: str) -> int:
     return 0
 
 
+#: provider -> env var that holds its key (for the wizard to write)
+_SEARCH_KEY_VARS = {
+    "brave": "BRAVE_API_KEY",
+    "brightdata": "BRIGHTDATA_API_KEY",
+    "tavily": "TAVILY_API_KEY",
+    "exa": "EXA_API_KEY",
+    "firecrawl": "FIRECRAWL_API_KEY",
+}
+
+
+def setup_search(*, noninteractive: bool = False, provider: str | None = None, api_key: str | None = None) -> int:
+    from scripts import config
+    interactive = (not noninteractive) and sys.stdin.isatty()
+    if interactive:
+        try:
+            import questionary  # type: ignore
+            provider = questionary.select(
+                "Search provider", choices=list(_SEARCH_KEY_VARS) + ["skip"]).ask() or "skip"
+            if provider != "skip":
+                api_key = questionary.password("API key (blank to defer)").ask() or None
+        except Exception:
+            provider = input(f"Search provider {list(_SEARCH_KEY_VARS)} [skip]: ").strip() or "skip"
+            if provider != "skip":
+                api_key = input("API key (blank to defer): ").strip() or None
+    if not provider or provider == "skip":
+        print("search setup skipped — re-run `omw setup search` anytime.")
+        return 0
+    if provider not in _SEARCH_KEY_VARS:
+        print(f"error: unknown provider {provider!r}; choose from {list(_SEARCH_KEY_VARS)}",
+              file=sys.stderr)
+        return 1
+    config.set_config("search.provider", provider)
+    if api_key:
+        config.set_secret(_SEARCH_KEY_VARS[provider], api_key)
+        config.set_config("search.enabled", True)
+        print(f"✓ search provider '{provider}' configured.")
+    else:
+        config.set_config("search.enabled", False)
+        print(f"recorded provider '{provider}' — add a key later with "
+              f"`omw setup search --provider {provider} --api-key <key>`.")
+    return 0
+
+
 def doctor() -> int:
     home = omw_home()
     db = registry_path()
