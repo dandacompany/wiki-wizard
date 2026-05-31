@@ -96,6 +96,8 @@ def check(db_path: Path, *, vault_id: int) -> dict:
     broken = links.broken_links(db_path, vault_id=vault_id)
     orphan_pages = links.orphans(db_path, vault_id=vault_id)
     index_drift_report = links.index_drift(db_path, vault_id=vault_id)
+    contradictions = links.relations(db_path, vault_id=vault_id, relation="contradicts")
+    supersedes = links.relations(db_path, vault_id=vault_id, relation="supersedes")
 
     return {
         "vault_id": vault_id,
@@ -109,12 +111,16 @@ def check(db_path: Path, *, vault_id: int) -> dict:
             "broken": broken,
             "orphans": orphan_pages,
             "index_drift": index_drift_report,
+            "contradictions": contradictions,
+            "supersedes": supersedes,
         },
-        "auto_fix_hints": _hints(fm_issues, missing_files, mtime_drift, broken, orphan_pages, index_drift_report),
+        "auto_fix_hints": _hints(fm_issues, missing_files, mtime_drift, broken,
+                                 orphan_pages, index_drift_report, contradictions),
     }
 
 
-def _hints(fm_issues, missing, drift, broken=None, orphan_pages=None, index_drift=None) -> list[str]:
+def _hints(fm_issues, missing, drift, broken=None, orphan_pages=None,
+           index_drift=None, contradictions=None) -> list[str]:
     hints = []
     if drift:
         hints.append("Run `reindex.incremental(db, vault_id=...)` to refresh mtime drift.")
@@ -128,6 +134,9 @@ def _hints(fm_issues, missing, drift, broken=None, orphan_pages=None, index_drif
         hints.append("Orphan pages: add an inbound link from a related page, or archive.")
     if index_drift and (index_drift.get("missing_from_index") or index_drift.get("dangling_in_index")):
         hints.append("Index drift: run the curator persona (persona-curate-index) to sync wiki/index.md.")
+    if contradictions:
+        hints.append("Explicit contradictions declared — run the consistency-checker "
+                     "persona to adjudicate them.")
     return hints
 
 

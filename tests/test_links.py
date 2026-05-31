@@ -313,3 +313,24 @@ def test_reindex_resolves_relations(tmp_db, tmp_path):
     contr = [r for r in rows if r["link_type"] == "contradicts"]
     assert len(contr) == 1
     assert contr[0]["dst_note_id"] is not None  # resolved to b
+
+
+def test_relations_query(tmp_db, tmp_path):
+    registry.init_db(tmp_db)
+    vroot = tmp_path / "qv"
+    (vroot / "wiki").mkdir(parents=True)
+    row = registry.add_vault(tmp_db, name="qv", path=str(vroot), type_="markdown", mode="wiki")
+    vid = row["id"]
+    (vroot / "wiki" / "a.md").write_text(
+        "---\ntitle: a\ntype: concept\ndate: 2026-05-31\ntags: []\n"
+        "relations:\n  contradicts: [b]\n  uses: [c]\n---\n\nbody", encoding="utf-8")
+    (vroot / "wiki" / "b.md").write_text(
+        "---\ntitle: b\ntype: concept\ndate: 2026-05-31\ntags: []\n---\n\nbody", encoding="utf-8")
+    reindex.full(tmp_db, vault_id=vid)
+    allrel = links.relations(tmp_db, vid)
+    assert {r["relation"] for r in allrel} == {"contradicts", "uses"}
+    contr = links.relations(tmp_db, vid, relation="contradicts")
+    assert len(contr) == 1
+    assert contr[0]["src_relpath"] == "wiki/a.md"
+    assert contr[0]["dst_relpath"] == "wiki/b.md"
+    assert contr[0]["resolved"]

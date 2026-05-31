@@ -210,6 +210,28 @@ def graph(db_path: Path, vault_id: int) -> list[dict]:
         conn.close()
 
 
+def relations(db_path: Path, vault_id: int, *, relation: str | None = None) -> list[dict]:
+    """Typed semantic edges (uses/contradicts/supersedes). Optionally filter by relation."""
+    placeholders = ",".join("?" for _ in _RELATIONS)
+    sql = (
+        "SELECT s.relpath AS src_relpath, d.relpath AS dst_relpath, l.dst_slug, "
+        "l.link_type AS relation, (l.dst_note_id IS NOT NULL) AS resolved FROM links l "
+        "JOIN notes s ON s.id = l.src_note_id "
+        "LEFT JOIN notes d ON d.id = l.dst_note_id "
+        f"WHERE l.vault_id = ? AND l.link_type IN ({placeholders})"
+    )
+    params: list = [vault_id, *_RELATIONS]
+    if relation is not None:
+        sql += " AND l.link_type = ?"
+        params.append(relation)
+    sql += " ORDER BY s.relpath, l.position"
+    conn = registry.connect(db_path)
+    try:
+        return [dict(r) for r in conn.execute(sql, params)]
+    finally:
+        conn.close()
+
+
 def index_drift(db_path: Path, vault_id: int) -> dict:
     """Compare wiki/index.md's outbound links against the wiki page set.
 

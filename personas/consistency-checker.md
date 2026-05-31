@@ -24,6 +24,7 @@ Two modes:
 2. **Vault-wide:** the caller has run
    `python3 -m scripts.wiki_lint --vault-id <id>` and gives you
    the `contradiction_candidates` list. Judge each candidate.
+   Author-declared contradictions are also available as high-signal pairs via `links.relations(db, vault_id, relation='contradicts')` (from frontmatter `relations.contradicts`).
 
 ## Judgment categories
 
