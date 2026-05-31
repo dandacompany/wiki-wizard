@@ -251,3 +251,25 @@ def test_omw_import_notion_no_token_exits_1(monkeypatch, capsys):
     rc = omw_cli.main(["import", "--source", "notion", "--notion-id", "P1"])
     assert rc == 1
     assert "setup import" in capsys.readouterr().err.lower()
+
+
+def test_schema_list_prints_types(capsys):
+    rc = omw_cli.main(["schema", "list"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    names = {row["type"] for row in out}
+    assert {"entity", "concept", "meta"} <= names
+
+
+def test_schema_show_entity(capsys):
+    rc = omw_cli.main(["schema", "show", "entity"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["type"] == "entity"
+    assert "## Summary" in out["required_sections"]
+
+
+def test_schema_show_unknown_type_exits_1(capsys):
+    rc = omw_cli.main(["schema", "show", "nope"])
+    assert rc == 1
+    assert "valid types" in capsys.readouterr().err.lower()

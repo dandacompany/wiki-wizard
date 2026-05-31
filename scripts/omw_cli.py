@@ -124,6 +124,45 @@ def _cmd_lint(args) -> int:
     return 0
 
 
+def _resolve_vault_path(db, name):
+    """Return a vault's content path by name (or active). None if unresolved."""
+    if not db.exists():
+        return None
+    if name:
+        row = next((v for v in registry.list_vaults(db) if v["name"] == name), None)
+    else:
+        row = registry.get_active(db)
+    return row["path"] if row else None
+
+
+def _cmd_schema(args) -> int:
+    from scripts import schema
+    db = registry_path()
+    vault_path = _resolve_vault_path(db, args.vault) if args.vault else None
+    schemas = schema.load_schemas(vault_path=vault_path)
+
+    def _public(name):
+        s = schemas[name]
+        return {
+            "type": name,
+            "required_fields": s.get("required_fields", []),
+            "required_sections": s.get("required_sections", []),
+            "field_types": s.get("field_types", {}),
+        }
+
+    if args.schema_cmd == "list":
+        rows = [_public(t) for t in sorted(schema.valid_types(schemas))]
+        print(json.dumps(rows, ensure_ascii=False, indent=2))
+        return 0
+    # show
+    if args.type not in schema.valid_types(schemas):
+        valid = ", ".join(sorted(schema.valid_types(schemas)))
+        print(f"error: unknown type {args.type!r}; valid types: {valid}", file=sys.stderr)
+        return 1
+    print(json.dumps(_public(args.type), ensure_ascii=False, indent=2))
+    return 0
+
+
 def _cmd_import(args) -> int:
     from scripts import config, paths, registry, import_source
     db = paths.registry_path()
@@ -296,6 +335,16 @@ def build_parser() -> argparse.ArgumentParser:
     pl = sub.add_parser("lint", help="Run deterministic lint over a vault.")
     pl.add_argument("--vault", default=None, help="vault name (default: active)")
     pl.set_defaults(func=_cmd_lint)
+
+    psch = sub.add_parser("schema", help="Show page-type schemas (conventions).")
+    schsub = psch.add_subparsers(dest="schema_cmd", required=True)
+    psl = schsub.add_parser("list", help="List page types + their requirements.")
+    psl.add_argument("--vault", default=None, help="apply a vault's schema overrides")
+    psl.set_defaults(func=_cmd_schema)
+    pss = schsub.add_parser("show", help="Show one type's effective schema.")
+    pss.add_argument("type")
+    pss.add_argument("--vault", default=None, help="apply a vault's schema overrides")
+    pss.set_defaults(func=_cmd_schema)
 
     psr = sub.add_parser("search", help="Web search via the configured provider.")
     psr.add_argument("query")
