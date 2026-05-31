@@ -203,12 +203,13 @@ def index_drift(db_path: Path, vault_id: int) -> dict:
                                      "position": r["position"]})
                 else:
                     linked_ids.add(r["dst_note_id"])
+        placeholders = ",".join("?" for _ in META_RELPATHS)
         missing = [dict(r) for r in conn.execute(
             "SELECT id, relpath, title FROM notes "
             "WHERE vault_id = ? AND layer = 'wiki' "
-            "AND relpath NOT IN ('wiki/index.md', 'wiki/log.md') "
+            f"AND relpath NOT IN ({placeholders}) "
             "ORDER BY relpath",
-            (vault_id,),
+            (vault_id, *META_RELPATHS),
         ) if r["id"] not in linked_ids]
         return {"missing_from_index": missing, "dangling_in_index": dangling}
     finally:

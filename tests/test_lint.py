@@ -86,3 +86,17 @@ def test_lint_reports_index_drift(tmp_db, tmp_path):
     report = lint.check(tmp_db, vault_id=vid)
     assert "index_drift" in report["links"]
     assert [n["relpath"] for n in report["links"]["index_drift"]["missing_from_index"]] == ["wiki/b.md"]
+
+
+def test_lint_hint_for_index_drift(tmp_db, tmp_path):
+    registry.init_db(tmp_db)
+    vroot = tmp_path / "hd"
+    (vroot / "wiki").mkdir(parents=True)
+    row = registry.add_vault(tmp_db, name="hd", path=str(vroot), type_="markdown", mode="wiki")
+    vid = row["id"]
+    (vroot / "wiki" / "index.md").write_text("# Index\n", encoding="utf-8")  # links nothing
+    (vroot / "wiki" / "a.md").write_text(
+        "---\ntitle: a\ntype: concept\ndate: 2026-05-31\ntags: []\n---\n\nbody", encoding="utf-8")
+    reindex.full(tmp_db, vault_id=vid)
+    report = lint.check(tmp_db, vault_id=vid)
+    assert any("Index drift" in h for h in report["auto_fix_hints"])

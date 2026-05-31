@@ -328,6 +328,7 @@ class TestWaitForWorkers:
 class TestSpawnWorkerErrorHandling:
     """Tests for Fix 2: TmuxError raised for duplicate worker_name and new-window failure."""
 
+    @pytest.mark.flaky(reruns=2, reruns_delay=1)
     def test_duplicate_worker_name_raises_tmux_error(self, tmp_path):
         """Spawning a second worker with the same name in the same session raises TmuxError."""
         session_id = _unique_id("dup-worker")

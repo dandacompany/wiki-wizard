@@ -14,6 +14,7 @@ omw = "scripts.omw_cli:main"
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pytest-rerunfailures>=14",
     "ruff>=0.6",
 ]
 wizard = ["questionary>=2.0"]
@@ -26,6 +27,7 @@ testpaths = ["tests"]
 addopts = "-ra -q --strict-markers"
 markers = [
     "integration: end-to-end tests that require tmux and fake backends",
+    "flaky: known-flaky test (auto-reruns via pytest-rerunfailures)",
 ]
 
 [tool.ruff]
