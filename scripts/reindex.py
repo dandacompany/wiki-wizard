@@ -82,10 +82,12 @@ def _scan(
         try:
             meta, body = frontmatter.parse(raw)
             parse_error = False
+            fm_ok = True  # frontmatter parsed (even if empty) → schema-validatable, like lint
         except frontmatter.FrontmatterError:
             meta = {}
             body = raw  # still extract links from a frontmatter-broken note
             parse_error = True
+            fm_ok = False
         if not meta:
             parse_error = True
         tags = meta.get("tags") or []
@@ -104,7 +106,7 @@ def _scan(
             parse_error=parse_error,
         )
         links.replace_links(db_path, vault_id=vault_id, src_note_id=note_id, body=body, meta=meta)
-        if not parse_error and rel not in exempt and not rel.startswith("raw/"):
+        if fm_ok and rel not in exempt and not rel.startswith("raw/"):
             issues = schema.validate(meta, body, schemas=schemas)
             if issues:
                 schema_issues.append({"relpath": rel, "issues": issues})

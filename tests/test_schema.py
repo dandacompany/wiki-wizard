@@ -124,3 +124,13 @@ def test_bundled_defaults_cover_known_types():
     assert schemas["entity"]["required_sections"] == ["## Summary"]
     # meta is intentionally minimal
     assert schemas["meta"]["required_fields"] == []
+
+
+def test_load_dir_skips_malformed_yaml(tmp_path):
+    # A broken vault schema file must not crash the loader (would otherwise
+    # halt lint AND reindex). It is skipped; valid siblings still load.
+    _write(tmp_path, "good.yml", "extends: base\n")
+    _write(tmp_path, "bad.yml", "{ unclosed: true")  # invalid YAML
+    loaded = schema._load_dir(tmp_path)
+    assert "good" in loaded
+    assert "bad" not in loaded

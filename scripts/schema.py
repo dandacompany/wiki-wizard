@@ -64,7 +64,10 @@ def _load_dir(dir_path: Path) -> dict[str, dict]:
     if not dir_path.is_dir():
         return out
     for f in sorted(dir_path.glob("*.yml")):
-        data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+        try:
+            data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError:
+            continue  # skip a malformed schema file rather than crashing lint/reindex
         if isinstance(data, dict):
             out[f.stem] = data
     return out

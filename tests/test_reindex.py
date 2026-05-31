@@ -161,3 +161,20 @@ def test_scan_reports_schema_issues_but_still_ingests(tmp_path, monkeypatch):
     # page is still indexed despite the violation
     assert any(n["relpath"] == "wiki/entities/bad.md"
                for n in registry.list_notes(db, vault_id=vid))
+
+
+def test_scan_validates_pages_without_frontmatter(tmp_path, monkeypatch):
+    # A page with NO frontmatter parses to empty meta without raising, so it
+    # must be schema-validated in the tally (matching `lint`), not silently skipped.
+    db, root, vid = _vault(tmp_path, monkeypatch)
+    (root / "wiki" / "entities" / "nofm.md").write_text(
+        "just plain text, no frontmatter at all\n", encoding="utf-8",
+    )
+    vp = reindex._vault_path(db, vid)
+    result = reindex._scan(db, vid, vp, incremental=False)
+    flat = {i["issue"] for entry in result["schema_issues"]
+            if entry["relpath"] == "wiki/entities/nofm.md" for i in entry["issues"]}
+    assert "missing_field:type" in flat  # validated like lint, not skipped
+    # still indexed (non-blocking)
+    assert any(n["relpath"] == "wiki/entities/nofm.md"
+               for n in registry.list_notes(db, vault_id=vid))
