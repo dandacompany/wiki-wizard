@@ -75,6 +75,15 @@ def test_apply_link_plain_when_mention_equals_slug(tmp_path, monkeypatch):
     assert out["inserted"] == "[[tdd]]"  # mention 'tdd' slugs to 'tdd'
 
 
+def test_suggest_finds_korean_name_with_josa(tmp_path, monkeypatch):
+    db, root, vid = _vault(tmp_path, monkeypatch)
+    _page(root, "karp.md", "---\ntitle: 안드레이 카르파시\ndate: 2026-01-01\ntype: entity\ntags: [p]\n---\n## Summary\n연구자\n")
+    _page(root, "tdd.md", "---\ntitle: TDD\ndate: 2026-01-01\ntype: concept\ntags: [m]\n---\n## Summary\n안드레이 카르파시가 이것을 썼다.\n")
+    reindex.full(db, vault_id=vid)
+    sugg = entity_link.suggest_links(db, vault_id=vid)
+    assert ("wiki/entities/tdd.md", "karp") in {(s["src_relpath"], s["target_slug"]) for s in sugg}
+
+
 def test_apply_link_errors(tmp_path, monkeypatch):
     db, root, vid = _vault(tmp_path, monkeypatch)
     _page(root, "tdd.md", "---\ntitle: TDD\ndate: 2026-01-01\ntype: concept\ntags: [m]\n---\n## Summary\nx\n")

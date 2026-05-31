@@ -9,20 +9,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from scripts import frontmatter, links, reindex
+from scripts import frontmatter, links, reindex, text_match
 
 _EXEMPT = set(links.META_RELPATHS)
 
 
 def _name_pattern(names) -> re.Pattern | None:
-    parts = []
-    for n in sorted({n.strip() for n in names if n and str(n).strip()}, key=len, reverse=True):
-        toks = str(n).split()
-        if toks:
-            parts.append(r"\s+".join(re.escape(t) for t in toks))
-    if not parts:
-        return None
-    return re.compile(r"\b(?:" + "|".join(parts) + r")\b", re.IGNORECASE)
+    return text_match.build_name_pattern(names)
 
 
 def _link_spans(body: str) -> list[tuple[int, int]]:
