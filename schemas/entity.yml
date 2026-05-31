@@ -1,0 +1,3 @@
+extends: base
+required_sections:
+  - "## Summary"

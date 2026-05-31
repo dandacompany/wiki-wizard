@@ -1,0 +1,7 @@
+# Baseline every page type extends. Override per-type or per-vault.
+required_fields: [title, date, type, tags]
+field_types:
+  tags: list
+  title: str
+  date: str
+required_sections: []

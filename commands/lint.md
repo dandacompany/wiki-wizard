@@ -43,7 +43,7 @@ Active vault must exist.
 4. Render to the user:
 
    **Common (always):**
-   - **Frontmatter issues** — grouped by `issue` (malformed_yaml, missing_field:X, tags_not_list, invalid_type)
+   - **Frontmatter issues** — grouped by `issue` (malformed_yaml, missing_field:X, wrong_type:X, invalid_type, missing_section:X)
    - **Drift — missing files** — registry rows for deleted files
    - **Drift — mtime mismatch** — files edited outside oh-my-wiki
 

@@ -23,10 +23,12 @@ Always invoke this before doing anything else:
 > and NO standalone script CLIs. Do **not** invent filenames like `omw_db.py`,
 > `vault.py`, `cli.py`, or `bootstrap.py` — they do not exist.
 >
-> 1. **Deterministic ops** (status, vault management, lint, search, serve): run the
+> 1. **Deterministic ops** (status, vault management, lint, search, serve, schema): run the
 >    `omw` CLI — `omw status`, `omw vault list`, `omw vault create <name> --mode wiki`,
->    `omw vault use <name>`, `omw lint`, `omw serve` (the retrieve-only messenger
->    query API — see `references/messenger-api.md`).
+>    `omw vault use <name>`, `omw lint`, `omw schema list`, `omw serve` (the retrieve-only
+>    messenger query API — see `references/messenger-api.md`). Page-type conventions
+>    (required frontmatter fields + sections) live in `schemas/<type>.yml`; a vault may
+>    override or add types via `<vault>/schemas/` (inspect with `omw schema show <type>`).
 > 2. **Reasoning ops** (ingest, query, autoresearch, personas, …): read the exact
 >    procedure in `commands/<op>.md` and run its inline `python3 -c` snippet /
 >    `python3 -m scripts.<module>` commands verbatim. Never guess a script path.

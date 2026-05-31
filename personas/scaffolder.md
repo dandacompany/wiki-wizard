@@ -65,6 +65,9 @@ status: draft
    sparse.
 6. **References section last**, with one empty bullet so the author has a
    place to start.
+7. **Honor the type's schema** — for the page's `type`, consult
+   `omw schema show <type>` (or `schemas/<type>.yml`) and include every required
+   frontmatter field and required `## Section` heading it declares.
 
 ## Output contract
 

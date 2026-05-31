@@ -6,19 +6,19 @@ import json
 import sys
 from pathlib import Path
 
-from scripts import frontmatter, links, registry
+from scripts import frontmatter, links, registry, schema
 
 
 def full(db_path: Path, *, vault_id: int) -> int:
     """Rescan everything. Returns number of notes indexed."""
     vault_path = _vault_path(db_path, vault_id)
-    return _scan(db_path, vault_id, vault_path, incremental=False)
+    return _scan(db_path, vault_id, vault_path, incremental=False)["indexed"]
 
 
 def incremental(db_path: Path, *, vault_id: int) -> int:
     """Only upsert files whose mtime exceeds the recorded one."""
     vault_path = _vault_path(db_path, vault_id)
-    return _scan(db_path, vault_id, vault_path, incremental=True)
+    return _scan(db_path, vault_id, vault_path, incremental=True)["indexed"]
 
 
 def _vault_path(db_path: Path, vault_id: int) -> Path:
@@ -64,9 +64,12 @@ def _scan(
     vault_path: Path,
     *,
     incremental: bool,
-) -> int:
+) -> dict:
     registry.init_db(db_path)  # idempotent; guarantees the links table on old vaults
     known = _existing_mtimes(db_path, vault_id) if incremental else {}
+    schemas = schema.load_schemas(vault_path=vault_path)
+    exempt = set(links.META_RELPATHS)
+    schema_issues: list[dict] = []
     count = 0
     for path in vault_path.rglob("*.md"):
         if any(part in {".trash", ".obsidian", ".git"} for part in path.parts):
@@ -79,10 +82,12 @@ def _scan(
         try:
             meta, body = frontmatter.parse(raw)
             parse_error = False
+            fm_ok = True  # frontmatter parsed (even if empty) → schema-validatable, like lint
         except frontmatter.FrontmatterError:
             meta = {}
             body = raw  # still extract links from a frontmatter-broken note
             parse_error = True
+            fm_ok = False
         if not meta:
             parse_error = True
         tags = meta.get("tags") or []
@@ -101,9 +106,13 @@ def _scan(
             parse_error=parse_error,
         )
         links.replace_links(db_path, vault_id=vault_id, src_note_id=note_id, body=body, meta=meta)
+        if fm_ok and rel not in exempt and not rel.startswith("raw/"):
+            issues = schema.validate(meta, body, schemas=schemas)
+            if issues:
+                schema_issues.append({"relpath": rel, "issues": issues})
         count += 1
     links.resolve(db_path, vault_id)
-    return count
+    return {"indexed": count, "schema_issues": schema_issues}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -117,11 +126,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--full", action="store_true", help="full rescan (default: incremental)")
     args = parser.parse_args(argv)
     db = Path(args.db) if args.db else registry_path()
-    count = full(db, vault_id=args.vault_id) if args.full else incremental(db, vault_id=args.vault_id)
+    vault_path = _vault_path(db, args.vault_id)
+    result = _scan(db, args.vault_id, vault_path, incremental=not args.full)
     print(json.dumps({
         "vault_id": args.vault_id,
         "mode": "full" if args.full else "incremental",
-        "indexed": count,
+        "indexed": result["indexed"],
+        "schema_issues": len(result["schema_issues"]),
     }))
     return 0
 
