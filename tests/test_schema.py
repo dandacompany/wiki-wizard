@@ -38,9 +38,10 @@ def test_validate_missing_type_uses_base_and_flags_type():
 
 
 def test_validate_invalid_type():
-    meta = {"title": "T", "date": "2026-01-01", "type": "bogus", "tags": ["a"]}
+    meta = {"title": "T", "type": "bogus", "tags": ["a"]}  # bogus type + missing date
     issues = _issues(meta)
     assert "invalid_type" in issues
+    assert "missing_field:date" in issues
 
 
 def test_validate_wrong_type_tags_not_list():

@@ -12,8 +12,6 @@ import yaml
 
 _BUNDLED_DIR = Path(__file__).resolve().parent.parent / "schemas"
 
-_DEFAULTS = {"required_fields": [], "field_types": {}, "required_sections": []}
-
 
 def _coarse_ok(value, want: str) -> bool:
     if want == "list":
