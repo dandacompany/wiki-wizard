@@ -390,3 +390,37 @@ def test_links_link_missing_page_exits_1(tmp_path, monkeypatch, capsys):
     rc = omw_cli.main(["links", "link", "wiki/entities/nope.md", "--to", "k", "--vault", "cv"])
     assert rc == 1
     assert "not found" in capsys.readouterr().err.lower()
+
+
+import json
+from scripts import omw_cli, registry
+
+
+def _fields_vault(tmp_path, monkeypatch):
+    monkeypatch.setenv("OMW_HOME", str(tmp_path / ".omw"))
+    from scripts.paths import registry_path
+    db = registry_path()
+    registry.init_db(db)
+    root = tmp_path / "cv"
+    (root / "wiki" / "concepts").mkdir(parents=True)
+    registry.add_vault(db, name="cv", path=str(root), type_="markdown", mode="wiki")
+    (root / "wiki" / "concepts" / "p.md").write_text(
+        "---\ntitle: P\ntype: concept\n---\n## Summary\nowner:: dante\nstatus:: active\n", encoding="utf-8")
+    return db, root
+
+
+def test_fields_prints_frontmatter_and_inline(tmp_path, monkeypatch, capsys):
+    _fields_vault(tmp_path, monkeypatch)
+    rc = omw_cli.main(["fields", "wiki/concepts/p.md", "--vault", "cv"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["frontmatter"]["title"] == "P"
+    assert out["inline"]["owner"] == ["dante"]
+    assert out["inline"]["status"] == ["active"]
+
+
+def test_fields_missing_page_exits_1(tmp_path, monkeypatch, capsys):
+    _fields_vault(tmp_path, monkeypatch)
+    rc = omw_cli.main(["fields", "wiki/concepts/nope.md", "--vault", "cv"])
+    assert rc == 1
+    assert "not found" in capsys.readouterr().err.lower()

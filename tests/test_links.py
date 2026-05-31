@@ -334,3 +334,29 @@ def test_relations_query(tmp_db, tmp_path):
     assert contr[0]["src_relpath"] == "wiki/a.md"
     assert contr[0]["dst_relpath"] == "wiki/b.md"
     assert contr[0]["resolved"]
+
+
+def test_extract_inline_relations_parses_keys():
+    body = "supersedes:: [[old]]\nuses:: concept-x\nnote:: not a relation\n"
+    rels = links.extract_inline_relations(body)
+    assert ("old", "supersedes", 0) in rels or ("old", "supersedes") in {(s, r) for s, r, _ in rels}
+    assert ("concept-x", "uses") in {(s, r) for s, r, _ in rels}
+    assert all(r != "note" for _, r, _ in rels)  # non-relation key ignored
+
+
+def test_reindex_picks_up_inline_relation(tmp_path, monkeypatch):
+    monkeypatch.setenv("OMW_HOME", str(tmp_path / ".omw"))
+    db = tmp_path / "r.db"
+    registry.init_db(db)
+    root = tmp_path / "v"
+    (root / "wiki" / "concepts").mkdir(parents=True)
+    v = registry.add_vault(db, name="v", path=root, type_="markdown", mode="wiki")
+    vid = v["id"]
+    (root / "wiki" / "concepts" / "old.md").write_text(
+        "---\ntitle: Old\ndate: 2026-01-01\ntype: concept\ntags: [x]\n---\n## Summary\nx\n", encoding="utf-8")
+    (root / "wiki" / "concepts" / "new.md").write_text(
+        "---\ntitle: New\ndate: 2026-01-01\ntype: concept\ntags: [x]\n---\n## Summary\ncontradicts:: [[old]]\n", encoding="utf-8")
+    reindex.full(db, vault_id=vid)
+    edges = links.relations(db, vault_id=vid, relation="contradicts")
+    pairs = {(e["src_relpath"], e["dst_relpath"]) for e in edges}
+    assert ("wiki/concepts/new.md", "wiki/concepts/old.md") in pairs

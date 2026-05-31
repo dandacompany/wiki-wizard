@@ -76,6 +76,27 @@ def extract_relations(meta: dict) -> list[tuple[str, str, int]]:
     return out
 
 
+def _value_to_slug(value: str) -> str:
+    """Slug from an inline relation value: `[[B]]`/`[[B|d]]` or a bare slug/path."""
+    m = _WIKILINK_RE.search(value)
+    return _slugify(m.group(1) if m else value)
+
+
+def extract_inline_relations(body: str) -> list[tuple[str, str, int]]:
+    """Read inline `relation:: value` lines → [(dst_slug, relation, position), ...]."""
+    from scripts import inline_fields
+    fields = inline_fields.extract_inline_fields(body)
+    out: list[tuple[str, str, int]] = []
+    pos = 0
+    for relation in _RELATIONS:
+        for value in fields.get(relation, []):
+            slug = _value_to_slug(value)
+            if slug:
+                out.append((slug, relation, pos))
+                pos += 1
+    return out
+
+
 def replace_links(db_path: Path, *, vault_id: int, src_note_id: int, body: str,
                   meta: dict | None = None) -> None:
     """Replace all outbound links for one note: body links + frontmatter relations.
@@ -86,6 +107,7 @@ def replace_links(db_path: Path, *, vault_id: int, src_note_id: int, body: str,
     edges = list(extract_links(body))
     if meta:
         edges.extend(extract_relations(meta))
+    edges.extend(extract_inline_relations(body))
     conn = registry.connect(db_path)
     try:
         with conn:

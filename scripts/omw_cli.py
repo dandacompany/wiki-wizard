@@ -124,6 +124,40 @@ def _cmd_lint(args) -> int:
     return 0
 
 
+def _cmd_fields(args) -> int:
+    from pathlib import Path
+    from scripts import frontmatter, inline_fields
+    db = registry_path()
+    if not db.exists():
+        print("error: no registry; run `omw status` to set up", file=sys.stderr)
+        return 1
+    if args.vault:
+        row = next((v for v in registry.list_vaults(db) if v["name"] == args.vault), None)
+        if row is None:
+            print(f"error: vault {args.vault!r} not found", file=sys.stderr)
+            return 1
+    else:
+        row = registry.get_active(db)
+        if row is None:
+            print("error: no active vault; pass --vault <name>", file=sys.stderr)
+            return 1
+    abs_path = Path(row["path"]) / args.relpath
+    if not abs_path.exists():
+        print(f"error: page not found: {args.relpath}", file=sys.stderr)
+        return 1
+    text = abs_path.read_text(encoding="utf-8")
+    try:
+        meta, body = frontmatter.parse(text)
+    except frontmatter.FrontmatterError:
+        meta, body = {}, text
+    print(json.dumps({
+        "relpath": args.relpath,
+        "frontmatter": meta,
+        "inline": inline_fields.extract_inline_fields(body),
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
 def _cmd_links(args) -> int:
     from scripts import entity_link
     db = registry_path()
@@ -436,6 +470,11 @@ def build_parser() -> argparse.ArgumentParser:
     pl = sub.add_parser("lint", help="Run deterministic lint over a vault.")
     pl.add_argument("--vault", default=None, help="vault name (default: active)")
     pl.set_defaults(func=_cmd_lint)
+
+    pfl = sub.add_parser("fields", help="Show a page's frontmatter + inline key:: value fields.")
+    pfl.add_argument("relpath")
+    pfl.add_argument("--vault", default=None, help="vault name (default: active)")
+    pfl.set_defaults(func=_cmd_fields)
 
     pln = sub.add_parser("links", help="Entity-link suggestions + insertion.")
     lsub = pln.add_subparsers(dest="links_cmd", required=True)
