@@ -23,7 +23,7 @@ Always invoke this before doing anything else:
 > and NO standalone script CLIs. Do **not** invent filenames like `omw_db.py`,
 > `vault.py`, `cli.py`, or `bootstrap.py` — they do not exist.
 >
-> 1. **Deterministic ops** (status, vault management, lint, search, serve, schema, supersede, review, links): run the
+> 1. **Deterministic ops** (status, vault management, lint, search, serve, schema, supersede, review, links, fields): run the
 >    `omw` CLI — `omw status`, `omw vault list`, `omw vault create <name> --mode wiki`,
 >    `omw vault use <name>`, `omw lint`, `omw schema list`, `omw supersede <relpath> --by <slug>`,
 >    `omw review due`, `omw serve` (the retrieve-only messenger query API — see `references/messenger-api.md`).
@@ -36,7 +36,10 @@ Always invoke this before doing anything else:
 >    with an automatic token-scorer fallback; `commands/query.md` then LLM-reranks the candidates
 >    (no embeddings). Unlinked mentions of existing pages are auto-proposed (`omw links suggest` /
 >    `lint`'s `link_suggestions`) and inserted via `omw links link <relpath> --to <slug>`; a page
->    may declare an optional `aliases:` frontmatter list for matching.
+>    may declare an optional `aliases:` frontmatter list for matching. Pages may also carry inline
+>    `key:: value` fields (Dataview line syntax); relation keys (`uses`/`contradicts`/`supersedes:: [[B]]`)
+>    feed the typed-edge graph like frontmatter `relations:`, and `omw fields <relpath>` lists a
+>    page's frontmatter + inline fields.
 > 2. **Reasoning ops** (ingest, query, autoresearch, personas, …): read the exact
 >    procedure in `commands/<op>.md` and run its inline `python3 -c` snippet /
 >    `python3 -m scripts.<module>` commands verbatim. Never guess a script path.
