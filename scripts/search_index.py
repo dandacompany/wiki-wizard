@@ -5,7 +5,7 @@ import re
 import sqlite3
 from pathlib import Path
 
-from scripts import registry
+from scripts import fts, registry
 
 WEIGHTS = {
     "title": 5.0,
@@ -32,6 +32,12 @@ def query(
     q_tokens = _tokens(query)
     if not q_tokens:
         return []
+
+    if fts.fts5_available():
+        hits = fts.search(db_path, vault_id=vault_id, query=query, limit=limit)
+        if hits is not None:
+            return hits
+    # else / not-indexed → token-weighted fallback below (unchanged)
 
     conn = registry.connect(db_path)
     try:
