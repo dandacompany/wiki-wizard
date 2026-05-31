@@ -265,3 +265,51 @@ def test_index_drift_absent_index_lists_all_pages(tmp_db, tmp_path):
     drift = links.index_drift(tmp_db, vid)
     assert {n["relpath"] for n in drift["missing_from_index"]} == {"wiki/a.md"}
     assert drift["dangling_in_index"] == []
+
+
+def test_extract_relations_dict():
+    meta = {"relations": {"contradicts": ["old-claim"], "uses": ["helper"],
+                          "supersedes": ["v1"]}}
+    out = links.extract_relations(meta)
+    kinds = {(slug, rel) for slug, rel, _pos in out}
+    assert ("old-claim", "contradicts") in kinds
+    assert ("helper", "uses") in kinds
+    assert ("v1", "supersedes") in kinds
+
+
+def test_extract_relations_scalar_and_missing():
+    assert links.extract_relations({}) == []
+    assert links.extract_relations({"relations": None}) == []
+    assert links.extract_relations({"relations": "nope"}) == []
+    out = links.extract_relations({"relations": {"contradicts": "solo"}})
+    assert [(s, r) for s, r, _ in out] == [("solo", "contradicts")]
+    assert links.extract_relations({"relations": {"bogus": ["x"]}}) == []
+
+
+def test_replace_links_inserts_relations_from_meta(vault):
+    db, vid = vault
+    nid = _add_note(db, vid, "wiki/a.md")
+    links.replace_links(db, vault_id=vid, src_note_id=nid,
+                        body="see [[b]]", meta={"relations": {"contradicts": ["c"]}})
+    rows = _link_rows(db, vid)
+    by_type = {(r["dst_slug"], r["link_type"]) for r in rows}
+    assert ("b", "wikilink") in by_type
+    assert ("c", "contradicts") in by_type
+
+
+def test_reindex_resolves_relations(tmp_db, tmp_path):
+    registry.init_db(tmp_db)
+    vroot = tmp_path / "rv"
+    (vroot / "wiki").mkdir(parents=True)
+    row = registry.add_vault(tmp_db, name="rv", path=str(vroot), type_="markdown", mode="wiki")
+    vid = row["id"]
+    (vroot / "wiki" / "a.md").write_text(
+        "---\ntitle: a\ntype: concept\ndate: 2026-05-31\ntags: []\n"
+        "relations:\n  contradicts: [b]\n---\n\nbody", encoding="utf-8")
+    (vroot / "wiki" / "b.md").write_text(
+        "---\ntitle: b\ntype: concept\ndate: 2026-05-31\ntags: []\n---\n\nbody", encoding="utf-8")
+    reindex.full(tmp_db, vault_id=vid)
+    rows = _link_rows(tmp_db, vid)
+    contr = [r for r in rows if r["link_type"] == "contradicts"]
+    assert len(contr) == 1
+    assert contr[0]["dst_note_id"] is not None  # resolved to b

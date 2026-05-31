@@ -100,7 +100,7 @@ def _scan(
             tags=[str(t) for t in tags],
             parse_error=parse_error,
         )
-        links.replace_links(db_path, vault_id=vault_id, src_note_id=note_id, body=body)
+        links.replace_links(db_path, vault_id=vault_id, src_note_id=note_id, body=body, meta=meta)
         count += 1
     links.resolve(db_path, vault_id)
     return count
