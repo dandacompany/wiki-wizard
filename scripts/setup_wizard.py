@@ -178,6 +178,18 @@ def setup_personas(*, enabled: list[str] | None = None, main: str | None = None,
     specs = personas.list_personas()
     all_names = [p["name"] for p in specs]
     descriptions = {p["name"]: p.get("description", "") for p in specs}
+    interactive = (not noninteractive) and sys.stdin.isatty()
+    if interactive and enabled is None:
+        picked = _prompt("checkbox", "Enable personas", choices=all_names)
+        enabled = picked or list(all_names)
+    if interactive and main is None:
+        default_main = ("operations-orchestrator" if "operations-orchestrator" in (enabled or all_names)
+                        else ((enabled or all_names)[0] if (enabled or all_names) else None))
+        main = _prompt("select", "Main persona", choices=enabled or all_names,
+                       default=default_main) or None
+    if interactive and hosts is None:
+        hosts = _prompt("checkbox", "Export to hosts",
+                        choices=list(persona_export.HOST_FILES)) or None
     if enabled is None:
         enabled = list(all_names)
     unknown = [n for n in enabled if n not in all_names]

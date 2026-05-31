@@ -196,3 +196,26 @@ def test_setup_tts_interactive_prompts(monkeypatch):
     assert cfg["tts"]["voice_id"] == "V-int"
     assert cfg["tts"]["enabled"] is True
     assert config.read_secret("ELEVENLABS_API_KEY") == "K-int"
+
+
+def test_setup_personas_interactive_selects_roster(monkeypatch, tmp_path):
+    from scripts import setup_wizard, config
+    monkeypatch.setattr(setup_wizard.sys.stdin, "isatty", lambda: True)
+    # checkbox(enabled) -> "researcher,curator"; select(main) -> "curator"; checkbox(hosts) -> "claude"
+    monkeypatch.setattr("builtins.input",
+                        _fake_input(["researcher,curator", "curator", "claude"]))
+    rc = setup_wizard.setup_personas(base_dir=tmp_path)  # no enable/main/host flags
+    assert rc == 0
+    cfg = config.load_config()
+    assert cfg["personas"]["enabled"] == ["researcher", "curator"]
+    assert cfg["personas"]["main"] == "curator"
+    assert (tmp_path / "CLAUDE.md").exists()
+    assert not (tmp_path / "AGENTS.md").exists()  # only claude host selected
+
+
+def test_setup_personas_noninteractive_flags_unchanged(tmp_path):
+    from scripts import setup_wizard, config
+    rc = setup_wizard.setup_personas(enabled=["researcher"], main="researcher",
+                                     hosts=["claude"], base_dir=tmp_path, noninteractive=True)
+    assert rc == 0
+    assert config.load_config()["personas"]["main"] == "researcher"
