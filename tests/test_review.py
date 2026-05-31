@@ -1,7 +1,7 @@
 # tests/test_review.py
 import pytest
 
-from scripts import review
+from scripts import frontmatter, registry, reindex, review
 
 
 def test_tier_defaults_to_medium():
@@ -40,7 +40,6 @@ def test_schedule_fields_date_math():
 # ---------------------------------------------------------------------------
 # Vault I/O tests (Task 2)
 # ---------------------------------------------------------------------------
-from scripts import frontmatter, registry, reindex
 
 
 def _vault(tmp_path, monkeypatch):
