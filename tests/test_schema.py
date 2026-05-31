@@ -1,8 +1,6 @@
 # tests/test_schema.py
 from pathlib import Path
 
-import pytest
-
 from scripts import schema
 
 BASE = {

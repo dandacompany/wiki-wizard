@@ -57,7 +57,7 @@ def test_full_wiki_workflow(fresh_db, tmp_path):
     entity_rel = ingest.write_wiki_page(
         db, vault_id=vault["id"],
         layer="entities", title="Andrej Karpathy",
-        body="AI researcher and educator. Former director of AI at Tesla and researcher at OpenAI.",
+        body="## Summary\n\nAI researcher and educator. Former director of AI at Tesla and researcher at OpenAI.",
         tags=["person"], date_str="2026-05-25",
     )
     concept_rel = ingest.write_wiki_page(
