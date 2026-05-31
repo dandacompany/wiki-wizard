@@ -123,3 +123,24 @@ def test_setup_personas_defaults_main_to_orchestrator(tmp_path):
     rc = setup_wizard.setup_personas(base_dir=tmp_path, hosts=["claude"])
     assert rc == 0
     assert config.load_config()["personas"]["main"] == "operations-orchestrator"
+
+
+def test_setup_tts_enabled_when_complete(monkeypatch):
+    from scripts import setup_wizard, config
+    from scripts.paths import omw_home
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    rc = setup_wizard.setup_tts(provider="elevenlabs", voice_id="V123", api_key="K456")
+    assert rc == 0
+    cfg = config.load_config()
+    assert cfg["tts"]["provider"] == "elevenlabs"
+    assert cfg["tts"]["voice_id"] == "V123"
+    assert cfg["tts"]["enabled"] is True
+    assert config.read_secret("ELEVENLABS_API_KEY") == "K456"
+    assert (omw_home() / ".env").stat().st_mode & 0o777 == 0o600
+
+
+def test_setup_tts_not_enabled_without_key():
+    from scripts import setup_wizard, config
+    rc = setup_wizard.setup_tts(provider="elevenlabs", voice_id="V123")
+    assert rc == 0
+    assert config.load_config()["tts"]["enabled"] is False

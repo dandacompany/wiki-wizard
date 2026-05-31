@@ -173,6 +173,24 @@ def setup_personas(*, enabled: list[str] | None = None, main: str | None = None,
     return 0
 
 
+def setup_tts(*, provider: str | None = None, voice_id: str | None = None,
+              api_key: str | None = None, noninteractive: bool = False) -> int:
+    """Configure a TTS provider + voice. Key -> ~/.omw/.env (0600). Mirrors setup_search."""
+    from scripts import config
+    provider = provider or "elevenlabs"
+    if api_key:
+        config.set_secret(f"{provider.upper()}_API_KEY", api_key)
+    config.set_config("tts.provider", provider)
+    config.set_config("tts.voice_id", voice_id)
+    enabled = bool(api_key and voice_id)
+    config.set_config("tts.enabled", enabled)
+    if enabled:
+        print(f"✓ tts provider '{provider}' configured (voice {voice_id}).")
+    else:
+        print(f"tts provider '{provider}' recorded — provide --api-key + --voice-id to enable.")
+    return 0
+
+
 def setup_serve(*, token: str | None = None, generate_token: bool = False) -> int:
     """Configure OMW_SERVE_TOKEN in ~/.omw/.env (0600)."""
     from scripts import config

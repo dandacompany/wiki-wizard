@@ -169,6 +169,11 @@ def _cmd_setup(args) -> int:
             enabled=enabled, main=args.main, hosts=hosts,
             base_dir=args.base_dir, noninteractive=args.noninteractive,
         )
+    if args.section == "tts":
+        return setup_wizard.setup_tts(
+            provider=args.provider, voice_id=args.voice_id,
+            api_key=args.api_key, noninteractive=args.noninteractive,
+        )
     if args.section == "search":
         return setup_wizard.setup_search(
             noninteractive=args.noninteractive,

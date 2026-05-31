@@ -147,6 +147,16 @@ def test_agentic_op_bridges_to_claude(op, capsys):
     assert (not db.exists()) or registry.list_vaults(db) == []
 
 
+def test_setup_tts_via_cli(monkeypatch):
+    from scripts import omw_cli, config
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    rc = omw_cli.main(["setup", "tts", "--provider", "elevenlabs",
+                       "--voice-id", "V9", "--api-key", "K9"])
+    assert rc == 0
+    assert config.read_secret("ELEVENLABS_API_KEY") == "K9"
+    assert config.load_config()["tts"]["enabled"] is True
+
+
 def test_installer_is_executable_and_valid():
     p = Path(__file__).resolve().parents[1] / "bin" / "omw-install.sh"
     assert p.is_file()
