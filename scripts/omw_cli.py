@@ -124,6 +124,34 @@ def _cmd_lint(args) -> int:
     return 0
 
 
+def _cmd_supersede(args) -> int:
+    from scripts import supersede
+    db = registry_path()
+    if not db.exists():
+        print("error: no registry; run `omw status` to set up", file=sys.stderr)
+        return 1
+    if args.vault:
+        match = [v for v in registry.list_vaults(db) if v["name"] == args.vault]
+        if not match:
+            print(f"error: vault {args.vault!r} not found", file=sys.stderr)
+            return 1
+        vault_id = match[0]["id"]
+    else:
+        active = registry.get_active(db)
+        if active is None:
+            print("error: no active vault; pass --vault <name>", file=sys.stderr)
+            return 1
+        vault_id = active["id"]
+    try:
+        out = supersede.mark_superseded(db, vault_id=vault_id, relpath=args.relpath,
+                                        by_slug=args.by)
+    except FileNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+    return 0
+
+
 def _resolve_vault_path(db, name):
     """Return a vault's content path by name (or active). None if unresolved."""
     if not db.exists():
@@ -341,6 +369,12 @@ def build_parser() -> argparse.ArgumentParser:
     pl = sub.add_parser("lint", help="Run deterministic lint over a vault.")
     pl.add_argument("--vault", default=None, help="vault name (default: active)")
     pl.set_defaults(func=_cmd_lint)
+
+    psup = sub.add_parser("supersede", help="Mark a page superseded (status + superseded_by).")
+    psup.add_argument("relpath")
+    psup.add_argument("--by", required=True, help="slug of the superseding page")
+    psup.add_argument("--vault", default=None, help="vault name (default: active)")
+    psup.set_defaults(func=_cmd_supersede)
 
     psch = sub.add_parser("schema", help="Show page-type schemas (conventions).")
     schsub = psch.add_subparsers(dest="schema_cmd", required=True)
