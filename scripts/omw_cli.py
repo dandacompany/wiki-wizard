@@ -153,6 +153,7 @@ def _cmd_schema(args) -> int:
             "required_fields": s.get("required_fields", []),
             "required_sections": s.get("required_sections", []),
             "field_types": s.get("field_types", {}),
+            "allowed_values": s.get("allowed_values", {}),
         }
 
     if args.schema_cmd == "list":

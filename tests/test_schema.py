@@ -134,3 +134,46 @@ def test_load_dir_skips_malformed_yaml(tmp_path):
     loaded = schema._load_dir(tmp_path)
     assert "good" in loaded
     assert "bad" not in loaded
+
+
+ALLOWED = {
+    "base": {
+        "required_fields": ["title", "type"],
+        "field_types": {},
+        "required_sections": [],
+        "allowed_values": {"confidence": ["high", "medium", "low"],
+                           "status": ["draft", "processed", "superseded"]},
+    },
+}
+ALLOWED["concept"] = dict(ALLOWED["base"])
+
+
+def test_validate_invalid_value_confidence():
+    meta = {"title": "T", "type": "concept", "confidence": "bogus"}
+    issues = {i["issue"] for i in schema.validate(meta, "", schemas=ALLOWED)}
+    assert "invalid_value:confidence" in issues
+
+
+def test_validate_allowed_value_ok_and_optional():
+    # valid value → no issue; absent optional field → no issue
+    ok = {"title": "T", "type": "concept", "confidence": "high"}
+    assert all(not i["issue"].startswith("invalid_value")
+               for i in schema.validate(ok, "", schemas=ALLOWED))
+    absent = {"title": "T", "type": "concept"}
+    assert all(not i["issue"].startswith("invalid_value")
+               for i in schema.validate(absent, "", schemas=ALLOWED))
+
+
+def test_validate_invalid_status_value():
+    meta = {"title": "T", "type": "concept", "status": "weird"}
+    issues = {i["issue"] for i in schema.validate(meta, "", schemas=ALLOWED)}
+    assert "invalid_value:status" in issues
+
+
+def test_load_schemas_merges_allowed_values(tmp_path, monkeypatch):
+    monkeypatch.setattr(schema, "_BUNDLED_DIR", tmp_path / "bundled")
+    _write(tmp_path / "bundled", "base.yml",
+           "required_fields: [title]\nallowed_values: {confidence: [high, low]}\n")
+    _write(tmp_path / "bundled", "concept.yml", "extends: base\n")
+    schemas = schema.load_schemas()
+    assert schemas["concept"]["allowed_values"]["confidence"] == ["high", "low"]

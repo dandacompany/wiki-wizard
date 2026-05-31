@@ -55,6 +55,9 @@ def validate(meta: dict, body: str, *, schemas: dict) -> list[dict]:
     for section in spec.get("required_sections", []):
         if not _has_section(body, section):
             issues.append({"issue": f"missing_section:{section}", "detail": None})
+    for field, allowed in spec.get("allowed_values", {}).items():
+        if field in meta and meta[field] not in allowed:
+            issues.append({"issue": f"invalid_value:{field}", "detail": str(meta[field])})
     return issues
 
 
@@ -82,11 +85,13 @@ def _resolve(raw: dict[str, dict]) -> dict[str, dict]:
             "required_fields": [],
             "field_types": {},
             "required_sections": [],
+            "allowed_values": {},
         }
         if name != "base" and spec.get("extends") == "base":
             merged["required_fields"] = list(base.get("required_fields", []))
             merged["required_sections"] = list(base.get("required_sections", []))
             merged["field_types"] = dict(base.get("field_types", {}))
+            merged["allowed_values"] = dict(base.get("allowed_values", {}))
         # type-specific values extend/override the base
         for f in spec.get("required_fields", []):
             if f not in merged["required_fields"]:
@@ -95,6 +100,7 @@ def _resolve(raw: dict[str, dict]) -> dict[str, dict]:
             if s not in merged["required_sections"]:
                 merged["required_sections"].append(s)
         merged["field_types"].update(spec.get("field_types", {}))
+        merged["allowed_values"].update(spec.get("allowed_values", {}))
         resolved[name] = merged
     return resolved
 
