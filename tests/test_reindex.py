@@ -120,3 +120,44 @@ def test_reindex_cli_full_flag(tmp_db, tmp_path, capsys):
 def test_reindex_cli_requires_vault_id():
     with pytest.raises(SystemExit):
         reindex.main(["--db", "/tmp/whatever.db"])
+
+
+# ---------------------------------------------------------------------------
+# Task 4: non-blocking schema tally
+# ---------------------------------------------------------------------------
+
+def _vault(tmp_path, monkeypatch):
+    monkeypatch.setenv("OMW_HOME", str(tmp_path / ".omw"))
+    db = tmp_path / "registry.db"
+    registry.init_db(db)
+    root = tmp_path / "vault"
+    (root / "wiki" / "entities").mkdir(parents=True)
+    v = registry.add_vault(db, name="v", path=root, type_="markdown", mode="wiki")
+    return db, root, v["id"]
+
+
+def test_full_returns_int_count(tmp_path, monkeypatch):
+    db, root, vid = _vault(tmp_path, monkeypatch)
+    (root / "wiki" / "entities" / "ok.md").write_text(
+        "---\ntitle: T\ndate: 2026-01-01\ntype: entity\ntags: [a]\n---\n## Summary\nx\n",
+        encoding="utf-8",
+    )
+    count = reindex.full(db, vault_id=vid)
+    assert isinstance(count, int) and count == 1
+
+
+def test_scan_reports_schema_issues_but_still_ingests(tmp_path, monkeypatch):
+    db, root, vid = _vault(tmp_path, monkeypatch)
+    # entity missing required ## Summary section
+    (root / "wiki" / "entities" / "bad.md").write_text(
+        "---\ntitle: T\ndate: 2026-01-01\ntype: entity\ntags: [a]\n---\nno section\n",
+        encoding="utf-8",
+    )
+    vp = reindex._vault_path(db, vid)
+    result = reindex._scan(db, vid, vp, incremental=False)
+    assert result["indexed"] == 1
+    flat = {i["issue"] for entry in result["schema_issues"] for i in entry["issues"]}
+    assert "missing_section:## Summary" in flat
+    # page is still indexed despite the violation
+    assert any(n["relpath"] == "wiki/entities/bad.md"
+               for n in registry.list_notes(db, vault_id=vid))
