@@ -168,6 +168,28 @@ def test_find_inconsistencies_skips_glossary_db_dir(tmp_path):
     assert glossary.find_inconsistencies(db, vault_id=1, vault_root=vault) == []
 
 
+def test_korean_canonical_matches_surface_with_josa(tmp_path):
+    """_build_variant_pattern must match canonical + Korean josa (was missed with \\b)."""
+    pat = glossary._build_variant_pattern("카르파시", [])
+    assert pat.search("카르파시가 논문을 썼다"), "josa '가' should match"
+    assert pat.search("카르파시의 연구"), "josa '의' should match"
+    # name inside a compound should not match
+    assert not pat.search("카르파시나무"), "compound should not match"
+
+
+def test_find_inconsistencies_ignores_korean_josa_inflection(tmp_path):
+    """A josa-inflected form of the canonical is NOT a real inconsistency."""
+    vault = tmp_path / "vault"
+    (vault / "wiki").mkdir(parents=True)
+    (vault / "wiki" / "page.md").write_text(
+        "카르파시가 이것을 썼다. 카르파시의 연구.\n", encoding="utf-8",
+    )
+    db = glossary.open_db(vault)
+    glossary.upsert_term(db, vault_id=1, canonical="카르파시", aliases=[])
+    # name-part of every match equals the canonical → nothing flagged
+    assert glossary.find_inconsistencies(db, vault_id=1, vault_root=vault) == []
+
+
 import json as _json
 import subprocess
 import sys

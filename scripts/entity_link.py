@@ -9,20 +9,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from scripts import frontmatter, links, reindex
+from scripts import frontmatter, links, reindex, text_match
 
 _EXEMPT = set(links.META_RELPATHS)
 
 
 def _name_pattern(names) -> re.Pattern | None:
-    parts = []
-    for n in sorted({n.strip() for n in names if n and str(n).strip()}, key=len, reverse=True):
-        toks = str(n).split()
-        if toks:
-            parts.append(r"\s+".join(re.escape(t) for t in toks))
-    if not parts:
-        return None
-    return re.compile(r"\b(?:" + "|".join(parts) + r")\b", re.IGNORECASE)
+    return text_match.build_name_pattern(names)
 
 
 def _link_spans(body: str) -> list[tuple[int, int]]:
@@ -81,7 +74,7 @@ def suggest_links(db_path: Path, *, vault_id: int, relpath=None) -> list[dict]:
             for m in e["pat"].finditer(body):
                 if not _in_span(m.start(), spans):
                     out.append({"src_relpath": rel, "target_slug": e["slug"],
-                                "target_relpath": e["relpath"], "mention": m.group(0),
+                                "target_relpath": e["relpath"], "mention": m.group("name"),
                                 "position": m.start()})
                     break
     return out
@@ -103,10 +96,10 @@ def apply_link(db_path: Path, *, vault_id: int, relpath: str, target_slug: str) 
                   if not _in_span(m.start(), spans)), None)
     if match is None:
         raise ValueError(f"no unlinked mention of {target_slug!r} in {relpath}")
-    mention = match.group(0)
+    mention = match.group("name")
     repl = f"[[{target_slug}]]" if links._slugify(mention) == target_slug \
         else f"[[{target_slug}|{mention}]]"
-    new_body = body[:match.start()] + repl + body[match.end():]
+    new_body = body[:match.start("name")] + repl + body[match.end("name"):]
     abs_path.write_text(frontmatter.dump(meta, new_body), encoding="utf-8")
     reindex.incremental(db_path, vault_id=vault_id)
     return {"relpath": relpath, "target_slug": target_slug, "mention": mention, "inserted": repl}
