@@ -111,3 +111,18 @@ def test_valid_types_excludes_base(tmp_path, monkeypatch):
     _write(tmp_path / "bundled", "note.yml", "extends: base\n")
     schemas = schema.load_schemas()
     assert schema.valid_types(schemas) == {"note"}
+
+
+def test_bundled_defaults_cover_known_types():
+    schemas = schema.load_schemas()  # reads the real schemas/ dir
+    types = schema.valid_types(schemas)
+    expected = {
+        "article", "link", "note", "paper", "video", "book", "doc",
+        "summary", "entity", "concept", "comparison", "synthesis", "meta",
+    }
+    assert expected <= types
+    # base baseline is inherited by extends:base types
+    assert set(schemas["concept"]["required_fields"]) == {"title", "date", "type", "tags"}
+    assert schemas["entity"]["required_sections"] == ["## Summary"]
+    # meta is intentionally minimal
+    assert schemas["meta"]["required_fields"] == []
