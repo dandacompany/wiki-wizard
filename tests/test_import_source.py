@@ -59,3 +59,42 @@ def test_import_folder_obsidian_label(tmp_db, tmp_path):
     src = _src_tree(tmp_path)
     out = imp.import_folder(tmp_db, vault_id=vid, src_dir=src, source="obsidian")
     assert "raw/import/a.md" in out["imported"]
+
+
+def test_blocks_to_markdown_common_types():
+    blocks = [
+        {"type": "heading_1", "heading_1": {"rich_text": [{"plain_text": "Title"}]}},
+        {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "Hello world"}]}},
+        {"type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"plain_text": "one"}]}},
+        {"type": "to_do", "to_do": {"rich_text": [{"plain_text": "task"}], "checked": True}},
+        {"type": "code", "code": {"rich_text": [{"plain_text": "print(1)"}]}},
+        {"type": "quote", "quote": {"rich_text": [{"plain_text": "wise"}]}},
+    ]
+    md = imp._blocks_to_markdown(blocks)
+    assert "# Title" in md
+    assert "Hello world" in md
+    assert "- one" in md
+    assert "- [x] task" in md
+    assert "```" in md and "print(1)" in md
+    assert "> wise" in md
+
+
+def test_import_notion_mocked(tmp_db, tmp_path, monkeypatch):
+    vid, vroot = _vault(tmp_db, tmp_path, "nv")
+    def fake_http(url, *, headers=None):
+        if url.endswith("/pages/PAGE1"):
+            return {"properties": {"Name": {"type": "title",
+                    "title": [{"plain_text": "My Page"}]}}}
+        if "/blocks/PAGE1/children" in url:
+            return {"results": [
+                {"type": "heading_1", "heading_1": {"rich_text": [{"plain_text": "My Page"}]},
+                 "has_children": False, "id": "B1"},
+                {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "body text"}]},
+                 "has_children": False, "id": "B2"},
+            ], "has_more": False, "next_cursor": None}
+        return {"results": [], "has_more": False, "next_cursor": None}
+    monkeypatch.setattr(imp, "_http_get", fake_http)
+    out = imp.import_notion(tmp_db, vault_id=vid, token="t", root_id="PAGE1")
+    assert any(r.startswith("raw/import/notion/") and r.endswith(".md") for r in out["imported"])
+    page = next(vroot.glob("raw/import/notion/*.md"))
+    assert "body text" in page.read_text()
