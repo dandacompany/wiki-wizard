@@ -144,3 +144,104 @@ def test_setup_tts_not_enabled_without_key():
     rc = setup_wizard.setup_tts(provider="elevenlabs", voice_id="V123")
     assert rc == 0
     assert config.load_config()["tts"]["enabled"] is False
+
+
+def _fake_input(answers):
+    """Return an input() replacement that pops scripted answers in order."""
+    seq = list(answers)
+    def _inp(prompt=""):
+        return seq.pop(0)
+    return _inp
+
+
+def test_setup_serve_interactive_prompts_for_token(monkeypatch):
+    from scripts import setup_wizard, config
+    from scripts.paths import omw_home
+    monkeypatch.delenv("OMW_SERVE_TOKEN", raising=False)
+    monkeypatch.setattr(setup_wizard.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", _fake_input(["n", "pasted-token-123"]))
+    rc = setup_wizard.setup_serve()
+    assert rc == 0
+    assert config.read_secret("OMW_SERVE_TOKEN") == "pasted-token-123"
+    assert (omw_home() / ".env").stat().st_mode & 0o777 == 0o600
+
+
+def test_setup_serve_interactive_generate(monkeypatch):
+    from scripts import setup_wizard, config
+    monkeypatch.delenv("OMW_SERVE_TOKEN", raising=False)
+    monkeypatch.setattr(setup_wizard.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", _fake_input(["y"]))
+    rc = setup_wizard.setup_serve()
+    assert rc == 0
+    tok = config.read_secret("OMW_SERVE_TOKEN")
+    assert tok and len(tok) >= 20
+
+
+def test_setup_serve_noninteractive_flag_unchanged(monkeypatch):
+    from scripts import setup_wizard, config
+    monkeypatch.delenv("OMW_SERVE_TOKEN", raising=False)
+    rc = setup_wizard.setup_serve(token="flagtok", noninteractive=True)
+    assert rc == 0
+    assert config.read_secret("OMW_SERVE_TOKEN") == "flagtok"
+
+
+def test_setup_tts_interactive_prompts(monkeypatch):
+    from scripts import setup_wizard, config
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    monkeypatch.setattr(setup_wizard.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", _fake_input(["", "V-int", "K-int"]))
+    rc = setup_wizard.setup_tts()
+    assert rc == 0
+    cfg = config.load_config()
+    assert cfg["tts"]["voice_id"] == "V-int"
+    assert cfg["tts"]["enabled"] is True
+    assert config.read_secret("ELEVENLABS_API_KEY") == "K-int"
+
+
+def test_setup_personas_interactive_selects_roster(monkeypatch, tmp_path):
+    from scripts import setup_wizard, config
+    monkeypatch.setattr(setup_wizard.sys.stdin, "isatty", lambda: True)
+    # checkbox(enabled) -> "researcher,curator"; select(main) -> "curator"; checkbox(hosts) -> "claude"
+    monkeypatch.setattr("builtins.input",
+                        _fake_input(["researcher,curator", "curator", "claude"]))
+    rc = setup_wizard.setup_personas(base_dir=tmp_path)  # no enable/main/host flags
+    assert rc == 0
+    cfg = config.load_config()
+    assert cfg["personas"]["enabled"] == ["researcher", "curator"]
+    assert cfg["personas"]["main"] == "curator"
+    assert (tmp_path / "CLAUDE.md").exists()
+    assert not (tmp_path / "AGENTS.md").exists()  # only claude host selected
+
+
+def test_setup_personas_noninteractive_flags_unchanged(tmp_path):
+    from scripts import setup_wizard, config
+    rc = setup_wizard.setup_personas(enabled=["researcher"], main="researcher",
+                                     hosts=["claude"], base_dir=tmp_path, noninteractive=True)
+    assert rc == 0
+    assert config.load_config()["personas"]["main"] == "researcher"
+
+
+def test_run_all_invokes_sections_in_order(monkeypatch, tmp_path):
+    from scripts import setup_wizard
+    calls = []
+    monkeypatch.setattr(setup_wizard, "run", lambda **k: calls.append("vault") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_search", lambda **k: calls.append("search") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_serve", lambda **k: calls.append("serve") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_tts", lambda **k: calls.append("tts") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_personas", lambda **k: calls.append("personas") or 0)
+    rc = setup_wizard.run_all(noninteractive=False, base_dir=tmp_path)
+    assert rc == 0
+    assert calls == ["vault", "search", "serve", "tts", "personas"]
+
+
+def test_run_all_returns_first_nonzero_but_continues(monkeypatch, tmp_path):
+    from scripts import setup_wizard
+    calls = []
+    monkeypatch.setattr(setup_wizard, "run", lambda **k: calls.append("vault") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_search", lambda **k: calls.append("search") or 2)
+    monkeypatch.setattr(setup_wizard, "setup_serve", lambda **k: calls.append("serve") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_tts", lambda **k: calls.append("tts") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_personas", lambda **k: calls.append("personas") or 0)
+    rc = setup_wizard.run_all(noninteractive=False, base_dir=tmp_path)
+    assert rc == 2
+    assert calls == ["vault", "search", "serve", "tts", "personas"]

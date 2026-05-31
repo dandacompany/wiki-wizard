@@ -84,6 +84,37 @@ def _run_interactive(name: str, mode: str, type_: str, location: str) -> int:
     return 0
 
 
+def _prompt(kind: str, message: str, *, choices=None, default=None):
+    """questionary prompt with an input() fallback (used when questionary is absent).
+
+    kind: "text" | "password" | "select" | "confirm" | "checkbox".
+    Returns: str | bool | list[str] | None depending on kind.
+    """
+    try:
+        import questionary  # type: ignore
+        if kind == "password":
+            return questionary.password(message).ask()
+        if kind == "select":
+            return questionary.select(message, choices=choices, default=default).ask()
+        if kind == "text":
+            return questionary.text(message, default=default or "").ask()
+        if kind == "confirm":
+            return questionary.confirm(message, default=bool(default)).ask()
+        if kind == "checkbox":
+            return questionary.checkbox(message, choices=choices).ask()
+        raise ValueError(f"unknown prompt kind: {kind!r}")
+    except ImportError:
+        if kind == "confirm":
+            ans = input(f"{message} [{'Y/n' if default else 'y/N'}]: ").strip().lower()
+            return bool(default) if not ans else ans in ("y", "yes")
+        if kind == "checkbox":
+            raw = input(f"{message} (comma-separated, blank = all): ").strip()
+            return [s.strip() for s in raw.split(",") if s.strip()] if raw else list(choices or [])
+        suffix = f" [{default}]" if default else ""
+        ans = input(f"{message}{suffix}: ").strip()
+        return ans or default
+
+
 #: provider -> ordered list of (field, env var) the wizard must write.
 #: Multi-secret providers (e.g. brightdata) are only enabled once ALL are present.
 _PROVIDER_SECRETS = {
@@ -147,6 +178,18 @@ def setup_personas(*, enabled: list[str] | None = None, main: str | None = None,
     specs = personas.list_personas()
     all_names = [p["name"] for p in specs]
     descriptions = {p["name"]: p.get("description", "") for p in specs}
+    interactive = (not noninteractive) and sys.stdin.isatty()
+    if interactive and enabled is None:
+        picked = _prompt("checkbox", "Enable personas", choices=all_names)
+        enabled = picked or list(all_names)
+    if interactive and main is None:
+        default_main = ("operations-orchestrator" if "operations-orchestrator" in (enabled or all_names)
+                        else ((enabled or all_names)[0] if (enabled or all_names) else None))
+        main = _prompt("select", "Main persona", choices=enabled or all_names,
+                       default=default_main) or None
+    if interactive and hosts is None:
+        hosts = _prompt("checkbox", "Export to hosts",
+                        choices=list(persona_export.HOST_FILES)) or None
     if enabled is None:
         enabled = list(all_names)
     unknown = [n for n in enabled if n not in all_names]
@@ -177,6 +220,17 @@ def setup_tts(*, provider: str | None = None, voice_id: str | None = None,
               api_key: str | None = None, noninteractive: bool = False) -> int:
     """Configure a TTS provider + voice. Key -> ~/.omw/.env (0600). Mirrors setup_search."""
     from scripts import config
+    interactive = (not noninteractive) and sys.stdin.isatty()
+    if interactive and provider is None:
+        provider = _prompt("select", "TTS provider", choices=["elevenlabs", "skip"],
+                           default="elevenlabs") or "skip"
+        if provider == "skip":
+            print("tts setup skipped — re-run `omw setup tts` anytime.")
+            return 0
+        if not voice_id:
+            voice_id = _prompt("text", "Voice ID (blank to defer)") or None
+        if not api_key:
+            api_key = _prompt("password", "API key (blank to defer)") or None
     provider = provider or "elevenlabs"
     if api_key:
         config.set_secret(f"{provider.upper()}_API_KEY", api_key)
@@ -191,17 +245,52 @@ def setup_tts(*, provider: str | None = None, voice_id: str | None = None,
     return 0
 
 
-def setup_serve(*, token: str | None = None, generate_token: bool = False) -> int:
+def setup_serve(*, token: str | None = None, generate_token: bool = False,
+                noninteractive: bool = False) -> int:
     """Configure OMW_SERVE_TOKEN in ~/.omw/.env (0600)."""
     from scripts import config
+    interactive = (not noninteractive) and sys.stdin.isatty()
+    if interactive and not token and not generate_token:
+        if _prompt("confirm", "Generate a new serve token?", default=True):
+            generate_token = True
+        else:
+            token = _prompt("password", "Paste OMW_SERVE_TOKEN (blank to skip)") or None
     if generate_token:
         token = secrets.token_urlsafe(32)
     if not token:
+        if interactive:
+            print("serve setup skipped — re-run `omw setup serve` anytime.")
+            return 0
         print("error: provide --token <t> or --generate-token", file=sys.stderr)
         return 1
     config.set_secret("OMW_SERVE_TOKEN", token)
     print(f"✓ serve token configured ({len(token)} chars). Start with: omw serve")
     return 0
+
+
+def run_all(*, noninteractive: bool = False, base_dir=None) -> int:
+    """Top-level interactive wizard: walk every section in order with per-step skip.
+
+    Returns the first non-zero section result (continuing through the rest), else 0.
+    """
+    first_error = 0
+    steps = [
+        ("vault", lambda: run(noninteractive=noninteractive)),
+        ("search", lambda: setup_search(noninteractive=noninteractive)),
+        ("serve", lambda: setup_serve(noninteractive=noninteractive)),
+        ("tts", lambda: setup_tts(noninteractive=noninteractive)),
+        ("personas", lambda: setup_personas(noninteractive=noninteractive, base_dir=base_dir)),
+    ]
+    for name, fn in steps:
+        try:
+            rc = fn()
+        except Exception as exc:  # one bad section must not abort the whole wizard
+            print(f"error: section {name!r} failed: {exc}", file=sys.stderr)
+            rc = 1
+        if rc != 0 and first_error == 0:
+            first_error = rc
+    print("omw setup complete.")
+    return first_error
 
 
 def doctor() -> int:
