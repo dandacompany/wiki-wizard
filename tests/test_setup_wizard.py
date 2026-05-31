@@ -95,3 +95,31 @@ def test_setup_serve_without_token_or_flag_errors(capsys):
     rc = setup_wizard.setup_serve()
     assert rc == 1
     assert "token" in capsys.readouterr().err.lower()
+
+
+def test_setup_personas_records_config_and_exports(tmp_path):
+    from scripts import setup_wizard, config, persona_export
+    rc = setup_wizard.setup_personas(
+        enabled=["researcher", "curator"], main="researcher",
+        hosts=["claude", "codex", "gemini"], base_dir=tmp_path,
+    )
+    assert rc == 0
+    cfg = config.load_config()
+    assert cfg["personas"]["enabled"] == ["researcher", "curator"]
+    assert cfg["personas"]["main"] == "researcher"
+    for f in persona_export.HOST_FILES.values():
+        assert "<!-- omw-personas:start -->" in (tmp_path / f).read_text()
+
+
+def test_setup_personas_unknown_name_errors(tmp_path, capsys):
+    from scripts import setup_wizard
+    rc = setup_wizard.setup_personas(enabled=["nonesuch"], base_dir=tmp_path)
+    assert rc == 1
+    assert "nonesuch" in capsys.readouterr().err
+
+
+def test_setup_personas_defaults_main_to_orchestrator(tmp_path):
+    from scripts import setup_wizard, config
+    rc = setup_wizard.setup_personas(base_dir=tmp_path, hosts=["claude"])
+    assert rc == 0
+    assert config.load_config()["personas"]["main"] == "operations-orchestrator"

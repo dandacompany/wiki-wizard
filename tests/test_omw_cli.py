@@ -190,3 +190,14 @@ def test_setup_serve_via_cli_writes_token():
     rc = omw_cli.main(["setup", "serve", "--token", "xyz789"])
     assert rc == 0
     assert config.read_secret("OMW_SERVE_TOKEN") == "xyz789"
+
+
+def test_setup_personas_via_cli(tmp_path):
+    from scripts import omw_cli, config
+    rc = omw_cli.main([
+        "setup", "personas", "--enable", "researcher,curator",
+        "--main", "curator", "--host", "claude", "--base-dir", str(tmp_path),
+    ])
+    assert rc == 0
+    assert config.load_config()["personas"]["main"] == "curator"
+    assert (tmp_path / "CLAUDE.md").exists()
