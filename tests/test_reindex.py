@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from scripts import registry, reindex
+from scripts import fts, registry, reindex
 
 
 @pytest.fixture
@@ -178,3 +178,33 @@ def test_scan_validates_pages_without_frontmatter(tmp_path, monkeypatch):
     # still indexed (non-blocking)
     assert any(n["relpath"] == "wiki/entities/nofm.md"
                for n in registry.list_notes(db, vault_id=vid))
+
+
+# ---------------------------------------------------------------------------
+# Task 2 (F#6): FTS5 population during reindex
+# ---------------------------------------------------------------------------
+
+def test_reindex_populates_fts(tmp_path, monkeypatch):
+    db, root, vid = _vault(tmp_path, monkeypatch)
+    (root / "wiki" / "entities" / "a.md").write_text(
+        "---\ntitle: A\ndate: 2026-01-01\ntype: entity\ntags: [x]\n---\n## Summary\nthe quick brown fox\n",
+        encoding="utf-8")
+    reindex.full(db, vault_id=vid)
+    conn = registry.connect(db)
+    try:
+        n = conn.execute("SELECT count(*) FROM notes_fts WHERE vault_id=?", (str(vid),)).fetchone()[0]
+    finally:
+        conn.close()
+    assert n == 1
+    # body term is searchable
+    assert fts.search(db, vault_id=vid, query="fox", limit=5)[0]["relpath"] == "wiki/entities/a.md"
+
+
+def test_reindex_works_without_fts5(tmp_path, monkeypatch):
+    monkeypatch.setattr(fts, "fts5_available", lambda: False)
+    db, root, vid = _vault(tmp_path, monkeypatch)
+    (root / "wiki" / "entities" / "a.md").write_text(
+        "---\ntitle: A\ndate: 2026-01-01\ntype: entity\ntags: [x]\n---\n## Summary\nx\n",
+        encoding="utf-8")
+    count = reindex.full(db, vault_id=vid)  # must not raise
+    assert count == 1
