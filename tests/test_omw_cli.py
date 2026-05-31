@@ -211,3 +211,21 @@ def test_setup_personas_via_cli(tmp_path):
     assert rc == 0
     assert config.load_config()["personas"]["main"] == "curator"
     assert (tmp_path / "CLAUDE.md").exists()
+
+
+def test_setup_no_section_noninteractive_creates_vault(tmp_path, monkeypatch):
+    from scripts import omw_cli, registry
+    from scripts.paths import registry_path
+    rc = omw_cli.main(["setup", "--noninteractive", "--name", "wiz"])
+    assert rc == 0
+    names = {v["name"] for v in registry.list_vaults(registry_path())}
+    assert "wiz" in names
+
+
+def test_setup_no_section_interactive_calls_run_all(monkeypatch):
+    from scripts import omw_cli, setup_wizard
+    called = {}
+    monkeypatch.setattr(setup_wizard.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(setup_wizard, "run_all", lambda **k: called.setdefault("ran", True) or 0)
+    rc = omw_cli.main(["setup"])
+    assert rc == 0 and called.get("ran") is True

@@ -219,3 +219,29 @@ def test_setup_personas_noninteractive_flags_unchanged(tmp_path):
                                      hosts=["claude"], base_dir=tmp_path, noninteractive=True)
     assert rc == 0
     assert config.load_config()["personas"]["main"] == "researcher"
+
+
+def test_run_all_invokes_sections_in_order(monkeypatch, tmp_path):
+    from scripts import setup_wizard
+    calls = []
+    monkeypatch.setattr(setup_wizard, "run", lambda **k: calls.append("vault") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_search", lambda **k: calls.append("search") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_serve", lambda **k: calls.append("serve") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_tts", lambda **k: calls.append("tts") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_personas", lambda **k: calls.append("personas") or 0)
+    rc = setup_wizard.run_all(noninteractive=False, base_dir=tmp_path)
+    assert rc == 0
+    assert calls == ["vault", "search", "serve", "tts", "personas"]
+
+
+def test_run_all_returns_first_nonzero_but_continues(monkeypatch, tmp_path):
+    from scripts import setup_wizard
+    calls = []
+    monkeypatch.setattr(setup_wizard, "run", lambda **k: calls.append("vault") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_search", lambda **k: calls.append("search") or 2)
+    monkeypatch.setattr(setup_wizard, "setup_serve", lambda **k: calls.append("serve") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_tts", lambda **k: calls.append("tts") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_personas", lambda **k: calls.append("personas") or 0)
+    rc = setup_wizard.run_all(noninteractive=False, base_dir=tmp_path)
+    assert rc == 2
+    assert calls == ["vault", "search", "serve", "tts", "personas"]

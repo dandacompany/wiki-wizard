@@ -158,6 +158,15 @@ def _cmd_serve(args) -> int:
 
 def _cmd_setup(args) -> int:
     from scripts import setup_wizard
+    if args.section is None:
+        interactive = (not args.noninteractive) and sys.stdin.isatty()
+        if interactive:
+            setup_wizard.run_all(noninteractive=False, base_dir=args.base_dir)
+            return 0
+        return setup_wizard.run(
+            section=None, noninteractive=args.noninteractive,
+            name=args.name, mode=args.mode, type_=args.type, location=args.location,
+        )
     if args.section == "serve":
         return setup_wizard.setup_serve(
             token=args.token, generate_token=args.generate_token,

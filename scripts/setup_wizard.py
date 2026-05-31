@@ -268,6 +268,31 @@ def setup_serve(*, token: str | None = None, generate_token: bool = False,
     return 0
 
 
+def run_all(*, noninteractive: bool = False, base_dir=None) -> int:
+    """Top-level interactive wizard: walk every section in order with per-step skip.
+
+    Returns the first non-zero section result (continuing through the rest), else 0.
+    """
+    first_error = 0
+    steps = [
+        ("vault", lambda: run(noninteractive=noninteractive)),
+        ("search", lambda: setup_search(noninteractive=noninteractive)),
+        ("serve", lambda: setup_serve(noninteractive=noninteractive)),
+        ("tts", lambda: setup_tts(noninteractive=noninteractive)),
+        ("personas", lambda: setup_personas(noninteractive=noninteractive, base_dir=base_dir)),
+    ]
+    for name, fn in steps:
+        try:
+            rc = fn()
+        except Exception as exc:  # one bad section must not abort the whole wizard
+            print(f"error: section {name!r} failed: {exc}", file=sys.stderr)
+            rc = 1
+        if rc != 0 and first_error == 0:
+            first_error = rc
+    print("omw setup complete.")
+    return first_error
+
+
 def doctor() -> int:
     home = omw_home()
     db = registry_path()
