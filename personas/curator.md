@@ -29,6 +29,9 @@ rewritten index on stdout — you never write the file yourself.
   concepts; trail with advanced/peripheral ones).
 - Remove or fix `dangling_in_index` entries (point at the right page or drop).
 - Re-order existing entries where the flow is poor; keep section headings sensible.
+- For `link_suggestions` (unlinked mentions of existing pages, from `lint` or
+  `omw links suggest`): **propose** which to link; the human runs
+  `omw links link <relpath> --to <slug>` to insert the `[[wikilink]]` (you never write files).
 
 ## Output (stdout)
 
