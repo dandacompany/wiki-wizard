@@ -20,12 +20,19 @@ Active vault must exist.
    from scripts import search_index as search, registry
    db = registry_path()
    vault = registry.get_active(db)
-   hits = search.query(db, vault_id=vault['id'], query='<query>', limit=5)
+   hits = search.query(db, vault_id=vault['id'], query='<query>', limit=20)
    print(json.dumps(hits, ensure_ascii=False, indent=2))
    "
    ```
 
-3. **Read each hit's full file** to draft an answer with inline citations like `[summaries/tdd-paper](wiki/summaries/tdd-paper.md)`. Use absolute paths from `vault.path` to read.
+   **Retrieve 20, then rerank.** Retrieval is deterministic — SQLite **FTS5** full-text
+   (BM25 over title+summary+tags+**body**) when available, with an automatic token-scorer
+   fallback; shape `[{relpath, title, summary, tags, score}]`. Then **LLM-rerank**: read the
+   candidates' titles/summaries (open a page if unsure), reorder by relevance to the query
+   intent, drop clearly-irrelevant hits, and keep the top ~5 for the next step. Retrieval is
+   deterministic; this rerank is your reasoning.
+
+3. **Read each kept hit's full file** to draft an answer with inline citations like `[summaries/tdd-paper](wiki/summaries/tdd-paper.md)`. Use absolute paths from `vault.path` to read.
 
 4. **Present the answer.** Show the answer + citation list.
 
