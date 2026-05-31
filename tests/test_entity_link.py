@@ -84,6 +84,17 @@ def test_suggest_finds_korean_name_with_josa(tmp_path, monkeypatch):
     assert ("wiki/entities/tdd.md", "karp") in {(s["src_relpath"], s["target_slug"]) for s in sugg}
 
 
+def test_apply_link_korean_preserves_josa(tmp_path, monkeypatch):
+    db, root, vid = _vault(tmp_path, monkeypatch)
+    _page(root, "karp.md", "---\ntitle: 카르파시\ndate: 2026-01-01\ntype: entity\ntags: [p]\n---\n## Summary\n연구자\n")
+    _page(root, "tdd.md", "---\ntitle: TDD\ndate: 2026-01-01\ntype: concept\ntags: [m]\n---\n## Summary\n카르파시가 이것을 썼다.\n")
+    reindex.full(db, vault_id=vid)
+    out = entity_link.apply_link(db, vault_id=vid, relpath="wiki/entities/tdd.md", target_slug="karp")
+    assert out["inserted"] == "[[karp|카르파시]]"
+    _, body = frontmatter.parse((root / "wiki" / "entities" / "tdd.md").read_text(encoding="utf-8"))
+    assert "[[karp|카르파시]]가 이것을 썼다." in body  # josa preserved OUTSIDE the link
+
+
 def test_apply_link_errors(tmp_path, monkeypatch):
     db, root, vid = _vault(tmp_path, monkeypatch)
     _page(root, "tdd.md", "---\ntitle: TDD\ndate: 2026-01-01\ntype: concept\ntags: [m]\n---\n## Summary\nx\n")

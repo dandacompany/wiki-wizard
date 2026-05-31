@@ -171,7 +171,7 @@ def find_inconsistencies(
             except (OSError, UnicodeDecodeError):
                 continue
             for match in pattern.finditer(text):
-                surface = match.group(0)
+                surface = match.group("name")
                 if surface in known:
                     continue
                 key = (canonical, surface)

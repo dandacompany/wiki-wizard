@@ -32,5 +32,5 @@ def build_name_pattern(names) -> re.Pattern | None:
     if not parts:
         return None
     body = "|".join(parts)
-    pattern = rf"(?<![\w가-힣])(?:{body})(?:{_JOSA_ALT})?(?![\w가-힣])"
+    pattern = rf"(?<![\w가-힣])(?P<name>{body})(?:{_JOSA_ALT})?(?![\w가-힣])"
     return re.compile(pattern, re.IGNORECASE)

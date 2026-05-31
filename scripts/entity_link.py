@@ -74,7 +74,7 @@ def suggest_links(db_path: Path, *, vault_id: int, relpath=None) -> list[dict]:
             for m in e["pat"].finditer(body):
                 if not _in_span(m.start(), spans):
                     out.append({"src_relpath": rel, "target_slug": e["slug"],
-                                "target_relpath": e["relpath"], "mention": m.group(0),
+                                "target_relpath": e["relpath"], "mention": m.group("name"),
                                 "position": m.start()})
                     break
     return out
@@ -96,10 +96,10 @@ def apply_link(db_path: Path, *, vault_id: int, relpath: str, target_slug: str) 
                   if not _in_span(m.start(), spans)), None)
     if match is None:
         raise ValueError(f"no unlinked mention of {target_slug!r} in {relpath}")
-    mention = match.group(0)
+    mention = match.group("name")
     repl = f"[[{target_slug}]]" if links._slugify(mention) == target_slug \
         else f"[[{target_slug}|{mention}]]"
-    new_body = body[:match.start()] + repl + body[match.end():]
+    new_body = body[:match.start("name")] + repl + body[match.end("name"):]
     abs_path.write_text(frontmatter.dump(meta, new_body), encoding="utf-8")
     reindex.incremental(db_path, vault_id=vault_id)
     return {"relpath": relpath, "target_slug": target_slug, "mention": mention, "inserted": repl}

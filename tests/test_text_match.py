@@ -41,3 +41,9 @@ def test_empty_names_returns_none():
 def test_no_redos_on_pathological_input():
     pat = text_match.build_name_pattern(["dante"])
     pat.search("a" * 50000 + "!")  # must return promptly, no catastrophic backtracking
+
+
+def test_name_group_excludes_josa():
+    m = text_match.build_name_pattern(["카르파시"]).search("카르파시가 썼다")
+    assert m.group("name") == "카르파시"
+    assert m.group(0) == "카르파시가"
