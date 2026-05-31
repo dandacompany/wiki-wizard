@@ -138,6 +138,59 @@ def setup_search(*, noninteractive: bool = False, provider: str | None = None,
     return 0
 
 
+def setup_personas(*, enabled: list[str] | None = None, main: str | None = None,
+                   hosts: list[str] | None = None, base_dir=None,
+                   noninteractive: bool = False) -> int:
+    """Record the enabled persona roster + main, and export to host instruction files."""
+    from pathlib import Path
+    from scripts import config, personas, persona_export
+    specs = personas.list_personas()
+    all_names = [p["name"] for p in specs]
+    descriptions = {p["name"]: p.get("description", "") for p in specs}
+    if enabled is None:
+        enabled = list(all_names)
+    unknown = [n for n in enabled if n not in all_names]
+    if unknown:
+        print(f"error: unknown persona(s): {unknown}", file=sys.stderr)
+        return 1
+    if main is None:
+        main = "operations-orchestrator" if "operations-orchestrator" in enabled \
+            else (enabled[0] if enabled else None)
+    if main is not None and main not in enabled:
+        print(f"error: main persona {main!r} not in enabled set", file=sys.stderr)
+        return 1
+    if hosts is None:
+        hosts = list(persona_export.HOST_FILES)
+    base = Path(base_dir) if base_dir else Path.cwd()
+    config.set_config("personas.enabled", enabled)
+    config.set_config("personas.main", main)
+    written = persona_export.export_personas(
+        enabled=enabled, main=main, descriptions=descriptions,
+        base_dir=base, hosts=hosts,
+    )
+    print(f"✓ personas: {len(enabled)} enabled, main={main}; "
+          f"exported to {', '.join(p.name for p in written)}")
+    return 0
+
+
+def setup_tts(*, provider: str | None = None, voice_id: str | None = None,
+              api_key: str | None = None, noninteractive: bool = False) -> int:
+    """Configure a TTS provider + voice. Key -> ~/.omw/.env (0600). Mirrors setup_search."""
+    from scripts import config
+    provider = provider or "elevenlabs"
+    if api_key:
+        config.set_secret(f"{provider.upper()}_API_KEY", api_key)
+    config.set_config("tts.provider", provider)
+    config.set_config("tts.voice_id", voice_id)
+    enabled = bool(api_key and voice_id)
+    config.set_config("tts.enabled", enabled)
+    if enabled:
+        print(f"✓ tts provider '{provider}' configured (voice {voice_id}).")
+    else:
+        print(f"tts provider '{provider}' recorded — provide --api-key + --voice-id to enable.")
+    return 0
+
+
 def setup_serve(*, token: str | None = None, generate_token: bool = False) -> int:
     """Configure OMW_SERVE_TOKEN in ~/.omw/.env (0600)."""
     from scripts import config

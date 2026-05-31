@@ -162,6 +162,18 @@ def _cmd_setup(args) -> int:
         return setup_wizard.setup_serve(
             token=args.token, generate_token=args.generate_token
         )
+    if args.section == "personas":
+        enabled = [s.strip() for s in args.enable.split(",") if s.strip()] if args.enable else None
+        hosts = [s.strip() for s in args.host.split(",") if s.strip()] if args.host else None
+        return setup_wizard.setup_personas(
+            enabled=enabled, main=args.main, hosts=hosts,
+            base_dir=args.base_dir, noninteractive=args.noninteractive,
+        )
+    if args.section == "tts":
+        return setup_wizard.setup_tts(
+            provider=args.provider, voice_id=args.voice_id,
+            api_key=args.api_key, noninteractive=args.noninteractive,
+        )
     if args.section == "search":
         return setup_wizard.setup_search(
             noninteractive=args.noninteractive,
@@ -248,7 +260,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     pset = sub.add_parser("setup", help="Interactive setup wizard (run after install).")
     pset.add_argument(
-        "section", nargs="?", choices=["vault", "hosts", "search", "serve"], default=None
+        "section", nargs="?",
+        choices=["vault", "hosts", "search", "serve", "personas", "tts"], default=None,
     )
     pset.add_argument(
         "--noninteractive", action="store_true",
@@ -263,6 +276,11 @@ def build_parser() -> argparse.ArgumentParser:
     pset.add_argument("--zone", default=None)
     pset.add_argument("--token", default=None)
     pset.add_argument("--generate-token", dest="generate_token", action="store_true")
+    pset.add_argument("--enable", default=None, help="comma-separated persona names")
+    pset.add_argument("--main", default=None, help="main persona name")
+    pset.add_argument("--host", default=None, help="comma-separated hosts (claude,codex,gemini)")
+    pset.add_argument("--base-dir", dest="base_dir", default=None, help="dir for host instruction files")
+    pset.add_argument("--voice-id", dest="voice_id", default=None)
     pset.set_defaults(func=_cmd_setup)
 
     sub.add_parser(
