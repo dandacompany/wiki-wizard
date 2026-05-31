@@ -32,6 +32,9 @@ Always invoke this before doing anything else:
 >    Page-trust conventions: `confidence: high|medium|low`; a retired page carries
 >    `status: superseded` + `superseded_by: <slug>`. Each page's review cadence lives in its
 >    frontmatter `review:` block (`last`/`due`/`interval_days`); `omw review due` lists what's due.
+>    Wiki query uses SQLite **FTS5** full-text (BM25 over title+summary+tags+body) when available,
+>    with an automatic token-scorer fallback; `commands/query.md` then LLM-reranks the candidates
+>    (no embeddings).
 > 2. **Reasoning ops** (ingest, query, autoresearch, personas, …): read the exact
 >    procedure in `commands/<op>.md` and run its inline `python3 -c` snippet /
 >    `python3 -m scripts.<module>` commands verbatim. Never guess a script path.

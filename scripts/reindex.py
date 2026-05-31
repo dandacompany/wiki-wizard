@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from scripts import frontmatter, links, registry, schema
+from scripts import frontmatter, fts, links, registry, schema
 
 
 def full(db_path: Path, *, vault_id: int) -> int:
@@ -71,6 +71,13 @@ def _scan(
     exempt = set(links.META_RELPATHS)
     schema_issues: list[dict] = []
     count = 0
+    fts_conn = None
+    if fts.fts5_available():
+        fts_conn = registry.connect(db_path)
+        fts.ensure_fts(fts_conn)
+        if not incremental:
+            fts.clear_vault(fts_conn, vault_id=vault_id)
+        fts_conn.commit()
     for path in vault_path.rglob("*.md"):
         if any(part in {".trash", ".obsidian", ".git"} for part in path.parts):
             continue
@@ -106,11 +113,22 @@ def _scan(
             parse_error=parse_error,
         )
         links.replace_links(db_path, vault_id=vault_id, src_note_id=note_id, body=body, meta=meta)
+        if fts_conn is not None:
+            try:
+                fts.index_note(fts_conn, vault_id=vault_id, relpath=rel,
+                               title=meta.get("title"), summary=meta.get("summary"),
+                               tags=[str(t) for t in tags], body=body)
+                fts_conn.commit()
+            except Exception:
+                pass  # FTS is an optional auxiliary index; never abort indexing
         if fm_ok and rel not in exempt and not rel.startswith("raw/"):
             issues = schema.validate(meta, body, schemas=schemas)
             if issues:
                 schema_issues.append({"relpath": rel, "issues": issues})
         count += 1
+    if fts_conn is not None:
+        fts_conn.commit()
+        fts_conn.close()
     links.resolve(db_path, vault_id)
     return {"indexed": count, "schema_issues": schema_issues}
 
