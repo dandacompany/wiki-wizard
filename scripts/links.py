@@ -12,6 +12,7 @@ from scripts import registry
 _WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 _MDLINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 _EXTERNAL_PREFIXES = ("http://", "https://", "mailto:")
+_RELATIONS = ("uses", "contradicts", "supersedes")
 
 META_RELPATHS = ("wiki/index.md", "wiki/log.md")
 
@@ -51,13 +52,45 @@ def extract_links(body: str) -> list[tuple[str, str, int]]:
     return [(slug, kind, i) for i, (_, slug, kind) in enumerate(found)]
 
 
-def replace_links(db_path: Path, *, vault_id: int, src_note_id: int, body: str) -> None:
-    """Replace all outbound links for one note (dst_note_id left NULL)."""
+def extract_relations(meta: dict) -> list[tuple[str, str, int]]:
+    """Read frontmatter `relations:` → [(dst_slug, relation, position), ...].
+
+    relations is a dict {uses|contradicts|supersedes: [slug, ...]}. A scalar
+    value is treated as a one-item list. Missing/malformed → [].
+    """
+    rels = (meta or {}).get("relations")
+    if not isinstance(rels, dict):
+        return []
+    out: list[tuple[str, str, int]] = []
+    pos = 0
+    for relation in _RELATIONS:
+        value = rels.get(relation)
+        if value is None:
+            continue
+        targets = value if isinstance(value, list) else [value]
+        for target in targets:
+            slug = _slugify(str(target))
+            if slug:
+                out.append((slug, relation, pos))
+                pos += 1
+    return out
+
+
+def replace_links(db_path: Path, *, vault_id: int, src_note_id: int, body: str,
+                  meta: dict | None = None) -> None:
+    """Replace all outbound links for one note: body links + frontmatter relations.
+
+    dst_note_id is left NULL (resolve() sets it). The DELETE clears prior body
+    links AND relations for this note before re-inserting both.
+    """
+    edges = list(extract_links(body))
+    if meta:
+        edges.extend(extract_relations(meta))
     conn = registry.connect(db_path)
     try:
         with conn:
             conn.execute("DELETE FROM links WHERE src_note_id = ?", (src_note_id,))
-            for slug, link_type, position in extract_links(body):
+            for slug, link_type, position in edges:
                 conn.execute(
                     "INSERT INTO links(vault_id, src_note_id, dst_slug, dst_note_id, "
                     "link_type, position) VALUES (?, ?, ?, NULL, ?, ?)",
@@ -173,6 +206,28 @@ def graph(db_path: Path, vault_id: int) -> list[dict]:
             "WHERE l.vault_id = ? ORDER BY s.relpath, l.position",
             (vault_id,),
         )]
+    finally:
+        conn.close()
+
+
+def relations(db_path: Path, vault_id: int, *, relation: str | None = None) -> list[dict]:
+    """Typed semantic edges (uses/contradicts/supersedes). Optionally filter by relation."""
+    placeholders = ",".join("?" for _ in _RELATIONS)
+    sql = (
+        "SELECT s.relpath AS src_relpath, d.relpath AS dst_relpath, l.dst_slug, "
+        "l.link_type AS relation, (l.dst_note_id IS NOT NULL) AS resolved FROM links l "
+        "JOIN notes s ON s.id = l.src_note_id "
+        "LEFT JOIN notes d ON d.id = l.dst_note_id "
+        f"WHERE l.vault_id = ? AND l.link_type IN ({placeholders})"
+    )
+    params: list = [vault_id, *_RELATIONS]
+    if relation is not None:
+        sql += " AND l.link_type = ?"
+        params.append(relation)
+    sql += " ORDER BY s.relpath, l.position"
+    conn = registry.connect(db_path)
+    try:
+        return [dict(r) for r in conn.execute(sql, params)]
     finally:
         conn.close()
 
