@@ -84,6 +84,37 @@ def _run_interactive(name: str, mode: str, type_: str, location: str) -> int:
     return 0
 
 
+def _prompt(kind: str, message: str, *, choices=None, default=None):
+    """questionary prompt with an input() fallback (used when questionary is absent).
+
+    kind: "text" | "password" | "select" | "confirm" | "checkbox".
+    Returns: str | bool | list[str] | None depending on kind.
+    """
+    try:
+        import questionary  # type: ignore
+        if kind == "password":
+            return questionary.password(message).ask()
+        if kind == "select":
+            return questionary.select(message, choices=choices, default=default).ask()
+        if kind == "text":
+            return questionary.text(message, default=default or "").ask()
+        if kind == "confirm":
+            return questionary.confirm(message, default=bool(default)).ask()
+        if kind == "checkbox":
+            return questionary.checkbox(message, choices=choices).ask()
+        raise ValueError(f"unknown prompt kind: {kind!r}")
+    except ImportError:
+        if kind == "confirm":
+            ans = input(f"{message} [{'Y/n' if default else 'y/N'}]: ").strip().lower()
+            return bool(default) if not ans else ans in ("y", "yes")
+        if kind == "checkbox":
+            raw = input(f"{message} (comma-separated, blank = all): ").strip()
+            return [s.strip() for s in raw.split(",") if s.strip()] if raw else list(choices or [])
+        suffix = f" [{default}]" if default else ""
+        ans = input(f"{message}{suffix}: ").strip()
+        return ans or default
+
+
 #: provider -> ordered list of (field, env var) the wizard must write.
 #: Multi-secret providers (e.g. brightdata) are only enabled once ALL are present.
 _PROVIDER_SECRETS = {
@@ -177,6 +208,17 @@ def setup_tts(*, provider: str | None = None, voice_id: str | None = None,
               api_key: str | None = None, noninteractive: bool = False) -> int:
     """Configure a TTS provider + voice. Key -> ~/.omw/.env (0600). Mirrors setup_search."""
     from scripts import config
+    interactive = (not noninteractive) and sys.stdin.isatty()
+    if interactive and provider is None:
+        provider = _prompt("select", "TTS provider", choices=["elevenlabs", "skip"],
+                           default="elevenlabs") or "skip"
+        if provider == "skip":
+            print("tts setup skipped — re-run `omw setup tts` anytime.")
+            return 0
+        if not voice_id:
+            voice_id = _prompt("text", "Voice ID (blank to defer)") or None
+        if not api_key:
+            api_key = _prompt("password", "API key (blank to defer)") or None
     provider = provider or "elevenlabs"
     if api_key:
         config.set_secret(f"{provider.upper()}_API_KEY", api_key)
@@ -191,12 +233,22 @@ def setup_tts(*, provider: str | None = None, voice_id: str | None = None,
     return 0
 
 
-def setup_serve(*, token: str | None = None, generate_token: bool = False) -> int:
+def setup_serve(*, token: str | None = None, generate_token: bool = False,
+                noninteractive: bool = False) -> int:
     """Configure OMW_SERVE_TOKEN in ~/.omw/.env (0600)."""
     from scripts import config
+    interactive = (not noninteractive) and sys.stdin.isatty()
+    if interactive and not token and not generate_token:
+        if _prompt("confirm", "Generate a new serve token?", default=True):
+            generate_token = True
+        else:
+            token = _prompt("password", "Paste OMW_SERVE_TOKEN (blank to skip)") or None
     if generate_token:
         token = secrets.token_urlsafe(32)
     if not token:
+        if interactive:
+            print("serve setup skipped — re-run `omw setup serve` anytime.")
+            return 0
         print("error: provide --token <t> or --generate-token", file=sys.stderr)
         return 1
     config.set_secret("OMW_SERVE_TOKEN", token)

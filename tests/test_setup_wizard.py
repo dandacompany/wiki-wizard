@@ -144,3 +144,55 @@ def test_setup_tts_not_enabled_without_key():
     rc = setup_wizard.setup_tts(provider="elevenlabs", voice_id="V123")
     assert rc == 0
     assert config.load_config()["tts"]["enabled"] is False
+
+
+def _fake_input(answers):
+    """Return an input() replacement that pops scripted answers in order."""
+    seq = list(answers)
+    def _inp(prompt=""):
+        return seq.pop(0)
+    return _inp
+
+
+def test_setup_serve_interactive_prompts_for_token(monkeypatch):
+    from scripts import setup_wizard, config
+    from scripts.paths import omw_home
+    monkeypatch.delenv("OMW_SERVE_TOKEN", raising=False)
+    monkeypatch.setattr(setup_wizard.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", _fake_input(["n", "pasted-token-123"]))
+    rc = setup_wizard.setup_serve()
+    assert rc == 0
+    assert config.read_secret("OMW_SERVE_TOKEN") == "pasted-token-123"
+    assert (omw_home() / ".env").stat().st_mode & 0o777 == 0o600
+
+
+def test_setup_serve_interactive_generate(monkeypatch):
+    from scripts import setup_wizard, config
+    monkeypatch.delenv("OMW_SERVE_TOKEN", raising=False)
+    monkeypatch.setattr(setup_wizard.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", _fake_input(["y"]))
+    rc = setup_wizard.setup_serve()
+    assert rc == 0
+    tok = config.read_secret("OMW_SERVE_TOKEN")
+    assert tok and len(tok) >= 20
+
+
+def test_setup_serve_noninteractive_flag_unchanged(monkeypatch):
+    from scripts import setup_wizard, config
+    monkeypatch.delenv("OMW_SERVE_TOKEN", raising=False)
+    rc = setup_wizard.setup_serve(token="flagtok", noninteractive=True)
+    assert rc == 0
+    assert config.read_secret("OMW_SERVE_TOKEN") == "flagtok"
+
+
+def test_setup_tts_interactive_prompts(monkeypatch):
+    from scripts import setup_wizard, config
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    monkeypatch.setattr(setup_wizard.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", _fake_input(["", "V-int", "K-int"]))
+    rc = setup_wizard.setup_tts()
+    assert rc == 0
+    cfg = config.load_config()
+    assert cfg["tts"]["voice_id"] == "V-int"
+    assert cfg["tts"]["enabled"] is True
+    assert config.read_secret("ELEVENLABS_API_KEY") == "K-int"

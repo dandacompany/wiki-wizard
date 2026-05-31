@@ -160,7 +160,8 @@ def _cmd_setup(args) -> int:
     from scripts import setup_wizard
     if args.section == "serve":
         return setup_wizard.setup_serve(
-            token=args.token, generate_token=args.generate_token
+            token=args.token, generate_token=args.generate_token,
+            noninteractive=args.noninteractive,
         )
     if args.section == "personas":
         enabled = [s.strip() for s in args.enable.split(",") if s.strip()] if args.enable else None
