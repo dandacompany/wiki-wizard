@@ -12,6 +12,10 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+from scripts import text_match
+
+_NEVER = re.compile(r"(?!x)x")
+
 GLOSSARY_DIR = ".oh-my-wiki"
 GLOSSARY_FILE = "glossary.db"
 
@@ -128,20 +132,7 @@ def list_terms(db_path: Path, *, vault_id: int) -> list[dict]:
 
 
 def _build_variant_pattern(canonical: str, aliases: list[str]) -> re.Pattern:
-    """Match the canonical word OR any token-permutation thereof.
-
-    Heuristic: split canonical into tokens, find any case-variant of all
-    tokens appearing in order separated by single whitespace. e.g. for
-    'Andrej Karpathy' this matches 'Andrej Karpathy', 'andrej Karpathy',
-    'ANDREJ karpathy'. Single-word canonicals match case-insensitively.
-    """
-    tokens = [t for t in canonical.split() if t]
-    if not tokens:
-        return re.compile(r"(?!x)x")  # never matches
-    if len(tokens) == 1:
-        return re.compile(rf"\b{re.escape(tokens[0])}\b", re.IGNORECASE)
-    pattern = r"\b" + r"\s+".join(re.escape(t) for t in tokens) + r"\b"
-    return re.compile(pattern, re.IGNORECASE)
+    return text_match.build_name_pattern([canonical]) or _NEVER
 
 
 def find_inconsistencies(
