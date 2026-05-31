@@ -118,3 +118,49 @@ def test_lint_surfaces_contradictions(tmp_db, tmp_path):
     report = lint.check(tmp_db, vault_id=vid)
     assert [r["dst_slug"] for r in report["links"]["contradictions"]] == ["b"]
     assert any("contradiction" in h.lower() for h in report["auto_fix_hints"])
+
+
+# ---------------------------------------------------------------------------
+# Task 3: schema-sourced validation tests
+# ---------------------------------------------------------------------------
+
+def _make_vault(tmp_path, monkeypatch):
+    monkeypatch.setenv("OMW_HOME", str(tmp_path / ".omw"))
+    db = tmp_path / "registry.db"
+    registry.init_db(db)
+    root = tmp_path / "vault"
+    (root / "wiki" / "entities").mkdir(parents=True)
+    (root / "wiki").joinpath("index.md").write_text("# Index\n", encoding="utf-8")
+    (root / "wiki").joinpath("log.md").write_text("# Log\n", encoding="utf-8")
+    v = registry.add_vault(db, name="v", path=root, type_="markdown", mode="wiki")
+    return db, root, v["id"]
+
+
+def test_lint_flags_missing_required_section(tmp_path, monkeypatch):
+    db, root, vid = _make_vault(tmp_path, monkeypatch)
+    # entity page WITHOUT the required "## Summary" section
+    (root / "wiki" / "entities" / "x.md").write_text(
+        "---\ntitle: X\ndate: 2026-01-01\ntype: entity\ntags: [a]\n---\nbody\n",
+        encoding="utf-8",
+    )
+    reindex.full(db, vault_id=vid)
+    report = lint.check(db, vault_id=vid)
+    issues = {i["issue"] for i in report["frontmatter_issues"]}
+    assert "missing_section:## Summary" in issues
+
+
+def test_lint_accepts_vault_override_type(tmp_path, monkeypatch):
+    db, root, vid = _make_vault(tmp_path, monkeypatch)
+    (root / "schemas").mkdir()
+    (root / "schemas" / "recipe.yml").write_text(
+        "required_fields: [title, type]\nfield_types: {}\nrequired_sections: []\n",
+        encoding="utf-8",
+    )
+    (root / "wiki" / "entities" / "r.md").write_text(
+        "---\ntitle: R\ntype: recipe\n---\nbody\n", encoding="utf-8",
+    )
+    reindex.full(db, vault_id=vid)
+    report = lint.check(db, vault_id=vid)
+    issues = {(i["relpath"], i["issue"]) for i in report["frontmatter_issues"]}
+    # 'recipe' is now a valid type (no invalid_type), required_fields satisfied
+    assert ("wiki/entities/r.md", "invalid_type") not in issues

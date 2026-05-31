@@ -6,6 +6,7 @@ types via <vault>/schemas/. lint and the ingest path both call validate().
 """
 from __future__ import annotations
 
+import datetime
 from pathlib import Path
 
 import yaml
@@ -17,7 +18,9 @@ def _coarse_ok(value, want: str) -> bool:
     if want == "list":
         return isinstance(value, list)
     if want == "str":
-        return isinstance(value, str)
+        # YAML parses ISO date literals (e.g. 2026-01-01) as datetime.date,
+        # not str; treat those as valid for a "str" field constraint.
+        return isinstance(value, (str, datetime.date, datetime.datetime))
     if want == "int":
         return isinstance(value, int) and not isinstance(value, bool)
     if want == "dict":
