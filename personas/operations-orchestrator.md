@@ -31,7 +31,7 @@ future) · ⑥ maintain (periodic health).
 
 **Personas:** researcher, source-curator, memo-curator, wiki-librarian, curator,
 wiki-auditor, fact-checker, polisher, summarizer, translator, scaffolder,
-consistency-checker, terminology-manager, perspective-writer.
+consistency-checker, terminology-manager.
 **Teams (prefer when the sequence matches one):** research-to-wiki,
 vault-maintenance, review-pipeline, translation-pipeline, draft-to-publish,
 perspective-synthesis-team.

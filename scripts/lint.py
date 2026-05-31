@@ -110,11 +110,11 @@ def check(db_path: Path, *, vault_id: int) -> dict:
             "orphans": orphan_pages,
             "index_drift": index_drift_report,
         },
-        "auto_fix_hints": _hints(fm_issues, missing_files, mtime_drift, broken, orphan_pages),
+        "auto_fix_hints": _hints(fm_issues, missing_files, mtime_drift, broken, orphan_pages, index_drift_report),
     }
 
 
-def _hints(fm_issues, missing, drift, broken=None, orphan_pages=None) -> list[str]:
+def _hints(fm_issues, missing, drift, broken=None, orphan_pages=None, index_drift=None) -> list[str]:
     hints = []
     if drift:
         hints.append("Run `reindex.incremental(db, vault_id=...)` to refresh mtime drift.")
@@ -126,6 +126,8 @@ def _hints(fm_issues, missing, drift, broken=None, orphan_pages=None) -> list[st
         hints.append("Broken links: fix the target slug or create the missing page.")
     if orphan_pages:
         hints.append("Orphan pages: add an inbound link from a related page, or archive.")
+    if index_drift and (index_drift.get("missing_from_index") or index_drift.get("dangling_in_index")):
+        hints.append("Index drift: run the curator persona (persona-curate-index) to sync wiki/index.md.")
     return hints
 
 
