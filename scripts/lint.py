@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts import frontmatter, links, registry, schema
+from scripts import frontmatter, links, registry, schema, entity_link
 from scripts.paths import registry_path
 
 # Files whose frontmatter is intentionally minimal (no schema check).
@@ -82,6 +82,7 @@ def check(db_path: Path, *, vault_id: int) -> dict:
         for e in supersedes
         if e["dst_relpath"] and status_map.get(e["dst_relpath"]) != "superseded"
     ]
+    link_suggestions = entity_link.suggest_links(db_path, vault_id=vault_id)
 
     return {
         "vault_id": vault_id,
@@ -98,15 +99,17 @@ def check(db_path: Path, *, vault_id: int) -> dict:
             "contradictions": contradictions,
             "supersedes": supersedes,
             "superseded_unmarked": superseded_unmarked,
+            "link_suggestions": link_suggestions,
         },
         "auto_fix_hints": _hints(fm_issues, missing_files, mtime_drift, broken,
                                  orphan_pages, index_drift_report, contradictions,
-                                 superseded_unmarked),
+                                 superseded_unmarked, link_suggestions),
     }
 
 
 def _hints(fm_issues, missing, drift, broken=None, orphan_pages=None,
-           index_drift=None, contradictions=None, superseded_unmarked=None) -> list[str]:
+           index_drift=None, contradictions=None, superseded_unmarked=None,
+           link_suggestions=None) -> list[str]:
     hints = []
     if drift:
         hints.append("Run `reindex.incremental(db, vault_id=...)` to refresh mtime drift.")
@@ -130,6 +133,9 @@ def _hints(fm_issues, missing, drift, broken=None, orphan_pages=None,
         hints.append("Pages superseded by others aren't marked — run "
                      "`omw supersede <relpath> --by <slug>` (or the wiki-auditor) "
                      "to set status: superseded.")
+    if link_suggestions:
+        hints.append("Unlinked mentions of existing pages — run "
+                     "`omw links link <relpath> --to <slug>` (or the curator) to add `[[links]]`.")
     return hints
 
 

@@ -1,7 +1,7 @@
 from pathlib import Path
 import pytest
 
-from scripts import registry, reindex, lint, supersede
+from scripts import registry, reindex, lint, supersede, entity_link  # noqa: F401
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -205,3 +205,22 @@ def test_lint_reports_superseded_unmarked(tmp_path, monkeypatch):
     report2 = lint.check(db, vault_id=vid)
     unmarked2 = {u["relpath"] for u in report2["links"]["superseded_unmarked"]}
     assert "wiki/entities/a.md" not in unmarked2
+
+
+def test_lint_reports_link_suggestions(tmp_path, monkeypatch):
+    db, root, vid = _make_vault(tmp_path, monkeypatch)
+    (root / "wiki" / "entities" / "karpathy.md").write_text(
+        "---\ntitle: Andrej Karpathy\ndate: 2026-01-01\ntype: entity\ntags: [p]\n---\n## Summary\nresearcher\n",
+        encoding="utf-8")
+    (root / "wiki" / "entities" / "tdd.md").write_text(
+        "---\ntitle: TDD\ndate: 2026-01-01\ntype: concept\ntags: [m]\n---\n## Summary\nAndrej Karpathy wrote this.\n",
+        encoding="utf-8")
+    reindex.full(db, vault_id=vid)
+    report = lint.check(db, vault_id=vid)
+    pairs = {(s["src_relpath"], s["target_slug"]) for s in report["links"]["link_suggestions"]}
+    assert ("wiki/entities/tdd.md", "karpathy") in pairs
+    # applying the link clears it
+    entity_link.apply_link(db, vault_id=vid, relpath="wiki/entities/tdd.md", target_slug="karpathy")
+    report2 = lint.check(db, vault_id=vid)
+    pairs2 = {(s["src_relpath"], s["target_slug"]) for s in report2["links"]["link_suggestions"]}
+    assert ("wiki/entities/tdd.md", "karpathy") not in pairs2
