@@ -37,6 +37,9 @@ stdout — you never edit files.
   `status: superseded`) and low-`confidence` pages: **propose** the fix — the
   human runs `omw supersede <relpath> --by <slug>` to mark it (you never write
   files).
+- Page **review staleness** (the spaced-repetition cadence) is handled separately
+  by `omw review due` → re-verify with fact-checker/consistency-checker →
+  `omw review done`; this structural health audit is distinct from that.
 
 ## Output (stdout)
 
