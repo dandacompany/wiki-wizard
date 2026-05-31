@@ -90,7 +90,7 @@ def _http_get(url, *, headers=None):
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as exc:
         raise ImportError_(f"HTTP {exc.code} from {url}") from exc
-    except urllib.error.URLError as exc:
+    except (urllib.error.URLError, TimeoutError) as exc:
         raise ImportError_(f"network error to {url}: {exc}") from exc
     except json.JSONDecodeError as exc:
         raise ImportError_(f"non-JSON response from {url}") from exc
@@ -153,6 +153,8 @@ def _notion_children(token, block_id):
         if not data.get("has_more"):
             break
         cursor = data.get("next_cursor")
+        if not cursor:
+            break  # defensive: has_more lied or cursor missing — stop
     return out
 
 
@@ -165,7 +167,9 @@ def import_notion(db_path: Path, *, vault_id: int, token: str, root_id: str,
     today = datetime.date.today().isoformat()
     imported = []
 
-    def _import_page(page_id):
+    def _import_page(page_id, _depth=0):
+        if _depth > 20:
+            return  # safety: deep/cyclic page tree
         page = _http_get(f"{_NOTION_BASE}/pages/{page_id}", headers=_notion_headers(token))
         title = _notion_page_title(page)
         blocks = _notion_children(token, page_id)
@@ -180,7 +184,7 @@ def import_notion(db_path: Path, *, vault_id: int, token: str, root_id: str,
         imported.append(dest_rel)
         for b in blocks:
             if b.get("type") == "child_page" and b.get("id"):
-                _import_page(b["id"])
+                _import_page(b["id"], _depth + 1)
 
     _import_page(root_id)
     reindex.incremental(db_path, vault_id=vault_id)

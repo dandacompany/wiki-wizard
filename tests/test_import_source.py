@@ -98,3 +98,59 @@ def test_import_notion_mocked(tmp_db, tmp_path, monkeypatch):
     assert any(r.startswith("raw/import/notion/") and r.endswith(".md") for r in out["imported"])
     page = next(vroot.glob("raw/import/notion/*.md"))
     assert "body text" in page.read_text()
+
+
+def test_import_notion_paginates(tmp_db, tmp_path, monkeypatch):
+    vid, vroot = _vault(tmp_db, tmp_path, "nv2")
+    def fake_http(url, *, headers=None):
+        if url.endswith("/pages/P"):
+            return {"properties": {"T": {"type": "title", "title": [{"plain_text": "Paged"}]}}}
+        if "/blocks/P/children" in url and "start_cursor=" not in url:
+            return {"results": [{"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "page-one"}]}}],
+                    "has_more": True, "next_cursor": "CUR2"}
+        if "start_cursor=CUR2" in url:
+            return {"results": [{"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "page-two"}]}}],
+                    "has_more": False, "next_cursor": None}
+        return {"results": [], "has_more": False, "next_cursor": None}
+    monkeypatch.setattr(imp, "_http_get", fake_http)
+    imp.import_notion(tmp_db, vault_id=vid, token="t", root_id="P")
+    body = next(vroot.glob("raw/import/notion/*.md")).read_text()
+    assert "page-one" in body and "page-two" in body
+
+
+def test_import_notion_has_more_but_null_cursor_terminates(tmp_db, tmp_path, monkeypatch):
+    vid, vroot = _vault(tmp_db, tmp_path, "nv3")
+    def fake_http(url, *, headers=None):
+        if url.endswith("/pages/P"):
+            return {"properties": {"T": {"type": "title", "title": [{"plain_text": "X"}]}}}
+        if "/blocks/P/children" in url:
+            # malformed: has_more True but next_cursor null — must NOT loop forever
+            return {"results": [{"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "once"}]}}],
+                    "has_more": True, "next_cursor": None}
+        return {"results": [], "has_more": False, "next_cursor": None}
+    monkeypatch.setattr(imp, "_http_get", fake_http)
+    out = imp.import_notion(tmp_db, vault_id=vid, token="t", root_id="P")  # must return, not hang
+    assert out["source"] == "notion"
+
+
+def test_import_notion_recurses_child_page(tmp_db, tmp_path, monkeypatch):
+    vid, vroot = _vault(tmp_db, tmp_path, "nv4")
+    def fake_http(url, *, headers=None):
+        if url.endswith("/pages/ROOT"):
+            return {"properties": {"T": {"type": "title", "title": [{"plain_text": "Root"}]}}}
+        if url.endswith("/pages/CHILD"):
+            return {"properties": {"T": {"type": "title", "title": [{"plain_text": "Child"}]}}}
+        if "/blocks/ROOT/children" in url:
+            return {"results": [
+                {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "root body"}]}},
+                {"type": "child_page", "id": "CHILD"},
+            ], "has_more": False, "next_cursor": None}
+        if "/blocks/CHILD/children" in url:
+            return {"results": [{"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "child body"}]}}],
+                    "has_more": False, "next_cursor": None}
+        return {"results": [], "has_more": False, "next_cursor": None}
+    monkeypatch.setattr(imp, "_http_get", fake_http)
+    out = imp.import_notion(tmp_db, vault_id=vid, token="t", root_id="ROOT")
+    assert len(out["imported"]) == 2  # root + child
+    bodies = " ".join(p.read_text() for p in vroot.glob("raw/import/notion/*.md"))
+    assert "root body" in bodies and "child body" in bodies
