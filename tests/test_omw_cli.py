@@ -273,3 +273,9 @@ def test_schema_show_unknown_type_exits_1(capsys):
     rc = omw_cli.main(["schema", "show", "nope"])
     assert rc == 1
     assert "valid types" in capsys.readouterr().err.lower()
+
+
+def test_schema_show_bad_vault_exits_1(capsys):
+    rc = omw_cli.main(["schema", "show", "entity", "--vault", "__nope__"])
+    assert rc == 1
+    assert "not found" in capsys.readouterr().err.lower()

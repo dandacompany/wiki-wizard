@@ -138,7 +138,12 @@ def _resolve_vault_path(db, name):
 def _cmd_schema(args) -> int:
     from scripts import schema
     db = registry_path()
-    vault_path = _resolve_vault_path(db, args.vault) if args.vault else None
+    vault_path = None
+    if args.vault:
+        vault_path = _resolve_vault_path(db, args.vault)
+        if vault_path is None:
+            print(f"error: vault {args.vault!r} not found", file=sys.stderr)
+            return 1
     schemas = schema.load_schemas(vault_path=vault_path)
 
     def _public(name):
