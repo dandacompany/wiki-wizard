@@ -1,6 +1,4 @@
 # tests/test_supersede.py
-from pathlib import Path
-
 import pytest
 
 from scripts import frontmatter, registry, reindex, supersede
