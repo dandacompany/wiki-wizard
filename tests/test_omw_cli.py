@@ -309,3 +309,45 @@ def test_supersede_missing_page_exits_1(tmp_path, monkeypatch, capsys):
     rc = omw_cli.main(["supersede", "wiki/nope.md", "--by", "x", "--vault", "cv"])
     assert rc == 1
     assert "not found" in capsys.readouterr().err.lower()
+
+
+def _review_vault(tmp_path, monkeypatch):
+    monkeypatch.setenv("OMW_HOME", str(tmp_path / ".omw"))
+    from scripts.paths import registry_path
+    db = registry_path()
+    registry.init_db(db)
+    root = tmp_path / "cv"
+    (root / "wiki" / "concepts").mkdir(parents=True)
+    v = registry.add_vault(db, name="cv", path=str(root), type_="markdown", mode="wiki")
+    return db, root, v["id"]
+
+
+def test_review_due_lists(tmp_path, monkeypatch, capsys):
+    db, root, vid = _review_vault(tmp_path, monkeypatch)
+    (root / "wiki" / "concepts" / "p.md").write_text(
+        "---\ntitle: P\ntype: concept\n---\nx\n", encoding="utf-8")
+    reindex.full(db, vault_id=vid)
+    rc = omw_cli.main(["review", "due", "--vault", "cv", "--today", "2026-05-31"])
+    assert rc == 0
+    rows = json.loads(capsys.readouterr().out)
+    assert any(r["relpath"] == "wiki/concepts/p.md" for r in rows)
+
+
+def test_review_done_reschedules(tmp_path, monkeypatch, capsys):
+    db, root, vid = _review_vault(tmp_path, monkeypatch)
+    (root / "wiki" / "concepts" / "p.md").write_text(
+        "---\ntitle: P\ntype: concept\nconfidence: high\n---\nx\n", encoding="utf-8")
+    reindex.full(db, vault_id=vid)
+    rc = omw_cli.main(["review", "done", "wiki/concepts/p.md", "--grade", "pass",
+                       "--vault", "cv", "--today", "2026-05-31"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["review"]["due"] == "2026-08-29"
+
+
+def test_review_done_missing_page_exits_1(tmp_path, monkeypatch, capsys):
+    db, root, vid = _review_vault(tmp_path, monkeypatch)
+    rc = omw_cli.main(["review", "done", "wiki/concepts/nope.md", "--grade", "pass",
+                       "--vault", "cv"])
+    assert rc == 1
+    assert "not found" in capsys.readouterr().err.lower()

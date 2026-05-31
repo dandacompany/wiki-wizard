@@ -124,6 +124,41 @@ def _cmd_lint(args) -> int:
     return 0
 
 
+def _cmd_review(args) -> int:
+    from datetime import date
+    from scripts import review
+    db = registry_path()
+    if not db.exists():
+        print("error: no registry; run `omw status` to set up", file=sys.stderr)
+        return 1
+    if args.vault:
+        match = [v for v in registry.list_vaults(db) if v["name"] == args.vault]
+        if not match:
+            print(f"error: vault {args.vault!r} not found", file=sys.stderr)
+            return 1
+        vault_id = match[0]["id"]
+    else:
+        active = registry.get_active(db)
+        if active is None:
+            print("error: no active vault; pass --vault <name>", file=sys.stderr)
+            return 1
+        vault_id = active["id"]
+    today = args.today or date.today().isoformat()
+    if args.review_cmd == "due":
+        rows = review.due_pages(db, vault_id=vault_id, today=today,
+                                include_unscheduled=not args.scheduled_only)
+        print(json.dumps(rows, ensure_ascii=False, indent=2))
+        return 0
+    try:
+        out = review.reschedule(db, vault_id=vault_id, relpath=args.relpath,
+                                grade=args.grade, today=today)
+    except FileNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+    return 0
+
+
 def _cmd_supersede(args) -> int:
     from scripts import supersede
     db = registry_path()
@@ -369,6 +404,21 @@ def build_parser() -> argparse.ArgumentParser:
     pl = sub.add_parser("lint", help="Run deterministic lint over a vault.")
     pl.add_argument("--vault", default=None, help="vault name (default: active)")
     pl.set_defaults(func=_cmd_lint)
+
+    prv = sub.add_parser("review", help="Spaced-repetition review queue.")
+    rsub = prv.add_subparsers(dest="review_cmd", required=True)
+    prd = rsub.add_parser("due", help="List pages due for review.")
+    prd.add_argument("--vault", default=None, help="vault name (default: active)")
+    prd.add_argument("--today", default=None, help="YYYY-MM-DD (default: today)")
+    prd.add_argument("--scheduled-only", dest="scheduled_only", action="store_true",
+                     help="exclude never-reviewed pages")
+    prd.set_defaults(func=_cmd_review)
+    prn = rsub.add_parser("done", help="Record a review verdict + reschedule.")
+    prn.add_argument("relpath")
+    prn.add_argument("--grade", required=True, choices=["pass", "needs-work"])
+    prn.add_argument("--vault", default=None, help="vault name (default: active)")
+    prn.add_argument("--today", default=None, help="YYYY-MM-DD (default: today)")
+    prn.set_defaults(func=_cmd_review)
 
     psup = sub.add_parser("supersede", help="Mark a page superseded (status + superseded_by).")
     psup.add_argument("relpath")
