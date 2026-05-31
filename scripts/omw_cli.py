@@ -124,6 +124,46 @@ def _cmd_lint(args) -> int:
     return 0
 
 
+def _cmd_import(args) -> int:
+    from scripts import config, paths, registry, import_source
+    db = paths.registry_path()
+    # Check notion token early (before vault lookup) so the error is clear even without a vault.
+    if args.source == "notion":
+        token = config.read_secret("NOTION_API_KEY")
+        if not token:
+            print("error: no NOTION_API_KEY — run `omw setup import` first.", file=sys.stderr)
+            return 1
+        if not args.notion_id:
+            print("error: --notion-id required for notion import", file=sys.stderr)
+            return 1
+    if not db.exists():
+        print("error: no vault (pass --vault or set an active vault)", file=sys.stderr)
+        return 1
+    if args.vault:
+        row = next((v for v in registry.list_vaults(db) if v["name"] == args.vault), None)
+    else:
+        row = registry.get_active(db)
+    if row is None:
+        print("error: no vault (pass --vault or set an active vault)", file=sys.stderr)
+        return 1
+    vid = row["id"]
+    if args.source in ("folder", "obsidian"):
+        if not args.src_dir:
+            print("error: --src-dir required for folder/obsidian import", file=sys.stderr)
+            return 1
+        out = import_source.import_folder(db, vault_id=vid, src_dir=args.src_dir,
+                                          layer=args.layer, source=args.source)
+    elif args.source == "notion":
+        out = import_source.import_notion(db, vault_id=vid, token=token,
+                                         root_id=args.notion_id, layer=args.layer)
+    else:
+        print(f"error: unknown source {args.source!r}", file=sys.stderr)
+        return 1
+    print(json.dumps({"imported": out["imported"], "skipped": out["skipped"],
+                      "source": out["source"]}, ensure_ascii=False, indent=2))
+    return 0
+
+
 def _cmd_search(args) -> int:
     from scripts import search as _search
     try:
@@ -190,6 +230,9 @@ def _cmd_setup(args) -> int:
             api_key=args.api_key,
             zone=args.zone,
         )
+    if args.section == "import":
+        return setup_wizard.setup_import(
+            token=args.token, src_dir=args.src_dir, noninteractive=args.noninteractive)
     return setup_wizard.run(
         section=args.section,
         noninteractive=args.noninteractive,
@@ -270,7 +313,7 @@ def build_parser() -> argparse.ArgumentParser:
     pset = sub.add_parser("setup", help="Interactive setup wizard (run after install).")
     pset.add_argument(
         "section", nargs="?",
-        choices=["vault", "hosts", "search", "serve", "personas", "tts"], default=None,
+        choices=["vault", "hosts", "search", "serve", "personas", "tts", "import"], default=None,
     )
     pset.add_argument(
         "--noninteractive", action="store_true",
@@ -290,7 +333,16 @@ def build_parser() -> argparse.ArgumentParser:
     pset.add_argument("--host", default=None, help="comma-separated hosts (claude,codex,gemini)")
     pset.add_argument("--base-dir", dest="base_dir", default=None, help="dir for host instruction files")
     pset.add_argument("--voice-id", dest="voice_id", default=None)
+    pset.add_argument("--src-dir", dest="src_dir", default=None)
     pset.set_defaults(func=_cmd_setup)
+
+    pimp = sub.add_parser("import", help="Import folder/Obsidian/Notion into a vault.")
+    pimp.add_argument("--source", choices=["folder", "obsidian", "notion"], required=True)
+    pimp.add_argument("--src-dir", dest="src_dir", default=None)
+    pimp.add_argument("--notion-id", dest="notion_id", default=None)
+    pimp.add_argument("--layer", choices=["raw", "wiki"], default="raw")
+    pimp.add_argument("--vault", default=None)
+    pimp.set_defaults(func=_cmd_import)
 
     sub.add_parser(
         "doctor", help="Validate omw config + install."

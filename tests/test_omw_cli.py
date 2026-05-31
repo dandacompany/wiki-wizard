@@ -229,3 +229,25 @@ def test_setup_no_section_interactive_calls_run_all(monkeypatch):
     monkeypatch.setattr(setup_wizard, "run_all", lambda **k: called.update(ran=True) or 0)
     rc = omw_cli.main(["setup"])
     assert rc == 0 and called.get("ran") is True
+
+
+def test_omw_import_folder_via_cli(tmp_path):
+    from scripts import omw_cli, registry
+    from scripts.paths import registry_path
+    db = registry_path()
+    registry.init_db(db)
+    vroot = tmp_path / "cv"; (vroot / "wiki").mkdir(parents=True)
+    registry.add_vault(db, name="cv", path=str(vroot), type_="markdown", mode="wiki")
+    src = tmp_path / "s"; src.mkdir()
+    (src / "x.md").write_text("hello", encoding="utf-8")
+    rc = omw_cli.main(["import", "--source", "folder", "--src-dir", str(src), "--vault", "cv"])
+    assert rc == 0
+    assert (vroot / "raw" / "import" / "x.md").exists()
+
+
+def test_omw_import_notion_no_token_exits_1(monkeypatch, capsys):
+    from scripts import omw_cli
+    monkeypatch.delenv("NOTION_API_KEY", raising=False)
+    rc = omw_cli.main(["import", "--source", "notion", "--notion-id", "P1"])
+    assert rc == 1
+    assert "setup import" in capsys.readouterr().err.lower()

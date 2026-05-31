@@ -268,6 +268,25 @@ def setup_serve(*, token: str | None = None, generate_token: bool = False,
     return 0
 
 
+def setup_import(*, token: str | None = None, src_dir: str | None = None,
+                 noninteractive: bool = False) -> int:
+    """Configure import: Notion API key (-> .env 0600) + default source folder."""
+    from scripts import config
+    interactive = (not noninteractive) and sys.stdin.isatty()
+    if interactive:
+        if token is None:
+            token = _prompt("password", "Notion API key (blank to skip)") or None
+        if src_dir is None:
+            src_dir = _prompt("text", "Default import folder (blank to skip)") or None
+    if token:
+        config.set_secret("NOTION_API_KEY", token)
+    if src_dir:
+        config.set_config("import.default_src", src_dir)
+    print("✓ import configured." if (token or src_dir)
+          else "import setup skipped — re-run `omw setup import` anytime.")
+    return 0
+
+
 def run_all(*, noninteractive: bool = False, base_dir=None) -> int:
     """Top-level interactive wizard: walk every section in order with per-step skip.
 
@@ -280,6 +299,7 @@ def run_all(*, noninteractive: bool = False, base_dir=None) -> int:
         ("serve", lambda: setup_serve(noninteractive=noninteractive)),
         ("tts", lambda: setup_tts(noninteractive=noninteractive)),
         ("personas", lambda: setup_personas(noninteractive=noninteractive, base_dir=base_dir)),
+        ("import", lambda: setup_import(noninteractive=noninteractive)),
     ]
     for name, fn in steps:
         try:
