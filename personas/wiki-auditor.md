@@ -23,7 +23,8 @@ stdout — you never edit files.
 
 `lint.check(db, vault_id)` →
 `{frontmatter_issues, drift:{missing_files, mtime_drift},
-  links:{broken, orphans, index_drift}, auto_fix_hints}`.
+  links:{broken, orphans, index_drift, contradictions, supersedes,
+  superseded_unmarked}, auto_fix_hints}`.
 
 ## Procedure
 
@@ -32,6 +33,10 @@ stdout — you never edit files.
   **low** (mtime drift, stale-but-valid pages).
 - For each, give a one-line "what" + the recommended fixer (often the
   `wiki-librarian` or `curator` persona, or a `reindex`).
+- For `superseded_unmarked` (a page superseded by another but not yet carrying
+  `status: superseded`) and low-`confidence` pages: **propose** the fix — the
+  human runs `omw supersede <relpath> --by <slug>` to mark it (you never write
+  files).
 
 ## Output (stdout)
 
