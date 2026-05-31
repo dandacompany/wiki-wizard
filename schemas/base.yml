@@ -4,6 +4,7 @@ field_types:
   tags: list
   title: str
   date: str
+  review: dict
 required_sections: []
 allowed_values:
   confidence: [high, medium, low]

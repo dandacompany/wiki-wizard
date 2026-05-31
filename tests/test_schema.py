@@ -177,3 +177,14 @@ def test_load_schemas_merges_allowed_values(tmp_path, monkeypatch):
     _write(tmp_path / "bundled", "concept.yml", "extends: base\n")
     schemas = schema.load_schemas()
     assert schemas["concept"]["allowed_values"]["confidence"] == ["high", "low"]
+
+
+def test_validate_review_must_be_dict():
+    schemas = schema.load_schemas()  # bundled defaults
+    bad = {"title": "T", "date": "2026-01-01", "type": "concept", "tags": ["a"],
+           "review": "notadict"}
+    issues = {i["issue"] for i in schema.validate(bad, "", schemas=schemas)}
+    assert "wrong_type:review" in issues
+    good = dict(bad); good["review"] = {"due": "2026-01-01"}
+    issues2 = {i["issue"] for i in schema.validate(good, "", schemas=schemas)}
+    assert "wrong_type:review" not in issues2
