@@ -124,6 +124,38 @@ def _cmd_lint(args) -> int:
     return 0
 
 
+def _cmd_links(args) -> int:
+    from scripts import entity_link
+    db = registry_path()
+    if not db.exists():
+        print("error: no registry; run `omw status` to set up", file=sys.stderr)
+        return 1
+    if args.vault:
+        match = [v for v in registry.list_vaults(db) if v["name"] == args.vault]
+        if not match:
+            print(f"error: vault {args.vault!r} not found", file=sys.stderr)
+            return 1
+        vault_id = match[0]["id"]
+    else:
+        active = registry.get_active(db)
+        if active is None:
+            print("error: no active vault; pass --vault <name>", file=sys.stderr)
+            return 1
+        vault_id = active["id"]
+    if args.links_cmd == "suggest":
+        rows = entity_link.suggest_links(db, vault_id=vault_id, relpath=args.relpath)
+        print(json.dumps(rows, ensure_ascii=False, indent=2))
+        return 0
+    try:
+        out = entity_link.apply_link(db, vault_id=vault_id, relpath=args.relpath,
+                                     target_slug=args.to)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+    return 0
+
+
 def _cmd_review(args) -> int:
     from datetime import date
     from scripts import review
@@ -404,6 +436,18 @@ def build_parser() -> argparse.ArgumentParser:
     pl = sub.add_parser("lint", help="Run deterministic lint over a vault.")
     pl.add_argument("--vault", default=None, help="vault name (default: active)")
     pl.set_defaults(func=_cmd_lint)
+
+    pln = sub.add_parser("links", help="Entity-link suggestions + insertion.")
+    lsub = pln.add_subparsers(dest="links_cmd", required=True)
+    pls = lsub.add_parser("suggest", help="List unlinked mentions of existing pages.")
+    pls.add_argument("relpath", nargs="?", default=None, help="limit to one page")
+    pls.add_argument("--vault", default=None, help="vault name (default: active)")
+    pls.set_defaults(func=_cmd_links)
+    pll = lsub.add_parser("link", help="Insert [[slug]] at the first unlinked mention.")
+    pll.add_argument("relpath")
+    pll.add_argument("--to", required=True, help="target page slug")
+    pll.add_argument("--vault", default=None, help="vault name (default: active)")
+    pll.set_defaults(func=_cmd_links)
 
     prv = sub.add_parser("review", help="Spaced-repetition review queue.")
     rsub = prv.add_subparsers(dest="review_cmd", required=True)

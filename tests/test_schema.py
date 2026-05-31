@@ -188,3 +188,12 @@ def test_validate_review_must_be_dict():
     good = dict(bad); good["review"] = {"due": "2026-01-01"}
     issues2 = {i["issue"] for i in schema.validate(good, "", schemas=schemas)}
     assert "wrong_type:review" not in issues2
+
+
+def test_validate_aliases_must_be_list():
+    schemas = schema.load_schemas()
+    bad = {"title": "T", "date": "2026-01-01", "type": "concept", "tags": ["a"], "aliases": "x"}
+    issues = {i["issue"] for i in schema.validate(bad, "", schemas=schemas)}
+    assert "wrong_type:aliases" in issues
+    good = dict(bad); good["aliases"] = ["x"]
+    assert "wrong_type:aliases" not in {i["issue"] for i in schema.validate(good, "", schemas=schemas)}

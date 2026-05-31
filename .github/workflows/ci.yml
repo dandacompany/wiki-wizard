@@ -88,6 +88,7 @@ jobs:
           omw schema list > /dev/null
           omw supersede --help > /dev/null
           omw review --help > /dev/null
+          omw links suggest --help > /dev/null
           test -x bin/omw-install.sh
           echo "✅ smoke checks passed"
         shell: bash

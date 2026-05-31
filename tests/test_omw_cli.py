@@ -351,3 +351,42 @@ def test_review_done_missing_page_exits_1(tmp_path, monkeypatch, capsys):
                        "--vault", "cv"])
     assert rc == 1
     assert "not found" in capsys.readouterr().err.lower()
+
+
+def _links_vault(tmp_path, monkeypatch):
+    monkeypatch.setenv("OMW_HOME", str(tmp_path / ".omw"))
+    from scripts.paths import registry_path
+    db = registry_path()
+    registry.init_db(db)
+    root = tmp_path / "cv"
+    (root / "wiki" / "entities").mkdir(parents=True)
+    v = registry.add_vault(db, name="cv", path=str(root), type_="markdown", mode="wiki")
+    (root / "wiki" / "entities" / "k.md").write_text(
+        "---\ntitle: Karp\ntype: entity\n---\n## Summary\nx\n", encoding="utf-8")
+    (root / "wiki" / "entities" / "t.md").write_text(
+        "---\ntitle: T\ntype: concept\n---\n## Summary\nKarp is great.\n", encoding="utf-8")
+    reindex.full(db, vault_id=v["id"])
+    return db, root, v["id"]
+
+
+def test_links_suggest_lists(tmp_path, monkeypatch, capsys):
+    _links_vault(tmp_path, monkeypatch)
+    rc = omw_cli.main(["links", "suggest", "--vault", "cv"])
+    assert rc == 0
+    rows = json.loads(capsys.readouterr().out)
+    assert any(r["target_slug"] == "k" and r["src_relpath"] == "wiki/entities/t.md" for r in rows)
+
+
+def test_links_link_inserts(tmp_path, monkeypatch, capsys):
+    _links_vault(tmp_path, monkeypatch)
+    rc = omw_cli.main(["links", "link", "wiki/entities/t.md", "--to", "k", "--vault", "cv"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["target_slug"] == "k" and out["inserted"].startswith("[[k")
+
+
+def test_links_link_missing_page_exits_1(tmp_path, monkeypatch, capsys):
+    _links_vault(tmp_path, monkeypatch)
+    rc = omw_cli.main(["links", "link", "wiki/entities/nope.md", "--to", "k", "--vault", "cv"])
+    assert rc == 1
+    assert "not found" in capsys.readouterr().err.lower()
