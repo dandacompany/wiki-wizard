@@ -226,6 +226,6 @@ def test_setup_no_section_interactive_calls_run_all(monkeypatch):
     from scripts import omw_cli, setup_wizard
     called = {}
     monkeypatch.setattr(setup_wizard.sys.stdin, "isatty", lambda: True)
-    monkeypatch.setattr(setup_wizard, "run_all", lambda **k: called.setdefault("ran", True) or 0)
+    monkeypatch.setattr(setup_wizard, "run_all", lambda **k: called.update(ran=True) or 0)
     rc = omw_cli.main(["setup"])
     assert rc == 0 and called.get("ran") is True
