@@ -30,6 +30,7 @@ def check(db_path: Path, *, vault_id: int) -> dict:
     fm_issues: list[dict] = []
     missing_files: list[dict] = []
     mtime_drift: list[dict] = []
+    status_map: dict[str, str] = {}
 
     # 1) sqlite rows vs disk
     for row in rows:
@@ -65,12 +66,22 @@ def check(db_path: Path, *, vault_id: int) -> dict:
             continue
         for issue in schema.validate(meta, body, schemas=schemas):
             fm_issues.append({"relpath": relpath, **issue})
+        if meta.get("status") is not None:
+            status_map[relpath] = meta["status"]
 
     broken = links.broken_links(db_path, vault_id=vault_id)
-    orphan_pages = links.orphans(db_path, vault_id=vault_id)
+    orphan_pages = [
+        o for o in links.orphans(db_path, vault_id=vault_id)
+        if status_map.get(o["relpath"]) != "superseded"
+    ]
     index_drift_report = links.index_drift(db_path, vault_id=vault_id)
     contradictions = links.relations(db_path, vault_id=vault_id, relation="contradicts")
     supersedes = links.relations(db_path, vault_id=vault_id, relation="supersedes")
+    superseded_unmarked = [
+        {"relpath": e["dst_relpath"], "superseded_by_relpath": e["src_relpath"]}
+        for e in supersedes
+        if e["dst_relpath"] and status_map.get(e["dst_relpath"]) != "superseded"
+    ]
 
     return {
         "vault_id": vault_id,
@@ -86,14 +97,16 @@ def check(db_path: Path, *, vault_id: int) -> dict:
             "index_drift": index_drift_report,
             "contradictions": contradictions,
             "supersedes": supersedes,
+            "superseded_unmarked": superseded_unmarked,
         },
         "auto_fix_hints": _hints(fm_issues, missing_files, mtime_drift, broken,
-                                 orphan_pages, index_drift_report, contradictions),
+                                 orphan_pages, index_drift_report, contradictions,
+                                 superseded_unmarked),
     }
 
 
 def _hints(fm_issues, missing, drift, broken=None, orphan_pages=None,
-           index_drift=None, contradictions=None) -> list[str]:
+           index_drift=None, contradictions=None, superseded_unmarked=None) -> list[str]:
     hints = []
     if drift:
         hints.append("Run `reindex.incremental(db, vault_id=...)` to refresh mtime drift.")
@@ -113,6 +126,10 @@ def _hints(fm_issues, missing, drift, broken=None, orphan_pages=None,
     if contradictions:
         hints.append("Explicit contradictions declared — run the consistency-checker "
                      "persona to adjudicate them.")
+    if superseded_unmarked:
+        hints.append("Pages superseded by others aren't marked — run "
+                     "`omw supersede <relpath> --by <slug>` (or the wiki-auditor) "
+                     "to set status: superseded.")
     return hints
 
 
