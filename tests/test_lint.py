@@ -1,7 +1,7 @@
 from pathlib import Path
 import pytest
 
-from scripts import registry, reindex, lint
+from scripts import registry, reindex, lint, supersede
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -164,3 +164,44 @@ def test_lint_accepts_vault_override_type(tmp_path, monkeypatch):
     issues = {(i["relpath"], i["issue"]) for i in report["frontmatter_issues"]}
     # 'recipe' is now a valid type (no invalid_type), required_fields satisfied
     assert ("wiki/entities/r.md", "invalid_type") not in issues
+
+
+# ---------------------------------------------------------------------------
+# Task 3 (F#4): status map, orphan exemption, superseded_unmarked
+# ---------------------------------------------------------------------------
+
+def test_lint_excludes_superseded_from_orphans(tmp_path, monkeypatch):
+    db, root, vid = _make_vault(tmp_path, monkeypatch)
+    # an orphan wiki page (no inbound links), marked superseded
+    (root / "wiki" / "entities" / "old.md").write_text(
+        "---\ntitle: Old\ndate: 2026-01-01\ntype: entity\ntags: [a]\n"
+        "status: superseded\nsuperseded_by: new\n---\n## Summary\nx\n",
+        encoding="utf-8",
+    )
+    reindex.full(db, vault_id=vid)
+    report = lint.check(db, vault_id=vid)
+    orphan_relpaths = {o["relpath"] for o in report["links"]["orphans"]}
+    assert "wiki/entities/old.md" not in orphan_relpaths
+
+
+def test_lint_reports_superseded_unmarked(tmp_path, monkeypatch):
+    db, root, vid = _make_vault(tmp_path, monkeypatch)
+    # B supersedes A via frontmatter relation; A is NOT yet marked
+    (root / "wiki" / "entities" / "a.md").write_text(
+        "---\ntitle: A\ndate: 2026-01-01\ntype: entity\ntags: [x]\n---\n## Summary\na\n",
+        encoding="utf-8",
+    )
+    (root / "wiki" / "entities" / "b.md").write_text(
+        "---\ntitle: B\ndate: 2026-01-01\ntype: entity\ntags: [x]\n"
+        "relations: {supersedes: [a]}\n---\n## Summary\nb\n",
+        encoding="utf-8",
+    )
+    reindex.full(db, vault_id=vid)
+    report = lint.check(db, vault_id=vid)
+    unmarked = {u["relpath"] for u in report["links"]["superseded_unmarked"]}
+    assert "wiki/entities/a.md" in unmarked
+    # after marking, it leaves the list
+    supersede.mark_superseded(db, vault_id=vid, relpath="wiki/entities/a.md", by_slug="b")
+    report2 = lint.check(db, vault_id=vid)
+    unmarked2 = {u["relpath"] for u in report2["links"]["superseded_unmarked"]}
+    assert "wiki/entities/a.md" not in unmarked2

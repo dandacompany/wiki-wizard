@@ -5,3 +5,6 @@ field_types:
   title: str
   date: str
 required_sections: []
+allowed_values:
+  confidence: [high, medium, low]
+  status: [draft, inbox, processed, raw, superseded, meta]

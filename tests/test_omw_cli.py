@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts import omw_cli, registry
+from scripts import omw_cli, registry, reindex
 from scripts.paths import registry_path
 
 
@@ -277,5 +277,35 @@ def test_schema_show_unknown_type_exits_1(capsys):
 
 def test_schema_show_bad_vault_exits_1(capsys):
     rc = omw_cli.main(["schema", "show", "entity", "--vault", "__nope__"])
+    assert rc == 1
+    assert "not found" in capsys.readouterr().err.lower()
+
+
+def test_supersede_marks_page(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("OMW_HOME", str(tmp_path / ".omw"))
+    from scripts.paths import registry_path
+    db = registry_path()
+    registry.init_db(db)
+    root = tmp_path / "cv"
+    (root / "wiki" / "concepts").mkdir(parents=True)
+    vault = registry.add_vault(db, name="cv", path=str(root), type_="markdown", mode="wiki")
+    (root / "wiki" / "concepts" / "old.md").write_text(
+        "---\ntitle: Old\ntype: concept\n---\nbody\n", encoding="utf-8")
+    reindex.full(db, vault_id=vault["id"])
+    rc = omw_cli.main(["supersede", "wiki/concepts/old.md", "--by", "new", "--vault", "cv"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["status"] == "superseded" and out["superseded_by"] == "new"
+
+
+def test_supersede_missing_page_exits_1(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("OMW_HOME", str(tmp_path / ".omw"))
+    from scripts.paths import registry_path
+    db = registry_path()
+    registry.init_db(db)
+    root = tmp_path / "cv"
+    (root / "wiki").mkdir(parents=True)
+    registry.add_vault(db, name="cv", path=str(root), type_="markdown", mode="wiki")
+    rc = omw_cli.main(["supersede", "wiki/nope.md", "--by", "x", "--vault", "cv"])
     assert rc == 1
     assert "not found" in capsys.readouterr().err.lower()
