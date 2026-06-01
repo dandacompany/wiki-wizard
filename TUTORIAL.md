@@ -93,16 +93,23 @@ prompt. Run `bash bin/install.sh --help` for all flags.
 omw doctor
 ```
 
-Example output (paths will reflect your machine):
+Example output after a vault exists (paths will reflect your machine):
 
 ```
 omw home:   /Users/you/.omw  ok
 registry:   /Users/you/.omw/registry.db  ok
+  * demo (wiki/markdown) /Users/you/.omw/vaults/demo
 ```
 
-On a fresh machine before any vault is created, `registry.db` is created on
-first use. `doctor` reports `ok` for each component it finds, or explains what
-is missing.
+On a **fresh machine** before `omw setup` has been run, `doctor` prints:
+
+```
+omw home:   /Users/you/.omw  missing (run: omw setup)
+registry:   /Users/you/.omw/registry.db  missing
+  no vaults registered — run: omw setup
+```
+
+`doctor` reports `ok` for each component it finds, or explains what is missing.
 
 ---
 
@@ -199,7 +206,9 @@ On a clean vault with no issues:
 ```json
 {
   "vault_id": 1,
+  "vault_path": "~/.omw/vaults/demo",
   "frontmatter_issues": [],
+  "drift": { "missing_files": [], "mtime_drift": [] },
   "links": {
     "broken": [],
     "orphans": [],
@@ -208,14 +217,17 @@ On a clean vault with no issues:
     "supersedes": [],
     "superseded_unmarked": [],
     "link_suggestions": []
-  }
+  },
+  "auto_fix_hints": []
 }
 ```
 
 `frontmatter_issues: []` means every page passes the required-field check.
 The `links` keys (`broken`, `orphans`, `index_drift`, `contradictions`,
 `supersedes`, `superseded_unmarked`, `link_suggestions`) tell you the full
-structural health of the vault.
+structural health of the vault. `drift` reports files present on disk but
+missing from the index, and `auto_fix_hints` lists actionable remedies when
+issues are found.
 
 ---
 
@@ -396,28 +408,67 @@ Returns a list of `{relpath, due, interval_days, confidence}` entries. Pages
 with no `review:` block have `due: null` and sort first — they have never been
 reviewed and deserve attention.
 
-### 4.5 Full-text search and the local query API
+### 4.5 Web search, vault FTS5, and the local query API
 
-oh-my-wiki uses SQLite FTS5 (BM25 over title + summary + tags + body) for
-full-text search when available, with an automatic token-scorer fallback. You
-do not need to configure anything — FTS5 is enabled by default.
+#### `omw search` — external web search
 
-From the CLI, search your vault directly:
+`omw search "<query>"` performs a **web search** via an external provider
+(brave / tavily / exa / firecrawl / brightdata). It pulls results from the
+open web for research — it is **not** a search of your vault.
+
+Configure a provider first:
 
 ```
-omw search "compounding knowledge"
+omw setup search
 ```
 
-For a lightweight HTTP query API (useful when integrating with other tools),
-start the local server:
+Without a configured provider the CLI prints:
+
+```
+error: no search provider configured — run `omw setup search`
+```
+
+#### Searching your vault — FTS5 + in-session query
+
+Your vault is indexed with **SQLite FTS5** (BM25 over title + summary + tags +
+body), with an automatic token-scorer fallback. To search it:
+
+- **In a Claude / Codex / Gemini session**: say "what does my wiki say about X"
+  — the skill retrieves via FTS5 and LLM-reranks the results.
+- **Via the local HTTP API** (`omw serve`): POST a query and get ranked hits as
+  JSON (retrieve-only — no LLM in the server).
+
+#### `omw serve` — local retrieve-only HTTP API
+
+First generate an auth token (stored as `OMW_SERVE_TOKEN` in `~/.omw/.env`):
+
+```
+omw setup serve --generate-token
+```
+
+Then start the server:
 
 ```
 omw serve
 ```
 
-The server starts at `http://localhost:5179` and exposes a retrieve-only
-messenger API. It accepts GET requests to query the active vault and returns
-ranked results as JSON. See `references/messenger-api.md` for the full spec.
+The server listens on **`http://127.0.0.1:8765`** (localhost only).
+Query your vault with a `POST /query` (auth required) or check liveness with
+`GET /health` (no auth). A `GET /query` returns 405.
+
+```bash
+# health (no auth)
+curl -s http://127.0.0.1:8765/health
+
+# query (POST + bearer token)
+curl -s -X POST http://127.0.0.1:8765/query \
+  -H "Authorization: Bearer $OMW_SERVE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "compounding knowledge", "limit": 5}'
+```
+
+See `references/messenger-api.md` for the full request/response JSON shape and
+adapter sketches for Slack, Telegram, and Discord.
 
 ### 4.6 Entity auto-linking
 
@@ -438,13 +489,22 @@ omw links suggest
     "target_slug": "andrej-karpathy",
     "target_relpath": "wiki/entities/andrej-karpathy.md",
     "mention": "Andrej Karpathy",
-    "position": 11
+    "position": 145
+  },
+  {
+    "src_relpath": "wiki/entities/andrej-karpathy.md",
+    "target_slug": "llm-wiki",
+    "target_relpath": "wiki/concepts/llm-wiki.md",
+    "mention": "LLM Wiki",
+    "position": 88
   }
 ]
 ```
 
-The suggestion tells you that `llm-wiki.md` at position 11 mentions
-"Andrej Karpathy" without a wikilink, and there is a matching entity page.
+The output lists every unlinked mention across all pages. Here `llm-wiki.md`
+at character position 145 mentions "Andrej Karpathy" without a wikilink, and
+`andrej-karpathy.md` at position 88 mentions "LLM Wiki" without a wikilink.
+Both have matching pages in the vault.
 
 Insert the link:
 
@@ -531,9 +591,11 @@ Relation keys (`uses`, `contradicts`, `supersedes`) that reference wikilinks
 
 ### 4.8 Writing personas (in-session, natural language)
 
-oh-my-wiki ships four writing personas you invoke in your Claude Code / Codex /
+oh-my-wiki ships eight writing personas you invoke in your Claude Code / Codex /
 Gemini session by talking naturally. No separate command is needed — the skill
-routes to the right persona based on what you say.
+routes to the right persona based on what you say. Core personas described here:
+researcher / fact-checker / curator / wiki-auditor. The full roster (including
+translator, polisher, summarizer, scaffolder) is in the Part 5 table.
 
 **Researcher** — builds a sourced overview from multiple web queries and files
 the result to `wiki/syntheses/`. In your Claude session, say:
@@ -584,21 +646,21 @@ files, draft proposals, and show you what will change before writing anything.
 
 ### CLI subcommands (13)
 
-| Subcommand      | Surface | One-line description                                           |
-| --------------- | ------- | -------------------------------------------------------------- |
-| `omw status`    | CLI     | Show registry state: vault count, active vault, `needs` code   |
-| `omw vault`     | CLI     | Vault management: `create`, `list`, `use`, `forget`            |
-| `omw lint`      | CLI     | Deterministic vault health check (frontmatter + links + drift) |
-| `omw search`    | CLI     | Full-text search via configured provider                       |
-| `omw serve`     | CLI     | Start the local retrieve-only HTTP query API                   |
-| `omw schema`    | CLI     | Show page-type schemas: `list`, `show <type>`                  |
-| `omw supersede` | CLI     | Mark a page `status: superseded` + `superseded_by: <slug>`     |
-| `omw review`    | CLI     | Spaced-repetition queue: `due`, `done`                         |
-| `omw links`     | CLI     | Entity auto-link: `suggest`, `link`                            |
-| `omw fields`    | CLI     | Show a page's frontmatter + inline `key:: value` fields        |
-| `omw import`    | CLI     | Import a folder / Obsidian vault / Notion export               |
-| `omw setup`     | CLI     | Interactive wizard: vault, search, personas, TTS               |
-| `omw doctor`    | CLI     | Validate omw config + install health                           |
+| Subcommand      | Surface | One-line description                                                 |
+| --------------- | ------- | -------------------------------------------------------------------- |
+| `omw status`    | CLI     | Show registry state: vault count, active vault, `needs` code         |
+| `omw vault`     | CLI     | Vault management: `create`, `list`, `use`, `forget`                  |
+| `omw lint`      | CLI     | Deterministic vault health check (frontmatter + links + drift)       |
+| `omw search`    | CLI     | Web search via the configured external provider (brave/tavily/exa/…) |
+| `omw serve`     | CLI     | Start the local retrieve-only HTTP query API (port 8765)             |
+| `omw schema`    | CLI     | Show page-type schemas: `list`, `show <type>`                        |
+| `omw supersede` | CLI     | Mark a page `status: superseded` + `superseded_by: <slug>`           |
+| `omw review`    | CLI     | Spaced-repetition queue: `due`, `done`                               |
+| `omw links`     | CLI     | Entity auto-link: `suggest`, `link`                                  |
+| `omw fields`    | CLI     | Show a page's frontmatter + inline `key:: value` fields              |
+| `omw import`    | CLI     | Import a folder / Obsidian vault / Notion export                     |
+| `omw setup`     | CLI     | Interactive wizard: vault, search, personas, TTS                     |
+| `omw doctor`    | CLI     | Validate omw config + install health                                 |
 
 Reasoning-ops (`ingest`, `query`, `find`, `edit`, `autoresearch`, personas,
 `dispatch`, `team`) require a Claude / Codex / Gemini session — use them by
@@ -689,17 +751,22 @@ reports `ok`.
 
 ### Q. `omw status` shows `needs: "migrate"` instead of `needs: "setup"`
 
-You are running from the source tree, which ships a `data/registry.db` for
-development. Real end-users (who install via Skills CLI, marketplace, or
-`bin/install.sh`) see `needs: "setup"` on a fresh machine because `data/` is
-gitignored and not included in the distributed package.
+`needs: "migrate"` appears when `omw status` detects a legacy `data/registry.db`
+file in the skill directory (or `<cwd>/data/registry.db`). This happens in a
+**source-tree checkout** where `data/registry.db` is present on disk.
 
-To simulate a clean end-user environment, override `OMW_HOME`:
+Real end-users who install via Skills CLI, marketplace, or `bin/install.sh`
+see `needs: "setup"` on a fresh machine — `data/` is gitignored and not
+included in the distributed package.
 
-```bash
-export OMW_HOME=$(mktemp -d)/.omw
-omw status
-```
+> **Note:** Overriding `OMW_HOME` (e.g. `export OMW_HOME=$(mktemp -d)/.omw`)
+> does **not** simulate a clean end-user environment when running from a source
+> checkout. Legacy detection scans `<skill_dir>/data/registry.db` independently
+> of `OMW_HOME`, so the mktemp trick still returns `needs: "migrate"` from a
+> source tree.
+
+The remedy in both cases is `omw setup` — the wizard migrates or initializes
+the registry as appropriate.
 
 ### Q. oh-my-wiki did not auto-trigger in my session
 
@@ -710,11 +777,23 @@ Use an explicit trigger phrase:
 
 Or just say: `use the oh-my-wiki skill`.
 
-### Q. `omw search` returns nothing / FTS5 not available
+### Q. `omw search` returns an error / no provider configured
 
-oh-my-wiki uses SQLite FTS5 (BM25) when available and falls back to a
-token-scorer automatically. Most modern Python sqlite3 builds include FTS5.
-To check:
+`omw search` is a **web search** command — it queries an external search
+provider (brave, tavily, exa, firecrawl, or brightdata), not your vault.
+If no provider is configured, you will see:
+
+```
+error: no search provider configured — run `omw setup search`
+```
+
+Run `omw setup search` and enter your provider credentials to fix this.
+
+### Q. Vault FTS5 is unavailable / in-session query returns no results
+
+Your vault index uses SQLite FTS5 (BM25) internally. oh-my-wiki falls back
+to a token-scorer automatically when FTS5 is unavailable. Most modern Python
+sqlite3 builds include FTS5. To check:
 
 ```bash
 python3 -c "import sqlite3; c = sqlite3.connect(':memory:'); c.execute('CREATE VIRTUAL TABLE t USING fts5(body)'); print('FTS5 ok')"

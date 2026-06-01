@@ -20,7 +20,7 @@ oh-my-wiki exposes exactly two surfaces. The **`omw` CLI** handles deterministic
 - **Schemas** — 13 built-in page types (`omw schema list/show`), with per-vault overrides in `<vault>/schemas/`
 - **Confidence + supersede** — `confidence` frontmatter field; `omw supersede` retires old pages cleanly
 - **Review queue (SR)** — spaced-repetition via `omw review due` / `omw review done`
-- **FTS5 search** — `omw search` + `omw serve` for fast full-text queries
+- **Web search** — `omw search` queries an external provider (brave/tavily/exa/…); `omw serve` exposes vault FTS5 as a local retrieve-only HTTP API on port 8765
 - **Entity-linking** — `omw links suggest` / `omw links link` auto-inserts `[[slug|Name]]` references
 - **Inline fields** — `omw fields` reads `key::` inline syntax alongside frontmatter
 - **Korean matching** — Korean entity names with josa (`카르파시가`) are suggested and linked correctly
@@ -69,6 +69,7 @@ omw doctor
 ```
 omw home:   /Users/you/.omw  ok
 registry:   /Users/you/.omw/registry.db  ok
+  * demo (wiki/markdown) /Users/you/.omw/vaults/demo
 ```
 
 ---
@@ -151,7 +152,9 @@ omw lint
 ```json
 {
   "vault_id": 1,
+  "vault_path": "~/.omw/vaults/demo",
   "frontmatter_issues": [],
+  "drift": { "missing_files": [], "mtime_drift": [] },
   "links": {
     "broken": [],
     "orphans": [],
@@ -160,7 +163,8 @@ omw lint
     "supersedes": [],
     "superseded_unmarked": [],
     "link_suggestions": []
-  }
+  },
+  "auto_fix_hints": []
 }
 ```
 
@@ -178,21 +182,21 @@ SKILL.md dispatcher → commands/<op>.md (LLM procedure) → scripts/<op>.py (de
 
 The 13 CLI subcommands:
 
-| Subcommand  | Purpose                                       |
-| ----------- | --------------------------------------------- |
-| `status`    | Show active vault and registry state          |
-| `vault`     | Create, list, use, forget vaults              |
-| `lint`      | Structural health check (frontmatter + links) |
-| `search`    | FTS5 full-text search across vault pages      |
-| `serve`     | Local HTTP search server                      |
-| `schema`    | List / inspect page-type schemas              |
-| `supersede` | Mark a page superseded by a newer one         |
-| `review`    | Spaced-repetition review queue (due / done)   |
-| `links`     | Suggest and insert `[[slug]]` entity links    |
-| `fields`    | Read frontmatter + inline `key::` fields      |
-| `import`    | Import an existing folder as a vault          |
-| `setup`     | Interactive setup wizard                      |
-| `doctor`    | Verify install health                         |
+| Subcommand  | Purpose                                                              |
+| ----------- | -------------------------------------------------------------------- |
+| `status`    | Show active vault and registry state                                 |
+| `vault`     | Create, list, use, forget vaults                                     |
+| `lint`      | Structural health check (frontmatter + links)                        |
+| `search`    | Web search via the configured external provider (brave/tavily/exa/…) |
+| `serve`     | Local retrieve-only HTTP query API (port 8765)                       |
+| `schema`    | List / inspect page-type schemas                                     |
+| `supersede` | Mark a page superseded by a newer one                                |
+| `review`    | Spaced-repetition review queue (due / done)                          |
+| `links`     | Suggest and insert `[[slug]]` entity links                           |
+| `fields`    | Read frontmatter + inline `key::` fields                             |
+| `import`    | Import an existing folder as a vault                                 |
+| `setup`     | Interactive setup wizard                                             |
+| `doctor`    | Verify install health                                                |
 
 The skill also exposes natural-language ops via your AI session: `ingest`, `query`, `autoresearch`, `find`, `edit`, `move`, `delete`, and persona invocations (`translate`, `polish`, `summarize`, `scaffold`, `fact-check`, `consistency-check`, `build glossary`).
 

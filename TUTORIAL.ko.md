@@ -92,14 +92,22 @@ bash bin/install.sh
 omw doctor
 ```
 
-출력 예시 (경로는 각자의 머신에 따라 다름):
+vault가 존재하는 경우 출력 예시 (경로는 각자의 머신에 따라 다름):
 
 ```
 omw home:   /Users/you/.omw  ok
 registry:   /Users/you/.omw/registry.db  ok
+  * demo (wiki/markdown) /Users/you/.omw/vaults/demo
 ```
 
-vault를 아직 만들지 않은 새 머신에서는 `registry.db`가 처음 사용 시 생성됩니다.
+**새 머신**에서 `omw setup`을 실행하기 전에는 다음과 같이 표시됩니다:
+
+```
+omw home:   /Users/you/.omw  missing (run: omw setup)
+registry:   /Users/you/.omw/registry.db  missing
+  no vaults registered — run: omw setup
+```
+
 `doctor`는 각 컴포넌트를 찾으면 `ok`를 보고하고, 없으면 무엇이 빠졌는지 설명합니다.
 
 ---
@@ -196,7 +204,9 @@ omw lint
 ```json
 {
   "vault_id": 1,
+  "vault_path": "~/.omw/vaults/demo",
   "frontmatter_issues": [],
+  "drift": { "missing_files": [], "mtime_drift": [] },
   "links": {
     "broken": [],
     "orphans": [],
@@ -205,14 +215,16 @@ omw lint
     "supersedes": [],
     "superseded_unmarked": [],
     "link_suggestions": []
-  }
+  },
+  "auto_fix_hints": []
 }
 ```
 
 `frontmatter_issues: []`는 모든 페이지가 필수 필드 검사를 통과했음을 의미합니다.
 `links` 키들(`broken`, `orphans`, `index_drift`, `contradictions`,
 `supersedes`, `superseded_unmarked`, `link_suggestions`)은 vault의
-전체적인 구조 건강 상태를 알려줍니다.
+전체적인 구조 건강 상태를 알려줍니다. `drift`는 디스크에 있지만 인덱스에 없는 파일을
+보고하고, `auto_fix_hints`는 문제가 발견될 때 실행 가능한 해결 방법을 제시합니다.
 
 ---
 
@@ -388,26 +400,66 @@ omw review due --today 2026-09-01
 페이지는 `due: null`로 표시되며 가장 앞에 정렬됩니다 — 한 번도 검토되지 않았으므로 주의가
 필요합니다.
 
-### 4.5 전문 검색과 로컬 쿼리 API
+### 4.5 웹 검색, vault FTS5, 그리고 로컬 쿼리 API
 
-oh-my-wiki는 전문 검색에 SQLite FTS5(title + summary + tags + body에 대한 BM25)를
-사용하며, 사용 불가 시 토큰 스코어 기반으로 자동 폴백됩니다. 별도 설정이 필요 없습니다 —
-FTS5는 기본적으로 활성화됩니다.
+#### `omw search` — 외부 웹 검색
 
-CLI에서 vault를 직접 검색합니다:
+`omw search "<query>"`는 외부 검색 provider(brave / tavily / exa / firecrawl /
+brightdata)를 통한 **웹 검색**을 수행합니다. 오픈 웹에서 결과를 가져오는 것으로,
+vault 내부를 검색하는 것이 **아닙니다**.
+
+먼저 provider를 설정하세요:
 
 ```
-omw search "compounding knowledge"
+omw setup search
 ```
 
-다른 도구와 연동할 때 유용한 경량 HTTP 쿼리 API를 위해 로컬 서버를 시작합니다:
+provider가 설정되지 않은 경우 CLI는 다음을 출력합니다:
+
+```
+error: no search provider configured — run `omw setup search`
+```
+
+#### vault 검색 — FTS5 + 세션 내 쿼리
+
+vault는 **SQLite FTS5**(title + summary + tags + body에 대한 BM25)로 인덱싱되며,
+FTS5를 사용할 수 없을 때 토큰 스코어 기반으로 자동 폴백됩니다. 검색 방법:
+
+- **Claude / Codex / Gemini 세션에서**: "내 위키에서 X에 대해 뭐라고 해?"라고 말하면
+  스킬이 FTS5로 검색하고 LLM이 결과를 재순위 매깁니다.
+- **로컬 HTTP API** (`omw serve`)를 통해: 쿼리를 POST하면 순위가 매겨진 결과를 JSON으로
+  반환합니다(서버에 LLM 없음 — 검색만).
+
+#### `omw serve` — 로컬 읽기 전용 HTTP API
+
+먼저 인증 토큰을 생성합니다(`~/.omw/.env`에 `OMW_SERVE_TOKEN`으로 저장됩니다):
+
+```
+omw setup serve --generate-token
+```
+
+그런 다음 서버를 시작합니다:
 
 ```
 omw serve
 ```
 
-서버는 `http://localhost:5179`에서 시작되며 읽기 전용 메신저 API를 제공합니다. 활성 vault를
-쿼리하는 GET 요청을 받아 순위가 매겨진 결과를 JSON으로 반환합니다. 전체 명세는
+서버는 **`http://127.0.0.1:8765`**(localhost 전용)에서 실행됩니다.
+`POST /query`(인증 필요)로 vault를 쿼리하거나, `GET /health`(인증 불필요)로 활성
+상태를 확인할 수 있습니다. `GET /query`는 405를 반환합니다.
+
+```bash
+# health (no auth)
+curl -s http://127.0.0.1:8765/health
+
+# query (POST + bearer token)
+curl -s -X POST http://127.0.0.1:8765/query \
+  -H "Authorization: Bearer $OMW_SERVE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "compounding knowledge", "limit": 5}'
+```
+
+전체 요청/응답 JSON 형식과 Slack, Telegram, Discord 어댑터 스케치는
 `references/messenger-api.md`를 참고하세요.
 
 ### 4.6 엔티티 자동 링크
@@ -428,13 +480,21 @@ omw links suggest
     "target_slug": "andrej-karpathy",
     "target_relpath": "wiki/entities/andrej-karpathy.md",
     "mention": "Andrej Karpathy",
-    "position": 11
+    "position": 145
+  },
+  {
+    "src_relpath": "wiki/entities/andrej-karpathy.md",
+    "target_slug": "llm-wiki",
+    "target_relpath": "wiki/concepts/llm-wiki.md",
+    "mention": "LLM Wiki",
+    "position": 88
   }
 ]
 ```
 
-이 제안은 `llm-wiki.md`의 11번 위치에서 "Andrej Karpathy"가 wikilink 없이 언급되고 있으며,
-일치하는 엔티티 페이지가 존재한다는 것을 알려줍니다.
+출력은 모든 페이지에서 발견된 링크 없는 언급을 나열합니다. `llm-wiki.md`의 문자 위치 145에서
+"Andrej Karpathy"가 wikilink 없이 언급되고, `andrej-karpathy.md`의 위치 88에서 "LLM Wiki"가
+wikilink 없이 언급됩니다. 두 경우 모두 vault에 일치하는 페이지가 존재합니다.
 
 링크를 삽입합니다:
 
@@ -518,9 +578,11 @@ frontmatter `relations:`와 동일한 방식으로 타입드 엣지 그래프에
 
 ### 4.8 Writing persona (세션 내, 자연어)
 
-oh-my-wiki는 Claude Code / Codex / Gemini 세션에서 자연어로 호출하는 네 가지 writing
+oh-my-wiki는 Claude Code / Codex / Gemini 세션에서 자연어로 호출하는 여덟 가지 writing
 persona를 제공합니다. 별도 커맨드가 필요 없습니다 — 스킬이 입력한 내용에 따라 적절한
-persona로 라우팅합니다.
+persona로 라우팅합니다. 여기서 설명하는 핵심 persona는 researcher / fact-checker / curator
+/ wiki-auditor이며, 전체 목록(translator, polisher, summarizer, scaffolder 포함)은
+Part 5 표를 참고하세요.
 
 **Researcher** — 여러 웹 쿼리에서 출처를 모아 개요를 작성하고 결과를 `wiki/syntheses/`에
 저장합니다. Claude 세션에서 다음과 같이 말하세요:
@@ -575,8 +637,8 @@ build a glossary for my vault
 | `omw status`    | CLI        | 레지스트리 상태 표시: vault 수, 활성 vault, `needs` 코드       |
 | `omw vault`     | CLI        | Vault 관리: `create`, `list`, `use`, `forget`                  |
 | `omw lint`      | CLI        | 결정론적 vault 건강 검사 (frontmatter + links + drift)         |
-| `omw search`    | CLI        | 설정된 provider를 통한 전문 검색                               |
-| `omw serve`     | CLI        | 로컬 읽기 전용 HTTP 쿼리 API 시작                              |
+| `omw search`    | CLI        | 설정된 외부 provider를 통한 웹 검색 (brave/tavily/exa/…)       |
+| `omw serve`     | CLI        | 로컬 읽기 전용 HTTP 쿼리 API 시작 (포트 8765)                  |
 | `omw schema`    | CLI        | 페이지 타입 스키마 표시: `list`, `show <type>`                 |
 | `omw supersede` | CLI        | 페이지를 `status: superseded` + `superseded_by: <slug>`로 표시 |
 | `omw review`    | CLI        | 간격 반복 대기열: `due`, `done`                                |
@@ -673,17 +735,21 @@ omw setup
 
 ### Q. `omw status`가 `needs: "setup"` 대신 `needs: "migrate"`를 표시합니다
 
-개발용으로 `data/registry.db`가 포함된 소스 트리에서 실행 중입니다. Skills CLI,
-마켓플레이스, 또는 `bin/install.sh`를 통해 설치한 실제 사용자는 새 머신에서
+`needs: "migrate"`는 `omw status`가 스킬 디렉토리(또는 `<cwd>/data/registry.db`)에서
+레거시 `data/registry.db` 파일을 감지했을 때 나타납니다. 이는 `data/registry.db`가
+디스크에 존재하는 **소스 트리 체크아웃**에서 발생합니다.
+
+Skills CLI, 마켓플레이스, 또는 `bin/install.sh`를 통해 설치한 실제 사용자는 새 머신에서
 `needs: "setup"`을 봅니다 — `data/`는 .gitignore 처리되어 배포 패키지에 포함되지 않기
 때문입니다.
 
-깨끗한 사용자 환경을 시뮬레이션하려면 `OMW_HOME`을 오버라이드하세요:
+> **참고:** `OMW_HOME` 오버라이드(예: `export OMW_HOME=$(mktemp -d)/.omw`)는 소스 트리에서
+> 실행할 때 깨끗한 사용자 환경을 시뮬레이션하지 **않습니다**. 레거시 감지는 `OMW_HOME`과
+> 독립적으로 `<skill_dir>/data/registry.db`를 스캔하므로, 소스 트리에서는 mktemp 방법으로도
+> `needs: "migrate"`가 반환됩니다.
 
-```bash
-export OMW_HOME=$(mktemp -d)/.omw
-omw status
-```
+두 경우 모두 해결 방법은 `omw setup`입니다 — 마법사가 레지스트리를 마이그레이션하거나
+초기화합니다.
 
 ### Q. oh-my-wiki가 세션에서 자동으로 트리거되지 않습니다
 
@@ -694,10 +760,23 @@ omw status
 
 또는 다음과 같이 말하세요: `use the oh-my-wiki skill`.
 
-### Q. `omw search`가 아무것도 반환하지 않거나 FTS5를 사용할 수 없습니다
+### Q. `omw search`에서 오류가 발생하거나 provider가 설정되지 않았습니다
 
-oh-my-wiki는 가능하면 SQLite FTS5(BM25)를 사용하고, 자동으로 토큰 스코어 기반으로
-폴백합니다. 대부분의 최신 Python sqlite3 빌드는 FTS5를 포함합니다. 확인 방법:
+`omw search`는 **웹 검색** 커맨드로, 외부 검색 provider(brave, tavily, exa, firecrawl,
+또는 brightdata)를 쿼리합니다 — vault를 검색하는 것이 아닙니다. provider가 설정되지
+않은 경우 다음과 같이 표시됩니다:
+
+```
+error: no search provider configured — run `omw setup search`
+```
+
+`omw setup search`를 실행하고 provider 자격 증명을 입력하면 해결됩니다.
+
+### Q. vault FTS5를 사용할 수 없거나 세션 내 쿼리 결과가 없습니다
+
+vault 인덱스는 내부적으로 SQLite FTS5(BM25)를 사용합니다. FTS5를 사용할 수 없을 때
+oh-my-wiki는 토큰 스코어 기반으로 자동 폴백합니다. 대부분의 최신 Python sqlite3 빌드는
+FTS5를 포함합니다. 확인 방법:
 
 ```bash
 python3 -c "import sqlite3; c = sqlite3.connect(':memory:'); c.execute('CREATE VIRTUAL TABLE t USING fts5(body)'); print('FTS5 ok')"
