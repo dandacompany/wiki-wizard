@@ -1,838 +1,875 @@
-# oh-my-wiki 사용 튜토리얼
+# oh-my-wiki — v3 시나리오 튜토리얼
 
-Claude Code 나 Codex CLI 에서 oh-my-wiki 를 어떻게 사용하는지 실전 예제로 보여드립니다.
-모든 대화는 실제 동작을 그대로 옮긴 것이고, 한국어 트리거와 영어 트리거 모두 사용할 수 있습니다.
+> **영어 버전**: [TUTORIAL.md](./TUTORIAL.md)
 
-> **표기 규약**
->
-> - `> 사용자:` 는 당신이 채팅창에 입력하는 텍스트입니다.
-> - `< Claude:` 는 oh-my-wiki 가 실행되어 돌려주는 응답입니다.
-> - `$` 로 시작하는 줄은 내부적으로 실행되는 Python 호출입니다. 참고용이며 직접 칠 필요는 없습니다.
+이 튜토리얼은 실제 wiki vault를 구축하고 유지하는 과정을 단계별로 안내합니다.
+모든 커맨드 블록은 실제 v3 CLI를 실행한 결과물 그대로입니다.
+자연어 작업(ingest, query, autoresearch, persona)은 Claude Code / Codex / Gemini 세션에서
+입력하는 프롬프트 형태로 표시됩니다 — CLI 출력이 아닙니다.
 
 ---
 
-## 0. 설치 확인
+## Part 1 — 무엇이며, 왜 쓰는가
 
-새 컴퓨터에서는 한 줄 설치를 권장합니다.
+**oh-my-wiki**는 AI 코딩 에이전트로 구동하는 wiki 규약 및 유지 관리 프레임워크입니다.
+Andrej Karpathy가 "LLM Wiki" Gist에서 설명한 워크플로를 구현합니다: 모든 소스는
+raw 스냅샷, 요약 페이지, 그리고 10–15개의 엔티티 및 개념 페이지 터치로 이어집니다.
+쿼리는 평문 파일 덤프가 아닌 이 구조화된 wiki에서 가져오므로, 답변이 특정 페이지를
+출처로 인용할 수 있습니다.
+
+### Host-universal
+
+oh-my-wiki는 **특정 AI 호스트에 종속되지 않습니다**. 다음 환경에서 동일하게 작동합니다:
+
+- **Claude Code** — SKILL.md가 자동으로 감지되며, 트리거 문구로 스킬이 실행됩니다.
+- **Codex CLI** — 동일한 SKILL.md, 동일한 트리거 문구.
+- **Gemini CLI** — 동일한 SKILL.md, 동일한 트리거 문구.
+
+어떤 호스트도 특별 대우를 받지 않습니다. 지금 사용 중인 에이전트라면 무엇이든 작동합니다.
+
+### Two-surface model
+
+oh-my-wiki는 정확히 두 가지 인터페이스를 제공합니다:
+
+| 인터페이스      | 설명                                 | 예시                                                                                                                                                 |
+| --------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`omw` CLI**   | 결정론적 작업 — LLM 없이도 실행 가능 | `omw status`, `omw vault create`, `omw lint`, `omw schema list`, `omw supersede`, `omw review`, `omw links`, `omw fields`, `omw setup`, `omw doctor` |
+| **`omw` skill** | 세션 내 자연어 추론                  | ingest, query, autoresearch, personas, find, edit, move, delete                                                                                      |
+
+모델의 흐름은 이렇습니다: **persona가 제안 → 사용자가 확인 → 결정론적 작업이 실행**.
+Writing persona는 콘텐츠를 분석해 변경 사항을 제안하고, `omw` CLI가 결정론적 출력(링크 삽입,
+supersede 처리, lint 수정)을 실행합니다. 이 구조 덕분에 추론 과정은 투명하고 파일 변경은
+감사 가능합니다.
+
+---
+
+## Part 2 — 설치
+
+환경에 맞는 방법을 선택하세요. 어떤 경로를 선택하든 설치 후 `omw doctor`를 실행해
+모든 것이 올바르게 연결되었는지 확인하세요.
+
+### Path A — Skills CLI (Claude Code 사용자에게 권장)
+
+```bash
+skills add dandacompany/oh-my-wiki@oh-my-wiki -g -y --copy -a claude-code
+```
+
+이 명령은 스킬을 `~/.claude/skills/`에 설치하고 `oh-my-wiki`와 `omw` 단축 별칭 스킬 이름을 모두 등록합니다.
+
+### Path B — Claude Code 플러그인 마켓플레이스
+
+Claude Code 세션에서:
+
+```
+/plugin marketplace add dandacompany/oh-my-wiki
+/plugin install oh-my-wiki@oh-my-wiki-marketplace
+```
+
+이후 업데이트는 `/plugin marketplace update oh-my-wiki-marketplace`로 할 수 있습니다.
+
+### Path C — git clone + install script (개발자, Codex CLI 사용자)
 
 ```bash
 git clone https://github.com/dandacompany/oh-my-wiki
 cd oh-my-wiki
-bash bin/install.sh --dev
+bash bin/install.sh
 ```
 
-이 스크립트가 Python 의존성, 두 개의 스킬 symlink (`oh-my-wiki` 와 `omw`), pytest 검증까지 모두 처리합니다.
-플래그와 수동 설치 경로는 [README](./README.md) 를 참고하세요.
-설치가 끝나면 새 Claude Code 세션 어디서든 트리거를 사용할 수 있습니다.
-헬스 체크는 이렇게 해보세요.
+인스톨러가 수행하는 작업:
+
+1. Python 3.10+ 확인.
+2. `pip install -e "."` 실행 (개발용은 `--dev`를 추가해 pytest/ruff 포함).
+3. `~/.claude/skills/oh-my-wiki`와 `~/.claude/skills/omw` symlink 생성 (멱등성 보장).
+4. 설치 검증을 위해 `pytest -q` 실행 (`--no-test`로 건너뛸 수 있음).
+5. 다음 단계와 트리거 문구를 출력.
+
+재실행해도 안전합니다. `--force`를 사용하면 프롬프트 없이 기존 symlink를 교체합니다.
+전체 플래그는 `bash bin/install.sh --help`로 확인하세요.
+
+### 설치 확인
 
 ```
-> 사용자: 위키 상태 확인해줘
+omw doctor
+```
 
-< Claude: [oh-my-wiki 디스패처 실행]
-$ python3 -m scripts.wizard status
+vault가 존재하는 경우 출력 예시 (경로는 각자의 머신에 따라 다름):
 
+```
+omw home:   /Users/you/.omw  ok
+registry:   /Users/you/.omw/registry.db  ok
+  * demo (wiki/markdown) /Users/you/.omw/vaults/demo
+```
+
+**새 머신**에서 `omw setup`을 실행하기 전에는 다음과 같이 표시됩니다:
+
+```
+omw home:   /Users/you/.omw  missing (run: omw setup)
+registry:   /Users/you/.omw/registry.db  missing
+  no vaults registered — run: omw setup
+```
+
+`doctor`는 각 컴포넌트를 찾으면 `ok`를 보고하고, 없으면 무엇이 빠졌는지 설명합니다.
+
+---
+
+## Part 3 — 5분 빠른 시작
+
+### Step 1 — 설정 마법사 실행
+
+```
+omw setup
+```
+
+`omw setup`은 첫 번째 vault, 검색 provider, TTS, persona 설정을 구성하는 대화형 마법사입니다.
+프롬프트에 따라 진행하세요. 빠른 시작을 원하면 기본값을 그대로 받아들이면 됩니다 — 나중에
+`omw setup vault`나 `omw setup personas`를 다시 실행해 개별 섹션을 조정할 수 있습니다.
+
+### Step 2 — 상태 확인
+
+설정 직후 새 설치는 다음과 같이 표시됩니다:
+
+```
+omw status
+```
+
+```json
 {
   "vault_count": 0,
   "active": null,
   "needs": "setup",
   "vaults": []
 }
-
-등록된 vault가 없습니다. 새 vault를 만들까요?
-1. memo 모드 (가볍게 메모 캡처)
-2. wiki 모드 (Karpathy 스타일 지식 위키)
-3. 기존 /memo 폴더 가져오기
-4. 취소
 ```
 
-설치 직후라면 `needs: setup` 이 반환됩니다.
-사용할 수 있는 트리거 문구는 다음과 같습니다.
+`needs: "setup"`은 깨끗한 머신에서 실제 사용자가 보는 화면입니다. (소스 트리에서 실행 중인 경우
+`data/registry.db`가 저장소에 존재하므로 `needs`가 `"migrate"`로 표시됩니다 — 이는 개발 트리에서만
+나타나는 정상적인 동작입니다.)
 
-- 영어: "open my wiki", "set up a new vault", "ingest this", "what does my wiki say about X", "omw", "use omw", "/omw"
-- 한국어: "위키 열어줘", "새 vault 만들어줘", "이거 정리해줘", "위키에 물어봐", "오엠더블유", "오엠더블유 켜줘"
+### Step 3 — 첫 번째 vault 만들기
 
-**단축 별칭**: `omw` (또는 `/omw`) 만 입력해도 `oh-my-wiki` 와 똑같이 동작합니다.
-`omw` 스킬은 표준 디스패처로 즉시 위임하는 얇은 별칭 스킬입니다.
+```
+omw vault create demo --mode wiki
+```
+
+```json
+{
+  "created": "demo",
+  "path": "~/.omw/vaults/demo",
+  "mode": "wiki",
+  "type": "markdown"
+}
+```
+
+활성화 상태를 확인합니다:
+
+```
+omw vault list
+```
+
+```json
+[
+  {
+    "name": "demo",
+    "path": "~/.omw/vaults/demo",
+    "mode": "wiki",
+    "type": "markdown",
+    "is_active": true
+  }
+]
+```
+
+### Step 4 — 노트 추가 (AI 세션에서)
+
+Claude Code(또는 Codex / Gemini)를 열고 다음과 같이 말하세요:
+
+```
+ingest this
+
+Andrej Karpathy calls the LLM Wiki a "compounding knowledge artifact". Every
+source gets saved verbatim to raw/, a summary lands at wiki/summaries/, and
+the entities and concepts that appeared get their own pages. 10–15 page touches
+per ingest is normal.
+```
+
+스킬이 제목, slug, 태그, 저장 위치를 제안합니다 — 확인하면 저장됩니다.
+
+### Step 5 — lint 검사 실행
+
+```
+omw lint
+```
+
+문제가 없는 깨끗한 vault에서는:
+
+```json
+{
+  "vault_id": 1,
+  "vault_path": "~/.omw/vaults/demo",
+  "frontmatter_issues": [],
+  "drift": { "missing_files": [], "mtime_drift": [] },
+  "links": {
+    "broken": [],
+    "orphans": [],
+    "index_drift": { "missing_from_index": [], "dangling_in_index": [] },
+    "contradictions": [],
+    "supersedes": [],
+    "superseded_unmarked": [],
+    "link_suggestions": []
+  },
+  "auto_fix_hints": []
+}
+```
+
+`frontmatter_issues: []`는 모든 페이지가 필수 필드 검사를 통과했음을 의미합니다.
+`links` 키들(`broken`, `orphans`, `index_drift`, `contradictions`,
+`supersedes`, `superseded_unmarked`, `link_suggestions`)은 vault의
+전체적인 구조 건강 상태를 알려줍니다. `drift`는 디스크에 있지만 인덱스에 없는 파일을
+보고하고, `auto_fix_hints`는 문제가 발견될 때 실행 가능한 해결 방법을 제시합니다.
 
 ---
 
-## 시나리오 1: memo vault 첫 설정과 첫 메모 작성
+## Part 4 — 시나리오: 실제 wiki 성장시키기
 
-가장 간단한 흐름입니다.
-일상 메모를 빠르게 캡처할 때 씁니다.
+이 섹션은 단일 연속 예제를 통해 진행됩니다. 세 개의 페이지가 있는 `demo` vault를 사용합니다:
 
-### 1.1 vault 생성
+- `wiki/entities/andrej-karpathy.md` — Andrej Karpathy의 엔티티 페이지
+- `wiki/concepts/llm-wiki.md` — LLM Wiki 방법론의 개념 페이지
+- `wiki/concepts/old-method.md` — 나중에 폐기할 오래된 페이지
 
-```
-> 사용자: 새 memo vault 만들어줘. 이름은 daily, 경로는 ~/notes/daily
+vault는 Part 3에서 생성했습니다. 페이지는 아래에서 세션 내 프롬프트 형태로 보여주는
+ingest 워크플로를 통해 추가됩니다.
 
-< Claude: vault-setup 명령어 실행하겠습니다.
+### 4.1 스키마 — 각 페이지 타입에 필요한 필드는?
 
-  - 이름: daily
-  - 경로: /Users/you/notes/daily
-  - 모드: memo
-  - 타입: markdown (Obsidian 사용 안 함)
-
-진행할까요? [Yes / No]
-
-> 사용자: yes
-
-< Claude:
-$ adapters.get_adapter('markdown').init_vault(/Users/you/notes/daily, 'memo')
-$ registry.add_vault(name='daily', ...)
-$ registry.set_active('daily')
-$ reindex.full(vault_id=1) → 0 notes
-
-✅ vault 'daily' 등록 완료. 활성 vault로 설정됨.
-   생성된 폴더 구조:
-   ~/notes/daily/
-   ├── inbox/
-   └── .trash/
-```
-
-### 1.2 paste 로 첫 메모 캡처 (긴 텍스트)
-
-가장 자주 쓰는 패턴입니다.
-어떤 글이든 통째로 paste 하면 oh-my-wiki 가 제목과 태그, 폴더를 자동으로 제안합니다.
+oh-my-wiki는 13개의 내장 페이지 타입을 제공합니다. 목록 확인:
 
 ```
-> 사용자: 다음 내용 저장해줘
-
-Karpathy는 LLM Wiki를 "compounding knowledge artifact"라고 부른다.
-모든 출처는 raw/에 원본 그대로 저장하고, wiki/summaries/에 요약을
-쓴 다음, 등장한 인물·개념을 별도 페이지로 분리한다. 한 번 ingest할
-때마다 10-15개 페이지가 함께 갱신되는 게 정상이다. 메모는 썩지만
-구조화된 위키는 시간이 갈수록 가치가 누적된다.
-
-< Claude: 긴 텍스트 paste 감지 (368자) — memo-mode hybrid create로 진행.
-LLM이 본문에서 메타데이터 제안:
-
-  - title: "Karpathy LLM Wiki — compounding knowledge"
-  - slug: karpathy-llm-wiki-compounding-knowledge (자동 생성)
-  - folder: inbox/
-  - tags: [karpathy, llm, wiki, knowledge-management]
-  - type: note
-  - date: 2026-05-25
-
-이대로 저장할까요?
-1. Accept (그대로 저장)
-2. Edit (필드 수정)
-3. Cancel
-
-> 사용자: 1
-
-< Claude:
-$ memo_ops.write(vault_id=1, title='Karpathy LLM Wiki — compounding knowledge',
-                 body='Karpathy는 LLM Wiki를...', folder='inbox',
-                 tags=['karpathy','llm','wiki','knowledge-management'],
-                 type_='note', date_str='2026-05-25')
-
-✅ 저장 완료:
-   inbox/karpathy-llm-wiki-compounding-knowledge.md
+omw schema list
 ```
 
-### 1.3 prompt 방식 (짧은 메모)
+13개 타입은 다음과 같습니다:
+`article, book, comparison, concept, doc, entity, link, meta, note, paper, summary, synthesis, video`
 
-paste 한 본문이 200 자보다 짧으면 자동으로 prompt 모드로 전환됩니다.
-
-```
-> 사용자: 메모 하나 만들어줘
-
-< Claude: 짧은 입력 — prompt 모드.
-
-제목을 알려주세요:
-
-> 사용자: 슬랙 정리 시간 30분 줄이기
-
-< Claude: 폴더는? (기본: inbox/)
-1. inbox/
-2. 다른 폴더 입력
-
-> 사용자: 1
-
-< Claude: 본문을 입력하세요 (멀티라인 가능, 빈 줄로 종료):
-
-> 사용자: 메일/슬랙 통합 트리지 시간 30분 단축이 목표. 알림 끄기, 시간 블록 지정, 답장 batch.
-
-< Claude: 제안 태그: [productivity, slack, workflow]
-저장할까요?
-
-> 사용자: ok
-
-✅ inbox/slack-jeongri-sigan-30bun-jul-igi.md
-```
-
-> **참고**: 한글 제목은 slugify 가 한글 음절을 그대로 보존합니다 (`가-힣` 허용).
-> 영문 슬러그를 쓰고 싶다면 제목을 영문으로 입력하거나, `edit` 으로 slug 만 따로 바꾸세요.
-
-### 1.4 메모 검색
+목록의 각 항목은 `type`, `required_fields`, `required_sections`, `field_types`,
+`allowed_values`를 가진 스키마 객체입니다. entity 타입을 자세히 살펴봅니다:
 
 ```
-> 사용자: karpathy 관련 메모 찾아줘
-
-< Claude:
-$ search.query(vault_id=1, query='karpathy', limit=5)
-
-검색 결과 (상위 1개):
-
-# | score | relpath                                                 | title
-1 | 8.5   | inbox/karpathy-llm-wiki-compounding-knowledge.md        | Karpathy LLM Wiki — compounding knowledge
-
-어떻게 할까요?
-1. 1번 열기 (open)
-2. 다른 키워드로 다시 검색
-3. 종료
-
-> 사용자: 1
-
-< Claude:
-$ adapters.get_adapter('markdown').open(~/notes/daily/inbox/karpathy-llm-wiki-compounding-knowledge.md)
-→ macOS의 기본 .md 핸들러로 열림 (VS Code, Obsidian 등 설정에 따라)
-
-✅ 열었습니다.
+omw schema show entity
 ```
 
-### 1.5 메모 수정 (frontmatter 1필드)
-
-```
-> 사용자: 방금 그 메모에 "deep-work" 태그 추가해줘
-
-< Claude: 검색으로 메모 위치 확인했습니다:
-   inbox/karpathy-llm-wiki-compounding-knowledge.md
-
-현재 tags: [karpathy, llm, wiki, knowledge-management]
-새 tags: [karpathy, llm, wiki, knowledge-management, deep-work]
-
-> 사용자: yes
-
-< Claude:
-$ memo_ops.edit_meta(vault_id=1,
-                     relpath='inbox/karpathy-llm-wiki-compounding-knowledge.md',
-                     key='tags',
-                     value=['karpathy','llm','wiki','knowledge-management','deep-work'])
-
-✅ tags 필드 갱신 완료.
+```json
+{
+  "type": "entity",
+  "required_fields": ["title", "date", "type", "tags"],
+  "required_sections": ["## Summary"],
+  "field_types": {
+    "tags": "list",
+    "title": "str",
+    "date": "str",
+    "review": "dict",
+    "aliases": "list"
+  },
+  "allowed_values": {
+    "confidence": ["high", "medium", "low"],
+    "status": ["draft", "inbox", "processed", "raw", "superseded", "meta"]
+  }
+}
 ```
 
-### 1.6 메모 정리 (move + delete)
+모든 entity 페이지는 본문에 `## Summary` 섹션이 있어야 합니다. `confidence` 필드는
+`high`, `medium`, `low`를 허용합니다. `status` 필드는 `allowed_values`에 나열된
+값들을 허용합니다.
+
+#### vault별 스키마 오버라이드
+
+vault 디렉토리 안에 `schemas/` 폴더를 만들어 특정 vault에 대한 스키마를 오버라이드하거나
+확장할 수 있습니다. `<vault>/schemas/`의 파일이 패키지 루트의 내장 `schemas/`보다 우선합니다.
+이를 통해 공유 기본값을 건드리지 않고 특정 프로젝트에 대해 커스텀 타입을 추가하거나
+필드 규칙을 강화할 수 있습니다.
 
 ```
-> 사용자: 슬랙 메모를 archive 폴더로 옮겨
-
-< Claude:
-$ search.query(query='슬랙') → 1 hit
-$ memo_ops.move(relpath='inbox/slack-...md', dest_folder='archive')
-
-archive/ 폴더가 없어서 자동 생성했습니다.
-✅ 이동: inbox/slack-...md → archive/slack-...md
-
-> 사용자: karpathy 메모는 삭제해줘
-
-< Claude: 메모 위치 확인:
-   inbox/karpathy-llm-wiki-compounding-knowledge.md
-
-soft delete (.trash/로 이동, 복구 가능) 또는 hard delete (영구 삭제)?
-
-> 사용자: soft
-
-< Claude:
-$ memo_ops.delete(relpath='...', hard=False)
-
-✅ 이동: .trash/20260525-145012-345678-karpathy-llm-wiki-compounding-knowledge.md
-   복구하려면 파일을 inbox/로 다시 옮기세요.
+~/.omw/vaults/demo/
+└── schemas/
+    └── entity.yml   ← overrides the built-in entity schema for this vault only
 ```
 
----
+`demo` vault가 활성화된 상태에서 `omw schema show entity`는 오버라이드를 반영합니다.
 
-## 시나리오 2: wiki vault 에서 ingest 와 query (Karpathy 흐름)
+### 4.2 데모 페이지 ingest
 
-oh-my-wiki 의 핵심 사용 사례입니다.
-출처 한 건을 받으면 먼저 raw 폴더에 원본을 저장하고, 그 다음에 요약 페이지를 만듭니다.
-이어서 본문에 등장한 엔티티와 개념을 별도 페이지로 분리하고, 마지막으로 인덱스를 갱신합니다.
-
-### 2.1 wiki vault 생성
+Claude Code(또는 Codex / Gemini) 세션에서 다음과 같이 말하세요:
 
 ```
-> 사용자: research라는 wiki vault 만들어줘. ~/notes/research, obsidian 사용
+ingest this
 
-< Claude:
-$ adapters.get_adapter('obsidian', vault_name='research').init_vault(...)
-$ registry.add_vault(name='research', type_='obsidian', mode='wiki')
-$ registry.set_active('research')
-$ reindex.full → 2 notes (index.md + log.md 자동 생성)
-
-✅ wiki vault 'research' 등록.
-   ~/notes/research/
-   ├── raw/                  (원본 출처)
-   ├── wiki/
-   │   ├── summaries/        (요약)
-   │   ├── entities/         (인물·조직·논문)
-   │   ├── concepts/         (아이디어·기법)
-   │   ├── comparisons/      (비교)
-   │   ├── syntheses/        (질의 후 자동 생성)
-   │   ├── index.md          (자동 목차)
-   │   └── log.md            (운영 로그)
-   └── .trash/
+Andrej Karpathy is a researcher and educator known for karpathy.ai and the
+LLM Wiki Gist. He describes wikis as compounding knowledge artifacts where
+every source feeds the graph.
 ```
 
-### 2.2 paste 로 ingest (텍스트 출처)
+제안된 메타데이터를 확인합니다. 스킬이 `wiki/entities/andrej-karpathy.md`를 작성합니다.
+
+그 다음:
 
 ```
-> 사용자: 이거 정리해줘
+ingest this
 
-Andrej Karpathy의 LLM Wiki Gist 핵심: 메모는 단방향 흐름이지만
-위키는 양방향 그래프다. raw/는 원본 보존, wiki/는 가공된 페이지.
-각 ingest는 평균 10-15개 페이지를 갱신해야 정상이다. 두 가지 메타
-파일 — index.md(목차)와 log.md(운영 로그) — 가 위키의 메타데이터다.
-
-< Claude: ingest 시작. wiki-mode 확인됨 (active: research).
-
-[1/7] raw 저장
-$ ingest.save_raw(content='...', ext='md', title='Karpathy LLM Wiki Gist 핵심',
-                  date_str='2026-05-25')
-→ raw/2026-05-25-karpathy-llm-wiki-gist-haegsim.md
-
-[2/7] 본문 분석 — 다음 페이지들을 제안합니다:
-
-  Summary:
-    - karpathy-llm-wiki-gist (one-paragraph 요약)
-
-  Entities:
-    - andrej-karpathy (이미 존재하면 patch, 없으면 신규)
-
-  Concepts:
-    - compounding-knowledge (지식 누적)
-    - raw-wiki-separation (raw/wiki 분리 원칙)
-    - bidirectional-graph (양방향 그래프)
-    - meta-files (index/log)
-
-확인하면 진행 (yes/edit/cancel):
-
-> 사용자: yes
-
-< Claude:
-[3/7] 요약 페이지 작성
-$ ingest.write_wiki_page(layer='summaries', title='Karpathy LLM Wiki Gist', ...)
-→ wiki/summaries/karpathy-llm-wiki-gist.md
-
-[4/7] 엔티티/개념 페이지 작성
-$ ingest.write_wiki_page(layer='entities', title='Andrej Karpathy', ...)
-$ ingest.write_wiki_page(layer='concepts', title='Compounding Knowledge', ...)
-$ ingest.write_wiki_page(layer='concepts', title='Raw Wiki Separation', ...)
-$ ingest.write_wiki_page(layer='concepts', title='Bidirectional Graph', ...)
-$ ingest.write_wiki_page(layer='concepts', title='Meta Files', ...)
-
-[5/7] 인덱스 갱신
-$ ingest.update_index(entries=[
-    ('summaries', 'karpathy-llm-wiki-gist', 'Karpathy LLM Wiki Gist 핵심'),
-    ('entities', 'andrej-karpathy', 'AI researcher and educator'),
-    ('concepts', 'compounding-knowledge', '지식 누적 모델'),
-    ...
-  ])
-
-[6/7] 로그 추가
-$ ingest.append_log(op='ingest', title='Karpathy LLM Wiki Gist 핵심')
-→ wiki/log.md에 "## [2026-05-25] ingest | Karpathy LLM Wiki Gist 핵심" 추가
-
-[7/7] reindex
-$ reindex.incremental(vault_id=1) → 6 new notes indexed
-
-✅ Ingest 완료. 6개 페이지 갱신.
-   raw: raw/2026-05-25-karpathy-llm-wiki-gist-haegsim.md
-   summary: wiki/summaries/karpathy-llm-wiki-gist.md
-   entities: 1 (andrej-karpathy)
-   concepts: 4 (compounding-knowledge, raw-wiki-separation, bidirectional-graph, meta-files)
+The LLM Wiki method is a structured approach to personal knowledge management.
+Raw sources go to raw/, processed pages go to wiki/. Andrej Karpathy popularized
+this pattern. The owner field tracks who maintains the page.
+owner:: dante
+status:: draft
 ```
 
-### 2.3 PDF ingest
+이로써 `wiki/concepts/llm-wiki.md`가 작성됩니다. `owner:: dante`와 `status:: draft` 줄에
+주목하세요 — 이것은 인라인 `key:: value` 필드(Dataview 문법)입니다. oh-my-wiki는 이를
+frontmatter 필드와 함께 보존하고 인덱싱합니다.
+
+그런 다음 나중에 폐기할 페이지를 추가합니다:
 
 ```
-> 사용자: ~/Downloads/attention-is-all-you-need.pdf 정리해줘
+ingest this
 
-< Claude: PDF 파일 감지. pypdf로 텍스트 추출 + 원본 보존.
-
-$ pdf_bytes = open('~/Downloads/attention-is-all-you-need.pdf', 'rb').read()
-$ ingest.save_raw_pdf(pdf_bytes=..., title='Attention Is All You Need',
-                      date_str='2026-05-25')
-→ raw/2026-05-25-attention-is-all-you-need.pdf  (원본 바이트 그대로)
-→ 추출된 텍스트: 8721자
-
-[2/7] 본문 분석 — 제안:
-
-  Summary:
-    - attention-is-all-you-need (transformer 핵심)
-
-  Entities:
-    - vaswani-et-al (저자)
-    - google-brain (소속)
-
-  Concepts:
-    - self-attention
-    - multi-head-attention
-    - positional-encoding
-    - transformer-architecture
-
-확인 (yes/edit/cancel):
-
-> 사용자: yes
-
-[3/7~7/7] ... (동일 흐름)
-
-✅ Ingest 완료. 8개 페이지 갱신.
+The old flat-notes method stores everything in a single folder with no
+structure. It is quick to start but does not scale.
 ```
 
-> **PDF 주의**: 스캔된 이미지 PDF 는 텍스트 추출이 비어 있을 수 있습니다.
-> 이 경우 본문을 직접 paste 해서 ingest 하세요.
-> OCR 은 Plan C 범위 밖입니다.
+이로써 `wiki/concepts/old-method.md`가 작성됩니다.
 
-### 2.4 query 로 위키에 묻기
+### 4.3 Confidence와 supersession
 
-```
-> 사용자: attention 매커니즘이 왜 RNN보다 빠른지 위키에 물어봐
+페이지에는 해당 페이지의 근거가 얼마나 충분한지를 나타내는 `confidence` 필드(`high`,
+`medium`, `low`)가 있습니다. 페이지가 더 나은 것으로 대체될 때, 삭제하는 대신
+`superseded`로 표시합니다 — 이렇게 하면 감사 추적이 보존됩니다.
 
-< Claude:
-$ search.query(vault_id=1, query='attention RNN', limit=5)
-
-검색 결과 (상위 3개):
-1. wiki/summaries/attention-is-all-you-need.md      (score 7.5)
-2. wiki/concepts/self-attention.md                  (score 5.0)
-3. wiki/concepts/transformer-architecture.md        (score 3.5)
-
-[페이지들을 읽고 답변 합성 중...]
-
-답변:
-─────────────────────────────────────
-Attention은 RNN의 시퀀셜 의존성을 끊고 병렬화가 가능하기 때문에 빠릅니다.
-RNN은 hidden state h_t가 h_{t-1}에 의존하므로 시퀀스를 한 토큰씩 순차
-처리해야 하지만, self-attention은 모든 토큰 쌍 간의 관계를 동시에
-계산합니다 [summaries/attention-is-all-you-need](wiki/summaries/attention-is-all-you-need.md).
-
-특히 multi-head attention은 행렬곱 한 번으로 모든 토큰의
-context vector를 계산하므로 GPU에서 매우 효율적입니다
-[concepts/self-attention](wiki/concepts/self-attention.md).
-
-다만 시퀀스 길이 N에 대해 O(N²) 메모리가 필요한 trade-off가 있어,
-긴 문서에는 별도 기법(sparse attention 등)이 필요합니다.
-─────────────────────────────────────
-
-이 답변을 wiki/syntheses/에 저장할까요? (새 페이지로 file-back) [Yes / No]
-
-> 사용자: yes
-
-< Claude:
-$ query.write_synthesis(title='왜 Attention이 RNN보다 빠른가',
-                        body='Attention은 RNN의 시퀀셜 의존성을...',
-                        citations=['wiki/summaries/attention-is-all-you-need.md',
-                                   'wiki/concepts/self-attention.md'],
-                        tags=['attention','rnn','transformer'])
-→ wiki/syntheses/wae-attention-i-rnn-boda-bareungga.md
-
-$ ingest.update_index(entries=[('syntheses', '...', '왜 Attention이 RNN보다 빠른가')])
-$ ingest.append_log(op='synthesis', title='왜 Attention이 RNN보다 빠른가')
-$ reindex.incremental
-
-✅ Synthesis 페이지 저장됨. 이제 위키에 답변이 포함되었습니다.
-   다음 검색에서 이 페이지가 출처로 나옵니다.
-```
-
-바로 이 흐름이 Karpathy 가 말한 "loop closes" 입니다.
-질문이 새 페이지가 되어 위키에 누적되는 거죠.
-
----
-
-## 시나리오 3: 기존 /memo 폴더 가져오기
-
-이미 Obsidian 이나 일반 markdown 으로 메모를 쌓아둔 경우에 사용합니다.
+`old-method.md`를 `llm-wiki`로 supersede 처리합니다:
 
 ```
-> 사용자: vault-import-memo 실행해줘. 경로는 ~/Documents/old-notes
-
-< Claude:
-[1단계] 경로 확인
-✅ ~/Documents/old-notes 존재 확인.
-
-[2단계] memo-mode vault로 등록
-$ registry.add_vault(name='legacy', path='/Volumes/...', type_='markdown', mode='memo')
-$ reindex.full → 247 notes indexed
-
-✅ 'legacy'라는 이름으로 등록됨.
-
-[3단계] frontmatter 정규화 제안 (dry-run)
-
-$ import_memo.dry_run(vault_id=2)
-
-  요약:
-    총 파일: 247
-    변경 필요: 89
-    이미 정상: 158
-
-  변경 필요 파일 예시 (처음 10개):
-    - 2025-08-meeting-notes.md           (changes: 2)  ← missing type, missing tags
-    - article-clip.md                    (changes: 1)  ← tags string→list
-    - random-thought.md                  (changes: 3)  ← missing date/type/tags
-    ...
-
-마이그레이션을 적용할까요?
-89개 파일이 in-place 수정되고, 원본은 .trash/<ts>-pre-import-*.md로
-백업됩니다. 진행하려면 'apply'를 정확히 입력하세요:
-
-> 사용자: apply
-
-< Claude:
-$ import_memo.apply(vault_id=2, plan=...)
-
-  적용: 89 파일
-  스킵: 0 (malformed YAML 없음)
-  백업 timestamp: 20260525-150823-456789
-
-✅ 마이그레이션 완료. 모든 파일이 oh-my-wiki frontmatter 규약
-   (title/date/type/tags 필수)을 따릅니다. 문제 발생 시
-   .trash/20260525-150823-456789-pre-import-*.md에서 복구 가능.
+omw supersede wiki/concepts/old-method.md --by llm-wiki
 ```
 
----
-
-## 시나리오 4: 정기 헬스 체크 (lint)
-
-vault 의 무결성을 점검합니다.
-활성 vault 가 memo-mode 인지 wiki-mode 인지에 따라 자동으로 분기합니다.
-
-### 4.1 memo vault lint
-
-```
-> 사용자: daily vault lint해줘
-
-< Claude: 'daily'는 memo-mode → 공통 체크만 수행.
-
-$ lint.check(vault_id=1)
-
-📋 공통 점검
-─────────────────────────────────────
-
-✅ Frontmatter 이슈: 없음 (모두 정상)
-
-⚠️  Drift — missing files (1)
-   - inbox/old-note.md (registry에는 있으나 디스크에 없음)
-
-✅ Drift — mtime mismatch: 없음
-
-자동 수정 힌트:
-  - 누락 파일: orphan 행을 삭제하거나 파일을 복구하세요.
-    수동: registry.delete_note(vault_id=1, relpath='inbox/old-note.md')
-
-> 사용자: orphan 행 삭제해줘
-
-< Claude:
-$ registry.delete_note(vault_id=1, relpath='inbox/old-note.md')
-✅ 정리됨.
+```json
+{
+  "relpath": "wiki/concepts/old-method.md",
+  "status": "superseded",
+  "superseded_by": "llm-wiki"
+}
 ```
 
-### 4.2 wiki vault lint
+oh-my-wiki는 `old-method.md`에 다음 두 개의 frontmatter 필드를 작성합니다:
 
-```
-> 사용자: research vault 점검
-
-< Claude: 'research'는 wiki-mode → 공통 + 구조적 체크.
-
-$ lint.check(vault_id=2)
-$ wiki_lint.check(vault_id=2)
-
-📋 공통 점검
-─────────────────────────────────────
-✅ Frontmatter 이슈: 없음
-✅ Drift: 없음
-
-📋 wiki 구조 점검
-─────────────────────────────────────
-
-⚠️  Orphan pages (2) — 7일 grace 지나고 inbound 링크 없음
-   - wiki/concepts/early-stopping.md (age: 14일)
-   - wiki/entities/lecun.md (age: 23일)
-
-⚠️  Missing concepts (3) — N≥2개 페이지에서 참조되나 페이지 없음
-   - transformer-decoder (referenced by: summaries/attention-is-all-you-need.md,
-                                          summaries/gpt-paper.md)
-   - layer-normalization (referenced by 4 pages)
-   - residual-connection (referenced by 3 pages)
-
-⚠️  Empty data (1)
-   - wiki/concepts/dropout.md (reason: body<50chars — "TBD")
-
-✅ Dangling links: 없음
-
-다음 작업 추천:
-  - missing concepts 3개를 ingest하거나 페이지 작성
-  - dropout.md 본문 채우기
-  - orphan 검토 (의도적이면 다른 페이지에서 [[link]] 추가, 아니면 archive)
+```yaml
+status: superseded
+superseded_by: llm-wiki
 ```
 
----
+`omw lint`는 본문에서 "outdated" 또는 "replaced"로 비공식적으로 설명되어 있지만
+이 필드가 없는 페이지를 `superseded_unmarked` 키 아래에 표시합니다.
 
-## 시나리오 5: 다중 vault 전환
+### 4.4 Review 주기 — wiki 페이지의 간격 반복
 
-여러 vault 를 함께 운영할 때 쓰는 흐름입니다.
+모든 페이지는 frontmatter의 `review:` 블록을 통해 다음 재평가 일정을 지정할 수 있습니다.
+간격은 confidence에 따라 달라집니다:
 
-```
-> 사용자: vault 목록 보여줘
+- `confidence: high` → 90일 간격
+- `confidence: medium` → 30일 간격
+- `confidence: low` → 7일 간격
 
-< Claude:
-$ registry.list_vaults() + per-vault note counts
-
-* daily          memo  markdown      12 notes  /Users/you/notes/daily
-  research       wiki  obsidian      47 notes  /Users/you/notes/research
-  legacy         memo  markdown     247 notes  ~/Documents/old-notes
-
-(* = active)
-
-> 사용자: research로 전환
-
-< Claude:
-$ registry.set_active('research')
-✅ Active vault: research (wiki, obsidian) at /Users/you/notes/research
-
-> 사용자: legacy vault 등록 제거해줘. 파일은 그대로 두고.
-
-< Claude: 'legacy'를 registry에서 제거합니다.
-파일 (247개)은 ~/Documents/old-notes에 그대로 보존됩니다.
-
-확인하려면 vault 이름을 정확히 입력하세요:
-
-> 사용자: legacy
-
-< Claude:
-$ registry.forget_vault('legacy')
-✅ Registry에서 'legacy' 제거. 파일은 보존됨.
-```
-
----
-
-## 자주 겪는 상황과 대처
-
-### Q. oh-my-wiki 가 자동으로 트리거되지 않을 때
-
-명시적으로 호출하면 됩니다.
+`llm-wiki.md`(high-confidence 페이지)의 review를 완료 처리합니다:
 
 ```
-> 사용자: oh-my-wiki 실행해줘
+omw review done wiki/concepts/llm-wiki.md --grade pass --today 2026-06-01
 ```
 
-또는 SKILL.md frontmatter 에 정의된 트리거 문구를 직접 쓰세요.
-
-- "open my wiki" 또는 "위키 열어줘"
-- "ingest this" 또는 "이거 정리해줘"
-- "find a note about X" 또는 "X 관련 노트 찾아줘"
-
-### Q. 활성 vault가 잘못 됐을 때
-
-```
-> 사용자: 지금 활성 vault 뭐야?
-
-< Claude:
-$ wizard.status
-active: { name: 'legacy', mode: 'memo', ... }
-
-> 사용자: research로 바꿔줘
-
-< Claude:
-$ registry.set_active('research')
+```json
+{
+  "relpath": "wiki/concepts/llm-wiki.md",
+  "review": { "last": "2026-06-01", "due": "2026-08-30", "interval_days": 90 }
+}
 ```
 
-### Q. 마이그레이션 후 변경을 되돌리고 싶을 때
+`high` confidence → 90일 간격 → 만료일 `2026-08-30`.
 
-`vault-import-memo apply`는 항상 `.trash/<ts>-pre-import-*.md`에 원본을 백업합니다.
+review 대상 목록을 조회합니다 (미래 날짜 시뮬레이션):
+
+```
+omw review due --today 2026-09-01
+```
+
+`{relpath, due, interval_days, confidence}` 항목의 목록이 반환됩니다. `review:` 블록이 없는
+페이지는 `due: null`로 표시되며 가장 앞에 정렬됩니다 — 한 번도 검토되지 않았으므로 주의가
+필요합니다.
+
+### 4.5 웹 검색, vault FTS5, 그리고 로컬 쿼리 API
+
+#### `omw search` — 외부 웹 검색
+
+`omw search "<query>"`는 외부 검색 provider(brave / tavily / exa / firecrawl /
+brightdata)를 통한 **웹 검색**을 수행합니다. 오픈 웹에서 결과를 가져오는 것으로,
+vault 내부를 검색하는 것이 **아닙니다**.
+
+먼저 provider를 설정하세요:
+
+```
+omw setup search
+```
+
+provider가 설정되지 않은 경우 CLI는 다음을 출력합니다:
+
+```
+error: no search provider configured — run `omw setup search`
+```
+
+#### vault 검색 — FTS5 + 세션 내 쿼리
+
+vault는 **SQLite FTS5**(title + summary + tags + body에 대한 BM25)로 인덱싱되며,
+FTS5를 사용할 수 없을 때 토큰 스코어 기반으로 자동 폴백됩니다. 검색 방법:
+
+- **Claude / Codex / Gemini 세션에서**: "내 위키에서 X에 대해 뭐라고 해?"라고 말하면
+  스킬이 FTS5로 검색하고 LLM이 결과를 재순위 매깁니다.
+- **로컬 HTTP API** (`omw serve`)를 통해: 쿼리를 POST하면 순위가 매겨진 결과를 JSON으로
+  반환합니다(서버에 LLM 없음 — 검색만).
+
+#### `omw serve` — 로컬 읽기 전용 HTTP API
+
+먼저 인증 토큰을 생성합니다(`~/.omw/.env`에 `OMW_SERVE_TOKEN`으로 저장됩니다):
+
+```
+omw setup serve --generate-token
+```
+
+그런 다음 서버를 시작합니다:
+
+```
+omw serve
+```
+
+서버는 **`http://127.0.0.1:8765`**(localhost 전용)에서 실행됩니다.
+`POST /query`(인증 필요)로 vault를 쿼리하거나, `GET /health`(인증 불필요)로 활성
+상태를 확인할 수 있습니다. `GET /query`는 405를 반환합니다.
 
 ```bash
-# 수동 복구 (1개 파일)
-cp ~/notes/legacy/.trash/20260525-150823-456789-pre-import-2025-08-meeting-notes.md \
-   ~/notes/legacy/2025-08-meeting-notes.md
+# health (no auth)
+curl -s http://127.0.0.1:8765/health
+
+# query (POST + bearer token)
+curl -s -X POST http://127.0.0.1:8765/query \
+  -H "Authorization: Bearer $OMW_SERVE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "compounding knowledge", "limit": 5}'
 ```
 
-전체 되돌리기는 같은 timestamp를 가진 백업 파일들을 한꺼번에 복원하면 됩니다.
+전체 요청/응답 JSON 형식과 Slack, Telegram, Discord 어댑터 스케치는
+`references/messenger-api.md`를 참고하세요.
 
-### Q. 한국어 PDF 의 텍스트 추출이 깨질 때
+### 4.6 엔티티 자동 링크
 
-pypdf 는 일부 한글 인코딩 처리가 약합니다.
-우회 방법은 두 가지입니다.
+wiki가 성장하면서 개념 페이지에 엔티티를 언급하지만 링크를 걸지 않는 경우가 생깁니다.
+oh-my-wiki는 이런 링크 없는 언급을 감지하고 자동으로 링크를 삽입할 수 있습니다.
 
-1. macOS 미리보기에서 PDF 를 열고 텍스트를 복사한 다음, 직접 paste 해서 ingest 하세요.
-2. OCR 이 필요한 스캔 PDF 는 `paddleocr` 스킬을 따로 불러 텍스트를 뽑은 뒤 paste 하세요.
-
-### Q. Obsidian 이 켜져 있지 않아 open 이 실패할 때
-
-`obsidian://open?vault=...&file=...` URI 가 macOS 에서 거부됩니다.
-해결 방법은 두 가지입니다.
-
-1. Obsidian 앱을 먼저 실행한 다음 다시 open 하세요.
-2. vault 를 markdown 타입으로 등록해서 OS 기본 핸들러 (`open` 이나 `xdg-open`) 로 열게 하세요.
+`llm-wiki.md` 페이지("Andrej Karpathy"를 언급)를 추가한 후 다음을 실행합니다:
 
 ```
-> 사용자: vault-setup name=temp path=... mode=memo type=markdown
+omw links suggest
 ```
 
-### Q. 세션 사이의 컨텍스트는 어떻게 유지되나요? (v2.0)
-
-세션이 끝날 때 활성 vault 옆에 작은 `hot.md` 캐시 파일을 씁니다.
-다음 세션 시작 시 이 파일을 읽어 와서 다시 설명할 필요가 없게 됩니다.
-
-- wiki-mode vault: `<vault>/wiki/hot.md`
-- memo-mode 와 기타 mode: `<vault>/hot.md`
-
-캡은 2000자입니다.
-캡 초과 시 요약 부분이 먼저 잘립니다.
-강제 갱신은 `python3 -m scripts.hot_cache --refresh` 명령으로 가능합니다.
-조회는 `python3 -m scripts.hot_cache --on-session-start` 명령입니다.
-
-### Q. 어떤 vault mode가 있나요? (v2.0)
-
-`vault-setup` 은 `memo`, `wiki` (또는 `research`), `personal`, `book`, `business`, `github-codebase`, `website` 를 받습니다.
-각각 다른 폴더 구조를 만듭니다.
-자세한 레이아웃은 README 의 "Vault modes (v2.0)" 섹션에 있습니다.
-
-### Q. autoresearch 는 어떻게 동작하나요? (v2.1)
-
-`autoresearch <질문>` 을 입력하면 기본 3 라운드 (설정 가능, 최대 5) 의 흐름이 돕니다.
-
-1. 질문을 여러 개의 atomic claim 으로 쪼갭니다.
-2. claim 마다 Bright Data MCP 로 웹 검색을 합니다.
-3. 출처 품질에 따라 high / medium / low confidence 태그를 답니다.
-4. 다음 라운드가 필요한 gap 을 식별합니다.
-
-남은 gap 이 없거나 라운드 예산을 모두 쓰면 종합 답변 (synthesis) 초안을 작성한 다음, 저장 여부를 물어봅니다.
-승인 시 `wiki/syntheses/<slug>.md` 로 저장됩니다.
-세션 전체 (라운드별 claim · 출처 · gap) 는 `<vault>/.oh-my-wiki/sessions/<ts>-<slug>/` 아래에 audit + replay 용으로 보존됩니다.
-
-과거 세션 조회: `python3 -m scripts.autoresearch status --session-dir <DIR>`.
-
-수동으로 답을 작성해서 저장만 하고 싶다면 기존 `query` op 가 그대로 동작합니다.
-`autoresearch` 는 순수 추가 기능입니다.
-
-### Q. writing persona 는 무엇인가요? (v2.2a)
-
-글쓰기 작업을 위한 재사용 가능한 에이전트 페르소나 4종입니다.
-
-- **translator** (`persona-translate`) — 구조를 보존하면서 다국어로 번역합니다. 결과는 원본 옆에 `<base>.<lang>.md` 형식으로 저장됩니다.
-- **polisher** (`persona-polish`) — 어색한 문장을 다듬습니다. `--lang ko` 는 korean-prose-polish 패턴을 적용합니다 (em-dash 제거, 문장 끝 콜론 제거 등). 원본을 덮어쓰며, 이전 버전은 `.trash/` 에 백업됩니다.
-- **summarizer** (`persona-summarize`) — 1줄 / 1문단 / 상세 3단 요약을 JSON 으로 반환합니다. 표준출력 전용입니다.
-- **scaffolder** (`persona-scaffold`) — 새 wiki 페이지의 outline + 섹션 자리표시자를 생성합니다 (`status: draft`, `wiki/syntheses/<slug>.md` 에 저장).
-
-각 페르소나는 `personas/<role>.md` 파일이며 YAML frontmatter 로 입출력 contract 를 선언합니다.
-설치된 페르소나 목록 조회: `python3 -m scripts.personas list`
-특정 페르소나의 전체 프롬프트 확인: `python3 -m scripts.personas show <name>`
-
-### Q. 초안을 마무리하는 중인데, 발행 전에 사실 확인을 하고 싶어요.
-
-**"이 초안 팩트체크해줘"** 또는 **"fact-check this"** 라고 요청해 보세요.
-fact-checker 페르소나가 초안을 원자 단위 주장으로 쪼개고, 주장마다
-웹 검색을 돌려서 검증한 다음, `<원본>.factcheck.md` 파일로 옆에 리포트를
-남깁니다.
-리포트에는 주장 표(근거 있음 / 반박됨 / 부분 일치 / 검증 불가) 와 출처 URL 이
-들어 있습니다.
-
-검색 예산은 주장당 약 3회입니다.
-주장이 50개 넘는 큰 초안은 "foo.md 의 API 섹션만 팩트체크해줘" 처럼 범위를
-좁히는 게 좋습니다.
-
-### Q. 위키 안에서 페이지끼리 서로 어긋나는 부분을 찾고 싶어요.
-
-**"위키에서 모순 있는지 봐줘"** 라고 요청하세요.
-consistency-checker 가 먼저 `wiki_lint` 로 후보 쌍 (예: "X 이다" vs "X 가 아니다")
-을 모은 다음, 각 쌍을 `confirmed` (진짜 모순) / `nuanced` (관점·시점이
-달라 둘 다 가능) / `false_positive` (오탐) 로 판정합니다.
-JSON 형태로 stdout 에 출력합니다.
-
-특정 문서만 보고 싶을 때는 **"이 페이지 안에 모순 있어?"** 라고 물어보세요.
-
-### Q. 같은 개념을 "LLM" 과 "Large Language Model" 로 섞어 써서 정리가 안 돼요.
-
-**"내 위키 용어집 만들어줘"** 라고 요청하세요.
-terminology-manager 가 `wiki/` 페이지를 훑어서 표준 형태 (canonical) 와
-별칭 (aliases) 을 정리하고, `<vault>/.oh-my-wiki/glossary.db` 에 영구
-저장합니다.
-별칭에 들어 있지 않은 표기는 inconsistency 로 보고합니다.
-
-저장된 용어집은 언제든 아래 명령으로 살펴볼 수 있습니다.
-
-```bash
-python3 -m scripts.glossary list --vault-root <vault> --vault-id 1
+```json
+[
+  {
+    "src_relpath": "wiki/concepts/llm-wiki.md",
+    "target_slug": "andrej-karpathy",
+    "target_relpath": "wiki/entities/andrej-karpathy.md",
+    "mention": "Andrej Karpathy",
+    "position": 145
+  },
+  {
+    "src_relpath": "wiki/entities/andrej-karpathy.md",
+    "target_slug": "llm-wiki",
+    "target_relpath": "wiki/concepts/llm-wiki.md",
+    "mention": "LLM Wiki",
+    "position": 88
+  }
+]
 ```
 
-### Q. v2.0 에서 lint 는 어떤 검사를 새로 합니까?
+출력은 모든 페이지에서 발견된 링크 없는 언급을 나열합니다. `llm-wiki.md`의 문자 위치 145에서
+"Andrej Karpathy"가 wikilink 없이 언급되고, `andrej-karpathy.md`의 위치 88에서 "LLM Wiki"가
+wikilink 없이 언급됩니다. 두 경우 모두 vault에 일치하는 페이지가 존재합니다.
 
-wiki-mode vault 에서 4가지 구조적 candidate 카테고리가 추가됐습니다.
+링크를 삽입합니다:
 
-- **양방향 링크 갭** — A 가 B 를 참조하지만 B 는 A 를 참조하지 않고, 둘 다 같은 `entities/` 나 `concepts/` 안에 있을 때. 결정적 판단.
-- **용어 표류 candidate** — 유사도 0.85 이상인 두 slug 가 같은 출처 페이지에서 함께 언급될 때 (예: `andrej-karpathy` 와 `karpathy-andrej`). 결정적 판단.
-- **모순 candidate** — 같은 wikilink 대상을 공유하면서 반대 의미 동사를 가진 두 페이지. LLM 이 `confirmed` / `nuanced` / `false_positive` 로 최종 판정합니다.
-- **stale claim candidate** — 180일 이상 된 페이지에 `currently`, `as of`, `the latest` 같은 시간 민감 표현이 들어 있을 때. LLM 이 `likely_stale` / `still_valid` / `false_positive` 로 판정합니다.
+```
+omw links link wiki/concepts/llm-wiki.md --to andrej-karpathy
+```
+
+```json
+{
+  "relpath": "wiki/concepts/llm-wiki.md",
+  "target_slug": "andrej-karpathy",
+  "mention": "Andrej Karpathy",
+  "inserted": "[[andrej-karpathy|Andrej Karpathy]]"
+}
+```
+
+oh-my-wiki는 해당 언급을 `[[andrej-karpathy|Andrej Karpathy]]`로 제자리에서 재작성합니다.
+
+#### 한국어 엔티티 매칭
+
+oh-my-wiki는 한국어 형태소를 올바르게 처리합니다. 페이지에 다음과 같이 쓰여 있다면:
+
+```
+안드레이 카르파시가 이 방법을 제안했다.
+```
+
+조사 `가`가 엔티티 이름에 붙어 있습니다. `omw links suggest`는 `안드레이 카르파시가`가
+`안드레이 카르파시`의 엔티티 페이지 slug와 일치한다는 것을 감지하고,
+`omw links link`는 다음과 같이 삽입합니다:
+
+```
+[[…|안드레이 카르파시]]가 이 방법을 제안했다.
+```
+
+조사는 wikilink 괄호 밖에 남겨집니다 — 링크 표시 텍스트는 조사 없는 표준 이름입니다.
+
+#### Aliases
+
+엔티티 페이지는 frontmatter에 `aliases:` 목록을 선언할 수 있습니다:
+
+```yaml
+aliases:
+  - Karpathy
+  - AK
+```
+
+`omw links suggest`는 모든 alias를 링크 없는 언급과 매칭하므로, 전체 이름뿐 아니라
+약칭 참조도 잡아낼 수 있습니다.
+
+### 4.7 인라인 `key:: value` 필드
+
+페이지 본문에 Dataview 스타일의 인라인 필드를 포함할 수 있습니다:
+
+```
+owner:: dante
+status:: draft
+uses:: [[llm-wiki]]
+```
+
+이는 파싱되어 frontmatter와 함께 저장됩니다. 페이지의 전체 필드 집합을 확인합니다:
+
+```
+omw fields wiki/concepts/llm-wiki.md
+```
+
+```json
+{
+  "relpath": "wiki/concepts/llm-wiki.md",
+  "frontmatter": {
+    "title": "LLM Wiki",
+    "date": "2026-06-01",
+    "type": "concept",
+    "tags": ["method"]
+  },
+  "inline": { "owner": ["dante"], "status": ["draft"] }
+}
+```
+
+wikilink(`[[other-page]]`)를 참조하는 관계 키(`uses`, `contradicts`, `supersedes`)는
+frontmatter `relations:`와 동일한 방식으로 타입드 엣지 그래프에 반영됩니다.
+
+### 4.8 Writing persona (세션 내, 자연어)
+
+oh-my-wiki는 Claude Code / Codex / Gemini 세션에서 자연어로 호출하는 여덟 가지 writing
+persona를 제공합니다. 별도 커맨드가 필요 없습니다 — 스킬이 입력한 내용에 따라 적절한
+persona로 라우팅합니다. 여기서 설명하는 핵심 persona는 researcher / fact-checker / curator
+/ wiki-auditor이며, 전체 목록(translator, polisher, summarizer, scaffolder 포함)은
+Part 5 표를 참고하세요.
+
+**Researcher** — 여러 웹 쿼리에서 출처를 모아 개요를 작성하고 결과를 `wiki/syntheses/`에
+저장합니다. Claude 세션에서 다음과 같이 말하세요:
+
+```
+autoresearch how does the LLM Wiki pattern compare to Zettelkasten?
+```
+
+스킬은 질문을 주장 단위로 분해하고, 주장별로 최대 3라운드의 Bright Data MCP 검색을
+실행하며, confidence 태그를 부여한 다음, synthesis 페이지 초안을 작성하고 저장 전에 확인을
+요청합니다.
+
+**Fact-checker** — 초안을 원자 단위 주장으로 분해하고, 웹 검색을 통해 각각을 검증한 후,
+판정 표(supported / contradicted / partial / unverifiable)가 담긴 형제 리포트를
+`<your-page>.factcheck.md`에 작성합니다. Claude 세션에서 다음과 같이 말하세요:
+
+```
+fact-check wiki/concepts/llm-wiki.md
+```
+
+**Curator** — wiki의 공백, 고립 페이지, 구조적 취약점을 검토하고 유지 관리 계획을 제안합니다.
+Claude 세션에서 다음과 같이 말하세요:
+
+```
+curate my wiki — what pages are most in need of attention?
+```
+
+**Wiki-auditor** — 전체 일관성 검사를 실행합니다: 모순, 용어 표류, 오래된 주장. Claude 세션에서
+다음과 같이 말하세요:
+
+```
+check my wiki for contradictions
+```
+
+또는
+
+```
+build a glossary for my vault
+```
+
+모든 persona는 **제안 → 확인 → 실행** 모델을 따릅니다. 파일을 읽고, 제안 초안을 작성하고,
+무엇이 변경될지 보여준 다음 작성합니다.
 
 ---
 
-## Codex CLI 에서 사용하기
+## Part 5 — 레퍼런스
 
-Claude Code 와 동일합니다.
-Codex 가 oh-my-wiki 스킬을 발견하면 같은 트리거로 호출됩니다.
-차이가 없는 이유는 SKILL.md frontmatter 의 트리거 문구가 특정 LLM 에 묶이지 않기 때문입니다.
+### CLI 서브커맨드 (13개)
+
+| 서브커맨드      | 인터페이스 | 한 줄 설명                                                     |
+| --------------- | ---------- | -------------------------------------------------------------- |
+| `omw status`    | CLI        | 레지스트리 상태 표시: vault 수, 활성 vault, `needs` 코드       |
+| `omw vault`     | CLI        | Vault 관리: `create`, `list`, `use`, `forget`                  |
+| `omw lint`      | CLI        | 결정론적 vault 건강 검사 (frontmatter + links + drift)         |
+| `omw search`    | CLI        | 설정된 외부 provider를 통한 웹 검색 (brave/tavily/exa/…)       |
+| `omw serve`     | CLI        | 로컬 읽기 전용 HTTP 쿼리 API 시작 (포트 8765)                  |
+| `omw schema`    | CLI        | 페이지 타입 스키마 표시: `list`, `show <type>`                 |
+| `omw supersede` | CLI        | 페이지를 `status: superseded` + `superseded_by: <slug>`로 표시 |
+| `omw review`    | CLI        | 간격 반복 대기열: `due`, `done`                                |
+| `omw links`     | CLI        | 엔티티 자동 링크: `suggest`, `link`                            |
+| `omw fields`    | CLI        | 페이지의 frontmatter + 인라인 `key:: value` 필드 표시          |
+| `omw import`    | CLI        | 폴더 / Obsidian vault / Notion export 가져오기                 |
+| `omw setup`     | CLI        | 대화형 마법사: vault, 검색, persona, TTS                       |
+| `omw doctor`    | CLI        | omw 설정 + 설치 건강 상태 검증                                 |
+
+추론 작업(`ingest`, `query`, `find`, `edit`, `autoresearch`, persona, `dispatch`, `team`)은
+Claude / Codex / Gemini 세션이 필요합니다 — 에이전트 세션에서 자연어로 사용하세요.
+
+### Frontmatter 규약
+
+**필수 필드** (`meta`를 제외한 모든 페이지 타입):
+
+```yaml
+title: "Page Title"
+date: "2026-06-01"
+type: concept # one of the 13 schema types
+tags: [method, wiki]
+```
+
+**선택적 필드**:
+
+```yaml
+confidence: high # high | medium | low (drives review interval)
+status: draft # draft | inbox | processed | raw | superseded | meta
+superseded_by: llm-wiki # slug of the replacement page (when status: superseded)
+review:
+  last: "2026-06-01"
+  due: "2026-08-30"
+  interval_days: 90
+aliases:
+  - Karpathy LLM Wiki
+  - LLM wiki method
+```
+
+**인라인 필드** (본문에서, Dataview 문법):
 
 ```
-$ codex
-> 위키 상태 확인해줘
-[Codex 가 oh-my-wiki 를 호출하고 동일한 흐름을 진행]
+owner:: dante
+status:: draft
+uses:: [[llm-wiki]]
+contradicts:: [[old-method]]
 ```
 
-다만 Codex 는 Claude Code 보다 자동 트리거가 보수적입니다.
-모호한 상황이라면 이렇게 명시적으로 호출하세요.
+### Persona 목록
+
+| Persona          | 호출 문구                                          | 출력                              |
+| ---------------- | -------------------------------------------------- | --------------------------------- |
+| **Researcher**   | "autoresearch …"                                   | `wiki/syntheses/<slug>.md`        |
+| **Fact-checker** | "fact-check …"                                     | `<page>.factcheck.md`             |
+| **Curator**      | "curate my wiki"                                   | 유지 관리 제안 (세션 내)          |
+| **Wiki-auditor** | "check for contradictions" 또는 "build a glossary" | JSON 리포트 / `glossary.db`       |
+| **Translator**   | "translate … to Korean"                            | `<base>.<lang>.md` 형제 파일      |
+| **Polisher**     | "polish this"                                      | 제자리 편집 (`.trash/` 백업)      |
+| **Summarizer**   | "summarize …"                                      | stdout JSON (한 줄 / 단락 / 상세) |
+| **Scaffolder**   | "scaffold an outline for …"                        | `wiki/syntheses/<slug>.md` (초안) |
+
+### 스키마 위치
+
+- **내장 스키마**: 패키지 루트의 `schemas/<type>.yml` — 13개 타입.
+- **vault별 오버라이드**: `<vault>/schemas/<type>.yml` — 해당 vault에서 내장 스키마보다 우선.
+
+`omw schema show <type>`은 활성 오버라이드가 있는 경우 항상 이를 반영합니다.
+
+### `OMW_HOME`
+
+oh-my-wiki는 레지스트리를 `$OMW_HOME/registry.db`에 저장합니다 (기본값:
+`~/.omw/registry.db`). 환경 변수로 오버라이드할 수 있습니다:
+
+```bash
+export OMW_HOME=/path/to/isolated/.omw
+omw status
+```
+
+테스트, CI, 또는 메인 레지스트리에 영향을 주지 않고 완전히 분리된 wiki 환경을 운영할 때
+유용합니다.
+
+---
+
+## Part 6 — FAQ와 문제 해결
+
+### Q. `omw doctor`가 레지스트리가 없다고 합니다
+
+새로 설치한 직후 `omw setup`을 실행하기 전에는 정상입니다. 다음을 실행하세요:
 
 ```
-> Use the oh-my-wiki skill to ingest this article: ...
+omw setup
 ```
+
+마법사가 레지스트리와 첫 번째 vault를 생성합니다. 그 후 `omw doctor`는 `ok`를 보고합니다.
+
+### Q. `omw status`가 `needs: "setup"` 대신 `needs: "migrate"`를 표시합니다
+
+`needs: "migrate"`는 `omw status`가 스킬 디렉토리(또는 `<cwd>/data/registry.db`)에서
+레거시 `data/registry.db` 파일을 감지했을 때 나타납니다. 이는 `data/registry.db`가
+디스크에 존재하는 **소스 트리 체크아웃**에서 발생합니다.
+
+Skills CLI, 마켓플레이스, 또는 `bin/install.sh`를 통해 설치한 실제 사용자는 새 머신에서
+`needs: "setup"`을 봅니다 — `data/`는 .gitignore 처리되어 배포 패키지에 포함되지 않기
+때문입니다.
+
+> **참고:** `OMW_HOME` 오버라이드(예: `export OMW_HOME=$(mktemp -d)/.omw`)는 소스 트리에서
+> 실행할 때 깨끗한 사용자 환경을 시뮬레이션하지 **않습니다**. 레거시 감지는 `OMW_HOME`과
+> 독립적으로 `<skill_dir>/data/registry.db`를 스캔하므로, 소스 트리에서는 mktemp 방법으로도
+> `needs: "migrate"`가 반환됩니다.
+
+두 경우 모두 해결 방법은 `omw setup`입니다 — 마법사가 레지스트리를 마이그레이션하거나
+초기화합니다.
+
+### Q. oh-my-wiki가 세션에서 자동으로 트리거되지 않습니다
+
+명시적 트리거 문구를 사용하세요:
+
+- 영어: "open my wiki", "ingest this", "what does my wiki say about X", "omw", "/omw"
+- 한국어: "위키 열어줘", "이거 정리해줘", "위키에 물어봐", "오엠더블유"
+
+또는 다음과 같이 말하세요: `use the oh-my-wiki skill`.
+
+### Q. `omw search`에서 오류가 발생하거나 provider가 설정되지 않았습니다
+
+`omw search`는 **웹 검색** 커맨드로, 외부 검색 provider(brave, tavily, exa, firecrawl,
+또는 brightdata)를 쿼리합니다 — vault를 검색하는 것이 아닙니다. provider가 설정되지
+않은 경우 다음과 같이 표시됩니다:
+
+```
+error: no search provider configured — run `omw setup search`
+```
+
+`omw setup search`를 실행하고 provider 자격 증명을 입력하면 해결됩니다.
+
+### Q. vault FTS5를 사용할 수 없거나 세션 내 쿼리 결과가 없습니다
+
+vault 인덱스는 내부적으로 SQLite FTS5(BM25)를 사용합니다. FTS5를 사용할 수 없을 때
+oh-my-wiki는 토큰 스코어 기반으로 자동 폴백합니다. 대부분의 최신 Python sqlite3 빌드는
+FTS5를 포함합니다. 확인 방법:
+
+```bash
+python3 -c "import sqlite3; c = sqlite3.connect(':memory:'); c.execute('CREATE VIRTUAL TABLE t USING fts5(body)'); print('FTS5 ok')"
+```
+
+오류가 발생하면 sqlite3 빌드에 FTS5가 없는 것입니다. 완전한 기능의 빌드를 설치하세요:
+
+```bash
+# macOS with Homebrew
+brew install sqlite
+```
+
+폴백 토큰 스코어도 여전히 작동합니다 — 결과를 잃지 않고 BM25 순위 정밀도만 낮아집니다.
+
+### Q. 두 개의 분리된 wiki를 운영하려면 어떻게 하나요?
+
+각 환경이 자체 레지스트리를 가리키도록 `OMW_HOME`을 사용하세요:
+
+```bash
+export OMW_HOME=~/work/.omw   omw vault create work-notes --mode wiki
+export OMW_HOME=~/personal/.omw   omw vault create journal --mode wiki
+```
+
+각 `OMW_HOME`은 자체 `registry.db`와 `vaults/`를 가집니다. vault 자체는 어디에든 있을 수
+있으며, 레지스트리는 경로만 기록합니다.
+
+### Q. 어떤 vault 모드가 있나요?
+
+`omw setup vault`(및 `omw vault create --mode`)에서 다음을 선택할 수 있습니다:
+
+- **memo** — 빠른 캡처를 위한 평탄한 `inbox/`
+- **wiki** — Karpathy 3계층 (`raw/` + `wiki/{summaries,entities,concepts,comparisons,syntheses}/`)
+- **personal** — `journal/ goals/ people/ health/`
+- **book** — `chapters/ characters/ worldbuilding/ outlines/ drafts/`
+- **business** — `meetings/ decisions/ clients/ vendors/ processes/`
+- **github-codebase** — `modules/ apis/ decisions/ runbooks/ glossary/`
+- **website** — `pages/ posts/ assets/ seo/ outlines/`
+
+모든 모드에는 소프트 삭제를 위한 `.trash/`와 `index.md`(wiki 모드에는 `wiki/log.md`도)가
+함께 생성됩니다.
+
+### Q. Codex CLI에서의 oh-my-wiki는 Claude Code와 어떻게 다른가요?
+
+동일합니다. SKILL.md는 호스트에 무관합니다 — 동일한 트리거 문구, 동일한 라우팅 로직,
+동일한 커맨드가 스킬을 발견하는 모든 AI 코딩 에이전트에서 작동합니다. Codex는 때때로
+자동 트리거가 더 보수적입니다. 트리거 문구에서 스킬이 실행되지 않으면
+"use the oh-my-wiki skill"이라고 명시적으로 말해 호출하세요.
+
+### Q. autoresearch는 어떻게 작동하나요?
+
+`autoresearch <질문>`은 최대 3라운드(설정 가능; 하드 상한 5)를 실행합니다:
+
+1. 질문을 주장 단위로 분해.
+2. 주장별로 Bright Data MCP를 통해 웹 검색.
+3. 출처 품질에 따라 high / medium / low confidence 태그 부여.
+4. 남은 공백을 식별하고 공백이 있으면 다음 라운드 실행.
+
+남은 공백이 없거나 라운드 예산이 소진되면 스킬이 synthesis 초안을 작성하고 저장 전에
+확인을 요청합니다. `wiki/syntheses/<slug>.md`에 저장됩니다. 전체 세션 — 라운드별
+주장, 출처, 공백 — 은 감사 및 재실행을 위해 `<vault>/.oh-my-wiki/sessions/<ts>-<slug>/`
+아래에 보존됩니다.
+
+### Q. vault import를 되돌리려면 어떻게 하나요?
+
+`omw import`(및 이전의 `vault-import-memo` 흐름)는 항상 작성 전에 사전 이미지를
+`.trash/<ts>-pre-import-*.md`에 백업합니다. 단일 파일 복원:
+
+```bash
+cp ~/.omw/vaults/legacy/.trash/20260601-pre-import-meeting-notes.md \
+   ~/.omw/vaults/legacy/meeting-notes.md
+```
+
+전체 배치를 되돌리려면 동일한 타임스탬프 접두사를 가진 모든 백업 파일을 한꺼번에
+복원하세요.
+
+### Q. hot cache / 세션 연속성은 어떻게 작동하나요?
+
+각 세션에서 oh-my-wiki는 세션 시작 시 작은 `hot.md` 캐시 파일을 읽고 세션 종료 시
+갱신하므로 세션 간에 컨텍스트를 다시 설명할 필요가 없습니다:
+
+- wiki 모드 vault: `<vault>/wiki/hot.md`
+- memo 모드 및 기타 모드: `<vault>/hot.md`
+
+상한: 2000자. 수동 갱신: `python3 -m scripts.hot_cache --refresh`.
+수동 확인: `python3 -m scripts.hot_cache --on-session-start`.
 
 ---
 
 ## 더 알아보기
 
-- **명령어 레퍼런스**: `commands/*.md` (vault-setup, ingest, query, lint 등 12 개)
-- **스크립트 API**: `scripts/*.py` (Python 에서 직접 호출 가능. 일부는 CLI 로도 노출됨)
-- **설계 문서**: `docs/superpowers/specs/` (로컬에만 두고 GitHub 에는 공개하지 않습니다. 기여자용)
-- **테스트**: `pytest -v` (총 91 개 테스트로 모든 동작을 검증합니다)
+- **커맨드 레퍼런스**: `commands/*.md`는 모든 작업을 다룹니다.
+- **스크립트 API**: `scripts/*.py`는 Python에서 직접 호출 가능하며, 일부는 CLI 서브커맨드로도 제공됩니다.
+- **설계 문서**: `docs/superpowers/specs/` (로컬 전용, 미공개 — 기여자용).
+- **테스트**: `pytest -v`로 전체 테스트 스위트를 실행합니다.
 
-문제 신고는 https://github.com/dandacompany/oh-my-wiki/issues 에서 받습니다.
-
----
-
-### Q. 하나의 페르소나를 특정 백엔드에 디스패치하려면 어떻게 하나요.
-
-"`<파일>`을 `<백엔드>`로 `<페르소나>`에 디스패치해줘"라고 말하세요.
-oh-my-wiki가 모델(페르소나 `model_hint` 기준 필터링), 권한 스킵 여부,
-폼 팩터를 차례로 물어봅니다.
-이후 `python3 -m scripts.dispatch`를 실행하고
-완료되면 출력 파일 경로를 알려줍니다.
-
-지원 백엔드: claude / codex / gemini / opencode
-(설치 및 인증된 것만 사용 가능합니다.)
-
-### Q. 여러 페르소나를 병렬로 실행하려면 어떻게 하나요.
-
-"`<파일>`에 review-pipeline 팀 실행해줘" (또는 다른 템플릿 이름)라고 말하세요.
-oh-my-wiki가 템플릿 워커 목록을 읽고, 백엔드 및 모델을 확인한 뒤
-각 워커를 별도의 tmux 창에 병렬로 실행합니다.
-모든 done.json 센티넬이 생성되면 결과를 취합해 보고합니다.
-
-템플릿 없이 직접 팀을 구성하려면
-"팀 실행: `<페르소나>:<백엔드>`, `<페르소나>:<백엔드>` — `<파일>` 대상"처럼 말하세요.
-
-### Q. claude 대신 codex나 gemini를 쓸 수 있나요.
-
-네. 지원 백엔드 4개(claude / codex / gemini / opencode) 중 원하는 것을
-워커별로 선택할 수 있습니다.
-oh-my-wiki는 설치 및 인증된 백엔드를 자동 감지하며,
-없거나 로그인되지 않은 경우 경고합니다.
-OMW는 직접 설치나 인증을 대신하지 않으므로 각 CLI의 자체 로그인 명령을 한 번 실행해 두세요.
-
-### Q. Docker가 필요한가요.
-
-아니요. Docker는 완전한 백엔드 격리나 재현 가능한 환경이 필요한 사용자를
-위한 선택적 참조 폼 팩터입니다.
-기본 인스킬 폼 팩터는 호스트에
-tmux (>= 3.0)와 원하는 백엔드 CLI만 있으면 충분합니다.
-Docker 설정은 `docker/README.md`를 참고하세요.
+이슈 트래커: https://github.com/dandacompany/oh-my-wiki/issues
