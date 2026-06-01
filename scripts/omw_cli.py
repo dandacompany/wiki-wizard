@@ -154,7 +154,7 @@ def _cmd_fields(args) -> int:
         "relpath": args.relpath,
         "frontmatter": meta,
         "inline": inline_fields.extract_inline_fields(body),
-    }, ensure_ascii=False, indent=2))
+    }, ensure_ascii=False, indent=2, default=str))  # default=str: YAML date/datetime → ISO
     return 0
 
 
