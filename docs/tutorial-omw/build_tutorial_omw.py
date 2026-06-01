@@ -645,7 +645,7 @@ SECTIONS: list[dict] = [
                 "curl -s -X POST http://127.0.0.1:8765/query \\\n"
                 '  -H "Authorization: Bearer $OMW_SERVE_TOKEN" \\\n'
                 '  -H "Content-Type: application/json" \\\n'
-                '  -d \'{"query": "compounding knowledge", "limit": 5}\'',
+                '  -d \'{"text": "compounding knowledge", "limit": 5}\'',
                 "callout": "전체 요청/응답 JSON 형식과 Slack·Telegram·Discord 어댑터 스케치는 "
                 "<code>references/messenger-api.md</code>에 있습니다.",
             },
