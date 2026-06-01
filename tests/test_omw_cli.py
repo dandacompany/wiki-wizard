@@ -424,3 +424,21 @@ def test_fields_missing_page_exits_1(tmp_path, monkeypatch, capsys):
     rc = omw_cli.main(["fields", "wiki/concepts/nope.md", "--vault", "cv"])
     assert rc == 1
     assert "not found" in capsys.readouterr().err.lower()
+
+
+def test_fields_serializes_date_frontmatter(tmp_path, monkeypatch, capsys):
+    # YAML parses `date: 2026-06-01` to a datetime.date — json.dumps must not crash.
+    monkeypatch.setenv("OMW_HOME", str(tmp_path / ".omw"))
+    from scripts.paths import registry_path
+    db = registry_path()
+    registry.init_db(db)
+    root = tmp_path / "cv"
+    (root / "wiki" / "concepts").mkdir(parents=True)
+    registry.add_vault(db, name="cv", path=str(root), type_="markdown", mode="wiki")
+    (root / "wiki" / "concepts" / "d.md").write_text(
+        "---\ntitle: D\ndate: 2026-06-01\ntype: concept\ntags: [x]\n---\n## Summary\nx\n",
+        encoding="utf-8")
+    rc = omw_cli.main(["fields", "wiki/concepts/d.md", "--vault", "cv"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["frontmatter"]["date"] == "2026-06-01"  # date serialized as ISO string
