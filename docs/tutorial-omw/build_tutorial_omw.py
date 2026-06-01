@@ -385,7 +385,7 @@ SECTIONS: list[dict] = [
     dict(
         num="STEP 02",
         title="첫 위키",
-        lede="설정 마법사로 첫 vault를 만들고, 상태와 lint로 깨끗한 시작점을 확인합니다.",
+        lede="설정 마법사로 첫 vault(위키 보관함)를 만들고, 상태와 lint(검사)로 깨끗한 시작점을 확인합니다.",
         commands=[
             {
                 "label": "설정 마법사 실행",
@@ -492,9 +492,17 @@ SECTIONS: list[dict] = [
     dict(
         num="STEP 03",
         title="페이지 규약 (스키마)",
-        lede="13개 내장 페이지 타입이 각 타입에 필요한 필드와 허용값을 정의합니다. "
-        "타입을 나열하고, entity 타입을 자세히 확인합니다.",
+        lede="글의 종류(인물·개념·논문 등)마다 갖춰야 할 항목이 정해져 있습니다. 이 '양식'을 스키마라고 부르며, "
+        "덕분에 위키가 한결같이 정돈됩니다. 13개 기본 종류를 살펴보고, 그중 entity(대상) 종류를 자세히 봅니다.",
         commands=[
+            {
+                "kind": "note",
+                "text": "<span class='star'>★ 엔티티(entity)란?</span> — "
+                "위키에 등장하는 <strong>이름을 가진 고유한 대상</strong>입니다. 인물·도구·회사·개념처럼요. "
+                "예를 들어 '안드레이 카르파시'(인물)나 'LLM 위키'(개념)가 각각 하나의 엔티티이고, 저마다 자기 페이지를 가집니다. "
+                "다른 글에서 이 이름이 나오면 그 페이지로 자동 연결됩니다(STEP 07). "
+                "<code>entity</code>는 그런 대상 페이지의 한 종류이고, 아래에서 그 양식을 살펴봅니다.",
+            },
             {
                 "label": "타입 나열 — omw schema list",
                 "bar": "terminal",
@@ -552,9 +560,17 @@ SECTIONS: list[dict] = [
     dict(
         num="STEP 04",
         title="신뢰도와 대체",
-        lede="페이지는 근거의 충분함을 나타내는 <code>confidence</code>(high·medium·low)를 가집니다. "
-        "더 나은 페이지로 대체할 때는 삭제하지 않고 <code>superseded</code>로 표시해 감사 추적을 보존합니다.",
+        lede="각 페이지에는 그 내용을 얼마나 믿을 수 있는지 나타내는 신뢰도(<code>confidence</code>: high·medium·low)를 붙일 수 있습니다. "
+        "또 더 나은 페이지가 생기면 옛 페이지를 지우지 않고 '대체됨(<code>superseded</code>)'으로 표시해 기록을 남깁니다.",
         commands=[
+            {
+                "kind": "note",
+                "text": "<span class='star'>★ 신뢰도(confidence)는 왜 쓰나요?</span> — "
+                "모든 메모가 똑같이 확실하지는 않습니다. 직접 검증한 내용도 있고, 한 번 듣고 적어 둔 것도 있죠. "
+                "<strong>high·medium·low</strong>로 그 확실함을 표시해 두면, 나중에 무엇을 믿고 인용할지, "
+                "무엇을 더 자주 다시 들여다볼지 판단하는 기준이 생깁니다. "
+                "실제로 다음 단계(리뷰 주기)에서 신뢰도가 높은 글은 더 드물게, 낮은 글은 더 자주 다시 보도록 자동 조정됩니다.",
+            },
             {
                 "label": "old-method.md를 llm-wiki로 supersede",
                 "bar": "terminal",
@@ -582,8 +598,9 @@ SECTIONS: list[dict] = [
     dict(
         num="STEP 05",
         title="리뷰 주기",
-        lede="모든 페이지는 frontmatter의 <code>review:</code> 블록으로 다음 재평가 일정을 지정합니다. "
-        "간격은 confidence를 따릅니다. high → 90일, medium → 30일, low → 7일.",
+        lede="각 페이지는 '언제 다시 볼지'를 스스로 기억합니다. 글 맨 위 메타정보 영역인 frontmatter의 <code>review:</code> 블록에 적힙니다. "
+        "신뢰도가 높을수록 간격이 길어집니다. 믿을 만한 내용은 자주 볼 필요가 없으니까요. "
+        "high는 90일, medium은 30일, low는 7일마다 다시 검토하도록 안내합니다.",
         commands=[
             {
                 "label": "llm-wiki.md (high-confidence) review 완료 처리",
@@ -612,8 +629,8 @@ SECTIONS: list[dict] = [
     dict(
         num="STEP 06",
         title="전문 검색 & 메신저 API",
-        lede="vault 검색은 SQLite FTS5(BM25)로 동작합니다. 세션에서 자연어로 묻거나, "
-        "<code>omw serve</code>로 로컬 읽기 전용 HTTP API를 띄워 <code>POST /query</code>로 가져옵니다.",
+        lede="위키 안의 글을 빠르게 찾는 검색입니다. 제목·요약·태그·본문을 함께 살핍니다. "
+        "세션에서 자연어로 묻거나, <code>omw serve</code>로 로컬 전용 검색 API(<code>POST /query</code>)를 띄워 다른 앱에서 가져올 수 있습니다.",
         commands=[
             {
                 "label": "vault 인덱싱 방식",
@@ -662,8 +679,8 @@ SECTIONS: list[dict] = [
     dict(
         num="STEP 07",
         title="엔티티 자동 링크",
-        lede="개념 페이지가 엔티티를 언급하면서 링크를 걸지 않는 경우, "
-        "oh-my-wiki가 링크 없는 언급을 감지하고 자동으로 wikilink를 삽입합니다.",
+        lede="어떤 글이 다른 대상(엔티티 — 인물·도구·개념 등)을 이름으로만 언급하고 연결은 안 걸어 둔 경우, "
+        "oh-my-wiki가 그 언급을 찾아 자동으로 위키 내부 링크(wikilink, <code>[[...]]</code> 형태)를 걸어 줍니다.",
         commands=[
             {
                 "label": "링크 없는 언급 감지 — omw links suggest",
@@ -755,8 +772,8 @@ SECTIONS: list[dict] = [
                 '  "inline": { "owner": ["dante"], "status": ["draft"] }\n'
                 "}",
                 "callout": "wikilink를 참조하는 관계 키(<code>uses</code>, <code>contradicts</code>, "
-                "<code>supersedes</code>)는 frontmatter <code>relations:</code>와 동일하게 "
-                "타입드 엣지 그래프에 반영됩니다.",
+                "<code>supersedes</code>)는 frontmatter <code>relations:</code>와 똑같이 "
+                "관계 그래프(무엇이 무엇과 어떻게 이어지는지)에 함께 반영됩니다.",
             },
         ],
     ),
@@ -808,7 +825,7 @@ SECTIONS: list[dict] = [
         num="레퍼런스",
         title="마무리 / 다음 단계",
         lede="전체 6부 레퍼런스는 영어·한국어 튜토리얼에 있습니다. "
-        "13개 CLI 서브커맨드는 결정론 ops를, 추론 작업은 AI 세션을 사용합니다.",
+        "13개 omw 명령어는 직접 실행하는 정리·관리 작업을, 생각이 필요한 작업은 AI 세션이 맡습니다.",
         commands=[
             {
                 "after_marker": True,  # marker; rendered via section 'after'
@@ -818,7 +835,7 @@ SECTIONS: list[dict] = [
 <tr><th>서브커맨드</th><th>한 줄 설명</th></tr>
 <tr><td><code>omw status</code></td><td>레지스트리 상태 표시: vault 수, 활성 vault, needs 코드</td></tr>
 <tr><td><code>omw vault</code></td><td>Vault 관리: create · list · use · forget</td></tr>
-<tr><td><code>omw lint</code></td><td>결정론 vault 건강 검사 (frontmatter + links + drift)</td></tr>
+<tr><td><code>omw lint</code></td><td>위키 건강 검사 (frontmatter + 링크 + 누락 파일)</td></tr>
 <tr><td><code>omw search</code></td><td>설정된 외부 provider를 통한 웹 검색 (brave/tavily/exa/…)</td></tr>
 <tr><td><code>omw serve</code></td><td>로컬 읽기 전용 HTTP 쿼리 API 시작 (포트 8765)</td></tr>
 <tr><td><code>omw schema</code></td><td>페이지 타입 스키마 표시: list · show &lt;type&gt;</td></tr>
@@ -844,25 +861,38 @@ SECTIONS: list[dict] = [
 # body + main
 # ─────────────────────────────────────────────────────────────────────────────
 OVERVIEW_DESIGN = {
-    "goal": "omw를 두 표면으로 쓴다.",
+    "goal": "oh-my-wiki는 두 가지 방법으로 씁니다.",
     "principles": [
-        "페르소나는 제안, 결정론 명령이 실행 (propose → confirm → execute).",
-        "어떤 AI 호스트(Claude Code · Codex · Gemini)에서도 동일한 SKILL.md, 동일한 트리거 문구.",
-        "모든 파일 변경은 감사 가능 — 추론은 투명하게, 출력은 결정론으로.",
+        "AI가 먼저 제안하고, 당신이 확인하면, 그때 실행됩니다 (제안 → 확인 → 실행).",
+        "Claude Code·Codex·Gemini 어디서 쓰든 같은 방식, 같은 말투로 동작합니다.",
+        "무엇이 바뀌는지 늘 눈으로 확인할 수 있고, 당신의 파일은 그대로 남습니다.",
     ],
     "components": [
         (
-            "⌨️",
-            "omw CLI",
-            "결정론 ops — 설치·셋업·vault·lint·schema·supersede·review·links·fields·serve·doctor",
+            "💬",
+            "말로 부탁하기 (omw 스킬)",
+            "AI 세션에서 평소 말투로 — 저장·검색·조사·글쓰기를 알아서 처리합니다.",
         ),
         (
-            "💬",
-            "omw 스킬",
-            "세션 내 자연어 추론 — ingest·query·autoresearch·페르소나",
+            "⌨️",
+            "명령어로 직접 (omw CLI)",
+            "정해진 작업을 정확히 실행 — 설치·셋업·검사·스키마·대체·리뷰·링크·검색 등.",
         ),
     ],
 }
+
+
+COMPARISON_BLOCK = """<div class="block-label" style="margin-top:34px">기존 방식과 무엇이 다른가</div>
+<table class="ref-table">
+<tr><th>무엇을</th><th>일반 메모 앱</th><th>옵시디언만 쓸 때</th><th>oh-my-wiki</th></tr>
+<tr><td>저장·정리</td><td>직접 적고 직접 정리</td><td>직접 적고 직접 정리 (좋은 편집기·그래프뷰 제공)</td><td>AI가 저장·요약·페이지 생성을 대신</td></tr>
+<tr><td>연결(링크)</td><td>거의 안 함</td><td>백링크를 손으로 연결</td><td>관련 있는 내용을 자동으로 연결</td></tr>
+<tr><td>품질 관리</td><td>없음</td><td>없음</td><td>신뢰도·재검토 주기·대체·사실검증까지</td></tr>
+<tr><td>옵시디언과의 관계</td><td>—</td><td>옵시디언 안에서만</td><td>옵시디언 보관함을 그대로 쓰며 그 위에서 동작 가능</td></tr>
+</table>
+<div class="callout" style="margin-top:18px">옵시디언을 대체하지 않습니다. 옵시디언이 "지식을 담는 그릇과 편집기"라면,
+oh-my-wiki는 그 위에서 <strong>대신 정리해 주는 사서</strong>에 가깝습니다. 글을 어디에 둘지(옵시디언·자료실·로컬)는
+자유이고, oh-my-wiki는 일관된 규약과 관리 도구만 제공합니다.</div>"""
 
 
 def body() -> str:
@@ -877,13 +907,13 @@ def body() -> str:
   <div class="hero-inner">
     <span class="hero-badge">oh-my-wiki · v3 · 한국어</span>
     <h1>AI 코딩 에이전트로 운영하는<br>host-universal LLM 위키</h1>
-    <p class="tagline">Claude Code · Codex · Gemini 세션에서 자연어로 위키를 키우고,
-    <code>omw</code> CLI로 결정론 작업을 실행합니다. 모든 명령과 출력은 실제 v3 실행 결과 그대로입니다.</p>
+    <p class="tagline">Claude Code · Codex · Gemini 세션에서 평소 말투로 위키를 키우고,
+    <code>omw</code> 명령어로 정리와 관리를 직접 실행합니다. 모든 명령과 출력은 실제 v3 실행 결과 그대로입니다.</p>
     <dl class="meta-grid">
-      <div><dt>표면</dt><dd>omw CLI + omw 스킬</dd></div>
+      <div><dt>쓰는 방법</dt><dd>명령어 + 말로 부탁</dd></div>
       <div><dt>호스트</dt><dd>Claude Code · Codex · Gemini</dd></div>
-      <div><dt>모델</dt><dd>propose → confirm → execute</dd></div>
-      <div><dt>CLI 서브커맨드</dt><dd>13개</dd></div>
+      <div><dt>동작 방식</dt><dd>제안 → 확인 → 실행</dd></div>
+      <div><dt>CLI 명령어</dt><dd>13개</dd></div>
     </dl>
   </div>
 </header>
@@ -896,11 +926,12 @@ def body() -> str:
 <section id="overview">
   <div class="container">
     <div class="section-num">OVERVIEW</div>
-    <h2>두 표면 모델</h2>
-    <p class="lede">oh-my-wiki는 Andrej Karpathy의 "LLM Wiki" 워크플로를 구현합니다.
-    모든 소스는 raw 스냅샷, 요약 페이지, 10–15개의 엔티티·개념 페이지 터치로 이어지고,
-    쿼리는 구조화된 위키에서 출처를 인용해 답합니다. 인터페이스는 정확히 두 개입니다.</p>
+    <h2>oh-my-wiki를 쓰는 두 가지 방법</h2>
+    <p class="lede">oh-my-wiki는 Andrej Karpathy가 말한 "LLM 위키" 아이디어를 실제로 구현한 도구입니다.
+    자료를 하나 넣으면 원본을 그대로 보관하고, 짧은 요약을 만들고, 등장한 인물·개념마다 페이지를 만들어
+    서로 연결합니다. 그리고 이렇게 쌓인 위키를 쓰는 방법은 두 가지입니다.</p>
     {overview_block}
+    {COMPARISON_BLOCK}
   </div>
 </section>
 
