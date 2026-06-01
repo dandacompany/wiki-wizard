@@ -464,7 +464,7 @@ curl -s http://127.0.0.1:8765/health
 curl -s -X POST http://127.0.0.1:8765/query \
   -H "Authorization: Bearer $OMW_SERVE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"query": "compounding knowledge", "limit": 5}'
+  -d '{"text": "compounding knowledge", "limit": 5}'
 ```
 
 See `references/messenger-api.md` for the full request/response JSON shape and

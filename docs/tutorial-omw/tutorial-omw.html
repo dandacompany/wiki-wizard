@@ -435,7 +435,7 @@ curl -s http://127.0.0.1:8765/health
 curl -s -X POST http://127.0.0.1:8765/query \
   -H "Authorization: Bearer $OMW_SERVE_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"query": "compounding knowledge", "limit": 5}'</pre></div>
+  -d '{"text": "compounding knowledge", "limit": 5}'</pre></div>
 <div class="callout">전체 요청/응답 JSON 형식과 Slack·Telegram·Discord 어댑터 스케치는 <code>references/messenger-api.md</code>에 있습니다.</div>
 <div class="note"><span class='star'>★ 구분</span> — <strong>omw search</strong>는 별개입니다. 외부 provider(brave·tavily·exa·firecrawl·brightdata)를 통한 <strong>웹 검색</strong>이며, vault 내부를 검색하지 않습니다. provider 미설정 시 <code>omw setup search</code>를 실행합니다.</div>
 </div></section>
