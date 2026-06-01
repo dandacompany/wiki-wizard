@@ -1,5 +1,7 @@
-# Meta/planning artifacts excluded from distribution
-docs/
+# Meta/planning artifacts excluded from distribution (ignore everything under docs/
+# except the published tutorial showcase)
+docs/*
+!docs/tutorial-omw/
 
 # Claude Code / AI agent instructions and memory (local-only, never publish)
 CLAUDE.md
