@@ -181,3 +181,22 @@ def test_setup_viewer_sets_default_and_scaffolds(tmp_path, monkeypatch):
     assert (config.load_config().get("viewer") or {}).get("default") == "obsidian"
     active = registry.get_active(registry_path())
     assert (Path(active["path"]) / ".obsidian" / "core-plugins.json").is_file()
+
+
+def test_cli_view_print_smoke(tmp_path):
+    import os, subprocess
+    home = tmp_path / "omw"
+    env = {**os.environ, "OMW_HOME": str(home)}
+    root = str(Path(__file__).resolve().parents[1])  # repo root (tests/ is under it)
+    subprocess.run([sys.executable, "-m", "scripts.omw_cli", "vault", "create", "demo", "--mode", "wiki"],
+                   check=True, env=env, cwd=root)
+    r = subprocess.run([sys.executable, "-m", "scripts.omw_cli", "view", "--print"],
+                       capture_output=True, text=True, env=env, cwd=root)
+    assert r.returncode == 0
+    assert r.stdout.strip() == "obsidian://open?vault=demo"
+
+    r2 = subprocess.run([sys.executable, "-m", "scripts.omw_cli", "view", "--print",
+                         "--viewer", "logseq", "--search", "x"],
+                        capture_output=True, text=True, env=env, cwd=root)
+    assert r2.returncode == 0
+    assert r2.stdout.strip() == "logseq://graph/demo"
