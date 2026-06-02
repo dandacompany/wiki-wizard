@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+from scripts import config, registry, setup_wizard
+from scripts.paths import registry_path
 from scripts.viewers import base
 
 
@@ -165,3 +167,17 @@ def test_run_print_builds_uri_without_launching(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert out.strip().startswith("obsidian://open?vault=demo")
+
+
+def test_setup_viewer_sets_default_and_scaffolds(tmp_path, monkeypatch):
+    home = tmp_path / "omw"
+    monkeypatch.setenv("OMW_HOME", str(home))
+    import os, subprocess
+    env = {**os.environ, "OMW_HOME": str(home)}
+    subprocess.run([sys.executable, "-m", "scripts.omw_cli", "vault", "create", "demo", "--mode", "wiki"],
+                   check=True, env=env, cwd=str(Path(setup_wizard.__file__).resolve().parents[1]))
+    rc = setup_wizard.setup_viewer(viewer="obsidian", noninteractive=True)
+    assert rc == 0
+    assert (config.load_config().get("viewer") or {}).get("default") == "obsidian"
+    active = registry.get_active(registry_path())
+    assert (Path(active["path"]) / ".obsidian" / "core-plugins.json").is_file()
