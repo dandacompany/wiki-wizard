@@ -61,7 +61,11 @@ def run(args) -> int:
 
     cfg = config.load_config()
     viewer_name = pick_viewer_name(cfg, getattr(args, "viewer", None))
-    viewer = viewers.get_viewer(viewer_name)
+    try:
+        viewer = viewers.get_viewer(viewer_name)
+    except viewers.UnknownViewer as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
     root = Path(row["path"])
     vault = VaultRef(root=root, name=viewer_vault_name(cfg, viewer_name, root))
 
@@ -89,7 +93,11 @@ def run(args) -> int:
     else:
         if not viewer.available():
             print(f"note: {viewer_name} may not be installed; opening URI anyway", file=sys.stderr)
-        launch(uri)
+        try:
+            launch(uri)
+        except (FileNotFoundError, OSError):
+            print(f"note: could not launch a URI handler for {viewer_name}; open this URI manually:",
+                  file=sys.stderr)
         print(uri, file=sys.stderr)
     if hint:
         print(hint, file=sys.stderr)

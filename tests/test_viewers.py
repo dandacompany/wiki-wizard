@@ -200,3 +200,35 @@ def test_cli_view_print_smoke(tmp_path):
                         capture_output=True, text=True, env=env, cwd=root)
     assert r2.returncode == 0
     assert r2.stdout.strip() == "logseq://graph/demo"
+
+
+def test_run_launch_failure_is_graceful(tmp_path, monkeypatch, capsys):
+    import os, subprocess
+    home = tmp_path / "omw"
+    env = {**os.environ, "OMW_HOME": str(home)}
+    root = str(Path(view.__file__).resolve().parents[1])
+    subprocess.run([sys.executable, "-m", "scripts.omw_cli", "vault", "create", "demo", "--mode", "wiki"],
+                   check=True, env=env, cwd=root)
+    monkeypatch.setenv("OMW_HOME", str(home))
+
+    def boom(uri, **kw):
+        raise FileNotFoundError("xdg-open")
+    monkeypatch.setattr(view, "launch", boom)
+    args = SimpleNamespace(page=None, search=None, viewer=None, vault=None, print=False)
+    rc = view.run(args)
+    err = capsys.readouterr().err
+    assert rc == 0
+    assert "obsidian://open?vault=demo" in err  # URI still surfaced, no crash
+
+
+def test_run_invalid_configured_viewer_errors(tmp_path, monkeypatch):
+    import os, subprocess
+    home = tmp_path / "omw"
+    env = {**os.environ, "OMW_HOME": str(home)}
+    root = str(Path(view.__file__).resolve().parents[1])
+    subprocess.run([sys.executable, "-m", "scripts.omw_cli", "vault", "create", "demo", "--mode", "wiki"],
+                   check=True, env=env, cwd=root)
+    monkeypatch.setenv("OMW_HOME", str(home))
+    monkeypatch.setattr(view.config, "load_config", lambda: {"viewer": {"default": "roam"}})
+    args = SimpleNamespace(page=None, search=None, viewer=None, vault=None, print=True)
+    assert view.run(args) == 1
