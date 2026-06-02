@@ -100,3 +100,17 @@ def test_logseq_scaffold_writes_config_edn_and_skips_existing(tmp_path):
     edn.write_text(";; user-edited\n")
     lv.scaffold_config(_vault(tmp_path))            # second run must not clobber
     assert edn.read_text() == ";; user-edited\n"
+
+
+from scripts import viewers
+
+
+def test_get_viewer_returns_right_class():
+    assert viewers.get_viewer("obsidian").name == "obsidian"
+    assert viewers.get_viewer("logseq").name == "logseq"
+
+
+def test_get_viewer_unknown_raises():
+    import pytest
+    with pytest.raises(viewers.UnknownViewer):
+        viewers.get_viewer("roam")
