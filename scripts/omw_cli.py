@@ -349,6 +349,11 @@ def _cmd_search(args) -> int:
     return 0
 
 
+def _cmd_view(args) -> int:
+    from scripts import view
+    return view.run(args)
+
+
 def _cmd_serve(args) -> int:
     from scripts import config, paths, server
     token = config.read_secret("OMW_SERVE_TOKEN")
@@ -407,6 +412,8 @@ def _cmd_setup(args) -> int:
     if args.section == "import":
         return setup_wizard.setup_import(
             token=args.token, src_dir=args.src_dir, noninteractive=args.noninteractive)
+    if args.section == "viewer":
+        return setup_wizard.setup_viewer(viewer=args.viewer, noninteractive=args.noninteractive)
     return setup_wizard.run(
         section=args.section,
         noninteractive=args.noninteractive,
@@ -532,10 +539,19 @@ def build_parser() -> argparse.ArgumentParser:
     pse.add_argument("--limit", type=int, default=10, help="max hits per response (cap)")
     pse.set_defaults(func=_cmd_serve)
 
+    pvw = sub.add_parser("view", help="Open the vault/page/search in a note viewer (obsidian/logseq).")
+    pvw.add_argument("page", nargs="?", default=None, help="page relpath or slug to open")
+    pvw.add_argument("--search", default=None, help="open the viewer's search with this query")
+    pvw.add_argument("--viewer", choices=["obsidian", "logseq"], default=None,
+                     help="override the configured viewer for this call")
+    pvw.add_argument("--vault", default=None, help="vault name (default: active)")
+    pvw.add_argument("--print", action="store_true", help="print the URI instead of launching")
+    pvw.set_defaults(func=_cmd_view)
+
     pset = sub.add_parser("setup", help="Interactive setup wizard (run after install).")
     pset.add_argument(
         "section", nargs="?",
-        choices=["vault", "hosts", "search", "serve", "personas", "tts", "import"], default=None,
+        choices=["vault", "hosts", "search", "serve", "personas", "tts", "import", "viewer"], default=None,
     )
     pset.add_argument(
         "--noninteractive", action="store_true",
@@ -556,6 +572,8 @@ def build_parser() -> argparse.ArgumentParser:
     pset.add_argument("--base-dir", dest="base_dir", default=None, help="dir for host instruction files")
     pset.add_argument("--voice-id", dest="voice_id", default=None)
     pset.add_argument("--src-dir", dest="src_dir", default=None)
+    pset.add_argument("--viewer", choices=["obsidian", "logseq"], default=None,
+                      help="viewer for `omw setup viewer` (default obsidian)")
     pset.set_defaults(func=_cmd_setup)
 
     pimp = sub.add_parser("import", help="Import folder/Obsidian/Notion into a vault.")

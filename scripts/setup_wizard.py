@@ -9,9 +9,11 @@ from __future__ import annotations
 import json
 import secrets
 import sys
+from pathlib import Path
 
-from scripts import adapters, registry, reindex
+from scripts import adapters, config, registry, reindex, viewers
 from scripts.paths import ensure_home, omw_home, registry_path, resolve_vault_root
+from scripts.viewers.base import VaultRef
 
 
 def _ensure_vault(name: str, mode: str, type_: str, location: str) -> None:
@@ -287,6 +289,36 @@ def setup_import(*, token: str | None = None, src_dir: str | None = None,
     return 0
 
 
+def setup_viewer(*, viewer: str | None = None, vault: str | None = None,
+                 noninteractive: bool = False) -> int:
+    """Pick a viewer (default obsidian), store it, and scaffold its config into the vault."""
+    choice = viewer or "obsidian"
+    if choice not in viewers.VIEWER_NAMES:
+        print(f"error: unknown viewer {choice!r}; choices: {', '.join(viewers.VIEWER_NAMES)}",
+              file=sys.stderr)
+        return 1
+    config.set_config("viewer.default", choice)
+
+    db = registry_path()
+    row = (next((v for v in registry.list_vaults(db) if v["name"] == vault), None)
+           if vault else registry.get_active(db))
+    if row is None:
+        print(f"viewer default set to {choice!r}. (no active vault to scaffold; "
+              f"create one then re-run `omw setup viewer`)")
+        return 0
+
+    root = Path(row["path"])
+    v = viewers.get_viewer(choice)
+    ref = VaultRef(root=root, name=root.name)
+    written, hints = v.scaffold_config(ref)
+    print(f"viewer: {choice}  vault: {row['name']}  ({root})")
+    for p in written:
+        print(f"  wrote {p}")
+    for h in hints:
+        print(f"  note: {h}")
+    return 0
+
+
 def run_all(*, noninteractive: bool = False, base_dir=None) -> int:
     """Top-level interactive wizard: walk every section in order with per-step skip.
 
@@ -300,6 +332,7 @@ def run_all(*, noninteractive: bool = False, base_dir=None) -> int:
         ("tts", lambda: setup_tts(noninteractive=noninteractive)),
         ("personas", lambda: setup_personas(noninteractive=noninteractive, base_dir=base_dir)),
         ("import", lambda: setup_import(noninteractive=noninteractive)),
+        ("viewer", lambda: setup_viewer(noninteractive=noninteractive)),
     ]
     for name, fn in steps:
         try:
