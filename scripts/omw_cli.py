@@ -596,7 +596,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    argv = list(sys.argv[1:] if argv is None else argv)
+    parser = build_parser()
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        from scripts import banner
+        banner.render(animate=False)   # static, self-gated for TTY/NO_COLOR/CI
+        parser.print_help()
+        return 0
+    args = parser.parse_args(argv)
     return args.func(args)
 
 

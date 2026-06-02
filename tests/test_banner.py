@@ -67,3 +67,34 @@ def test_render_animated_uses_spinner_frames_bounded():
     assert any(ch in s for ch in banner.SPINNER)          # spinner frames emitted
     assert "\r" in s                                      # single-line redraw
     assert 0 < len(frames) < 200                          # bounded, no infinite loop
+
+
+import subprocess, sys as _sys, os
+from pathlib import Path
+
+_REPO = str(Path(banner.__file__).resolve().parents[1])
+
+
+def _run(args, **env):
+    e = {**os.environ, **env}
+    return subprocess.run([_sys.executable, "-m", "scripts.omw_cli", *args],
+                          capture_output=True, text=True, cwd=_REPO, env=e)
+
+
+def test_cli_bare_shows_banner_and_help():
+    r = _run([])
+    assert r.returncode == 0
+    assert "|___/" in r.stdout            # banner
+    assert "usage: omw" in r.stdout       # help
+
+
+def test_cli_help_shows_banner():
+    r = _run(["--help"])
+    assert r.returncode == 0
+    assert "|___/" in r.stdout and "usage: omw" in r.stdout
+
+
+def test_cli_help_piped_has_no_ansi():
+    # captured (non-tty) → banner static, no escape codes
+    r = _run(["--help"])
+    assert "\x1b[" not in r.stdout
