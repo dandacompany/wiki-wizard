@@ -98,3 +98,14 @@ def test_cli_help_piped_has_no_ansi():
     # captured (non-tty) → banner static, no escape codes
     r = _run(["--help"])
     assert "\x1b[" not in r.stdout
+
+
+def test_setup_run_all_emits_banner(monkeypatch, capsys, tmp_path):
+    from scripts import setup_wizard
+    # stub every section to no-op so run_all just exercises the banner + flow
+    for name in ("run", "setup_search", "setup_serve", "setup_tts",
+                 "setup_personas", "setup_import", "setup_viewer"):
+        monkeypatch.setattr(setup_wizard, name, lambda **k: 0)
+    setup_wizard.run_all(noninteractive=True, base_dir=tmp_path)
+    out = capsys.readouterr().out
+    assert "|___/" in out      # wordmark printed at the top of the wizard
