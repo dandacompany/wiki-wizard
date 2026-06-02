@@ -72,3 +72,31 @@ def test_obsidian_scaffold_is_idempotent_union(tmp_path):
     obs.scaffold_config(_vault(tmp_path))
     plugins = json.loads(cp.read_text())
     assert "my-custom-plugin" in plugins and "graph" in plugins  # union, not clobber
+
+
+from scripts.viewers.logseq import LogseqViewer
+
+
+def test_logseq_open_vault(tmp_path):
+    assert LogseqViewer().open_vault(_vault(tmp_path)) == "logseq://graph/demo"
+
+
+def test_logseq_open_page_uses_stem(tmp_path):
+    uri = LogseqViewer().open_page(_vault(tmp_path), "wiki/entities/andrej-karpathy.md")
+    assert uri == "logseq://graph/demo?page=andrej-karpathy"
+
+
+def test_logseq_search_falls_back_to_graph_and_flags_no_search(tmp_path):
+    lv = LogseqViewer()
+    assert lv.supports_search is False
+    assert lv.search(_vault(tmp_path), "anything") == "logseq://graph/demo"
+
+
+def test_logseq_scaffold_writes_config_edn_and_skips_existing(tmp_path):
+    lv = LogseqViewer()
+    written, _ = lv.scaffold_config(_vault(tmp_path))
+    edn = tmp_path / "logseq" / "config.edn"
+    assert edn in written and ":preferred-format :markdown" in edn.read_text()
+    edn.write_text(";; user-edited\n")
+    lv.scaffold_config(_vault(tmp_path))            # second run must not clobber
+    assert edn.read_text() == ";; user-edited\n"
