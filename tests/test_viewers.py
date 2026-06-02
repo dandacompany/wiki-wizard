@@ -114,3 +114,54 @@ def test_get_viewer_unknown_raises():
     import pytest
     with pytest.raises(viewers.UnknownViewer):
         viewers.get_viewer("roam")
+
+
+from types import SimpleNamespace
+from scripts import view
+
+
+def test_pick_viewer_name_default_obsidian():
+    assert view.pick_viewer_name({}, None) == "obsidian"
+    assert view.pick_viewer_name({"viewer": {"default": "logseq"}}, None) == "logseq"
+    assert view.pick_viewer_name({"viewer": {"default": "logseq"}}, "obsidian") == "obsidian"
+
+
+def test_viewer_vault_name_default_basename_and_override():
+    root = Path("/tmp/my-vault")
+    assert view.viewer_vault_name({}, "obsidian", root) == "my-vault"
+    cfg = {"viewer": {"obsidian": {"vault_name": "Custom"}}}
+    assert view.viewer_vault_name(cfg, "obsidian", root) == "Custom"
+
+
+def test_resolve_page_direct_relpath(tmp_path):
+    (tmp_path / "wiki").mkdir()
+    (tmp_path / "wiki" / "x.md").write_text("hi")
+    assert view.resolve_page([], tmp_path, "wiki/x.md") == "wiki/x.md"
+
+
+def test_resolve_page_by_stem(tmp_path):
+    rows = [{"relpath": "wiki/entities/andrej-karpathy.md"}]
+    assert view.resolve_page(rows, tmp_path, "andrej-karpathy") == "wiki/entities/andrej-karpathy.md"
+
+
+def test_resolve_page_not_found_raises_with_candidates(tmp_path):
+    import pytest
+    rows = [{"relpath": "wiki/concepts/llm-wiki.md"}]
+    with pytest.raises(view.PageNotFound) as ei:
+        view.resolve_page(rows, tmp_path, "llm")
+    assert "llm-wiki.md" in " ".join(ei.value.candidates)
+
+
+def test_run_print_builds_uri_without_launching(tmp_path, monkeypatch, capsys):
+    import os, subprocess
+    home = tmp_path / "omw"
+    env = {**os.environ, "OMW_HOME": str(home)}
+    root = str(Path(view.__file__).resolve().parents[1])
+    subprocess.run([sys.executable, "-m", "scripts.omw_cli", "vault", "create", "demo", "--mode", "wiki"],
+                   check=True, env=env, cwd=root)
+    args = SimpleNamespace(page=None, search=None, viewer=None, vault=None, print=True)
+    monkeypatch.setenv("OMW_HOME", str(home))
+    rc = view.run(args)
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert out.strip().startswith("obsidian://open?vault=demo")
