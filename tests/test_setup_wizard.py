@@ -230,9 +230,10 @@ def test_run_all_invokes_sections_in_order(monkeypatch, tmp_path):
     monkeypatch.setattr(setup_wizard, "setup_tts", lambda **k: calls.append("tts") or 0)
     monkeypatch.setattr(setup_wizard, "setup_personas", lambda **k: calls.append("personas") or 0)
     monkeypatch.setattr(setup_wizard, "setup_import", lambda **k: calls.append("import") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_viewer", lambda **k: calls.append("viewer") or 0)
     rc = setup_wizard.run_all(noninteractive=False, base_dir=tmp_path)
     assert rc == 0
-    assert calls == ["vault", "search", "serve", "tts", "personas", "import"]
+    assert calls == ["vault", "search", "serve", "tts", "personas", "import", "viewer"]
 
 
 def test_run_all_returns_first_nonzero_but_continues(monkeypatch, tmp_path):
@@ -244,9 +245,10 @@ def test_run_all_returns_first_nonzero_but_continues(monkeypatch, tmp_path):
     monkeypatch.setattr(setup_wizard, "setup_tts", lambda **k: calls.append("tts") or 0)
     monkeypatch.setattr(setup_wizard, "setup_personas", lambda **k: calls.append("personas") or 0)
     monkeypatch.setattr(setup_wizard, "setup_import", lambda **k: calls.append("import") or 0)
+    monkeypatch.setattr(setup_wizard, "setup_viewer", lambda **k: calls.append("viewer") or 0)
     rc = setup_wizard.run_all(noninteractive=False, base_dir=tmp_path)
     assert rc == 2
-    assert calls == ["vault", "search", "serve", "tts", "personas", "import"]
+    assert calls == ["vault", "search", "serve", "tts", "personas", "import", "viewer"]
 
 
 def test_setup_import_interactive_stores_notion_key(monkeypatch):
