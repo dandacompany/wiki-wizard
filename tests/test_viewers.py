@@ -29,3 +29,46 @@ def test_launch_invokes_runner_with_uri_and_returns_it():
 def test_vaultref_fields():
     v = base.VaultRef(root=Path("/tmp/demo"), name="demo")
     assert v.root == Path("/tmp/demo") and v.name == "demo"
+
+
+from scripts.viewers.obsidian import ObsidianViewer
+
+
+def _vault(tmp_path):
+    return base.VaultRef(root=tmp_path, name="demo")
+
+
+def test_obsidian_open_vault(tmp_path):
+    assert ObsidianViewer().open_vault(_vault(tmp_path)) == "obsidian://open?vault=demo"
+
+
+def test_obsidian_open_page_uses_absolute_path(tmp_path):
+    uri = ObsidianViewer().open_page(_vault(tmp_path), "wiki/entities/x.md")
+    assert uri == "obsidian://open?path=" + base.quote_value(str(tmp_path / "wiki/entities/x.md"))
+
+
+def test_obsidian_search(tmp_path):
+    assert ObsidianViewer().search(_vault(tmp_path), "compounding knowledge") == \
+        "obsidian://search?vault=demo&query=compounding%20knowledge"
+
+
+def test_obsidian_scaffold_writes_core_plugins_and_app(tmp_path):
+    written, hints = ObsidianViewer().scaffold_config(_vault(tmp_path))
+    cp = tmp_path / ".obsidian" / "core-plugins.json"
+    app = tmp_path / ".obsidian" / "app.json"
+    assert cp in written and app in written
+    import json
+    assert "graph" in json.loads(cp.read_text())
+    assert json.loads(app.read_text())["alwaysUpdateLinks"] is True
+    assert any("dataview" in h.lower() for h in hints)
+
+
+def test_obsidian_scaffold_is_idempotent_union(tmp_path):
+    import json
+    obs = ObsidianViewer()
+    cp = tmp_path / ".obsidian" / "core-plugins.json"
+    cp.parent.mkdir(parents=True)
+    cp.write_text(json.dumps(["my-custom-plugin"]))
+    obs.scaffold_config(_vault(tmp_path))
+    plugins = json.loads(cp.read_text())
+    assert "my-custom-plugin" in plugins and "graph" in plugins  # union, not clobber
