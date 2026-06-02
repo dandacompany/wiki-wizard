@@ -81,6 +81,8 @@ def banner_text(*, color: bool = False) -> str:
 
 def render(*, animate=None, stream=None, sleep=time.sleep, color=None) -> None:
     stream = stream if stream is not None else sys.stdout
+    if os.environ.get("OMW_NO_BANNER"):
+        return  # hard suppression — show nothing on any surface
     if animate is None:
         animate = should_animate(stream)
     if color is None:

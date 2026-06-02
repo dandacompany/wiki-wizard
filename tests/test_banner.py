@@ -115,3 +115,16 @@ def test_install_sh_contains_wordmark():
     sh = (Path(_REPO) / "bin" / "install.sh").read_text(encoding="utf-8")
     assert "|___/" in sh          # the wordmark is embedded for the bash banner
     assert "oh-my-wiki.com" in sh  # footer info present in the installer banner
+
+
+def test_render_suppressed_by_omw_no_banner(monkeypatch):
+    monkeypatch.setenv("OMW_NO_BANNER", "1")
+    out = io.StringIO()
+    banner.render(animate=False, stream=out, sleep=lambda *_: None)
+    assert out.getvalue() == ""   # fully suppressed, any surface
+
+
+def test_cli_help_omw_no_banner_suppresses():
+    r = _run(["--help"], OMW_NO_BANNER="1")
+    assert "|___/" not in r.stdout    # banner suppressed
+    assert "usage: omw" in r.stdout   # help text still shown
