@@ -83,24 +83,27 @@ def render(*, animate=None, stream=None, sleep=time.sleep, color=None) -> None:
     stream = stream if stream is not None else sys.stdout
     if os.environ.get("OMW_NO_BANNER"):
         return  # hard suppression — show nothing on any surface
-    if animate is None:
-        animate = should_animate(stream)
-    if color is None:
-        color = animate  # color only when we're in an animated TTY context
+    try:
+        if animate is None:
+            animate = should_animate(stream)
+        if color is None:
+            color = animate  # color only when we're in an animated TTY context
 
-    if not animate:
-        stream.write(banner_text(color=color))
-        stream.flush()
-        return
+        if not animate:
+            stream.write(banner_text(color=color))
+            stream.flush()
+            return
 
-    # animated: print wordmark, then spin the tagline line in place (~0.6s), then settle.
-    stream.write(WORDMARK + "\n\n")
-    spins = 18
-    for i in range(spins):
-        frame = SPINNER[i % len(SPINNER)]
-        stream.write("\r" + _tagline(frame, color))
+        # animated: print wordmark, then spin the tagline line in place (~0.6s), then settle.
+        stream.write(WORDMARK + "\n\n")
+        spins = 18
+        for i in range(spins):
+            frame = SPINNER[i % len(SPINNER)]
+            stream.write("\r" + _tagline(frame, color))
+            stream.flush()
+            sleep(0.033)
+        stream.write("\r" + _tagline(SPINNER[0], color) + "\n\n")
+        stream.write(_footer(color) + "\n")
         stream.flush()
-        sleep(0.033)
-    stream.write("\r" + _tagline(SPINNER[0], color) + "\n\n")
-    stream.write(_footer(color) + "\n")
-    stream.flush()
+    except (BrokenPipeError, ValueError):
+        return  # consumer closed the pipe (e.g. `omw --help | head`) — stop quietly

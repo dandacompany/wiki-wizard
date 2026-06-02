@@ -128,3 +128,13 @@ def test_cli_help_omw_no_banner_suppresses():
     r = _run(["--help"], OMW_NO_BANNER="1")
     assert "|___/" not in r.stdout    # banner suppressed
     assert "usage: omw" in r.stdout   # help text still shown
+
+
+def test_render_survives_broken_pipe():
+    class BadStream:
+        def write(self, *a): raise BrokenPipeError()
+        def flush(self): raise BrokenPipeError()
+        def isatty(self): return False
+    # must not raise
+    banner.render(animate=False, stream=BadStream(), sleep=lambda *_: None)
+    banner.render(animate=True, stream=BadStream(), sleep=lambda *_: None)
