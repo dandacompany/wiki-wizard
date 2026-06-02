@@ -109,3 +109,9 @@ def test_setup_run_all_emits_banner(monkeypatch, capsys, tmp_path):
     setup_wizard.run_all(noninteractive=True, base_dir=tmp_path)
     out = capsys.readouterr().out
     assert "|___/" in out      # wordmark printed at the top of the wizard
+
+
+def test_install_sh_contains_wordmark():
+    sh = (Path(_REPO) / "bin" / "install.sh").read_text(encoding="utf-8")
+    assert "|___/" in sh          # the wordmark is embedded for the bash banner
+    assert "oh-my-wiki.com" in sh  # footer info present in the installer banner
